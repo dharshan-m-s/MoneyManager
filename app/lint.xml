@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- The app intentionally ships the Material 2 design system (androidx.compose.material)
+         and only consumes Material 3-powered component libraries transitively. A full
+         Material 3 migration is deliberate follow-up work, not a bug, so this cross-library
+         warning is suppressed rather than raw noise. All other real checks stay active. -->
+    <issue id="UsingMaterialAndMaterial3Libraries" severity="ignore" />
+
+    <!-- Adaptive-icon XML is required to live under mipmap-anydpi-v26 for AAPT to link it even
+         though minSdk is 30. Moving it to a version-less folder breaks resource linking, so the
+         folder-level v26 warning is suppressed; the code-level SDK_INT check was already removed. -->
+    <issue id="ObsoleteSdkInt" severity="ignore" />
+</lint>

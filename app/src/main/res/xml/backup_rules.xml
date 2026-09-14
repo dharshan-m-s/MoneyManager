@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 30 fallback to android:dataExtractionRules (which covers API 31+).
+     Same intent as data_extraction_rules.xml: never silently auto-backup or
+     transfer this financial ledger; the app's own SAF backup is the only path. -->
+<full-backup-content>
+    <exclude domain="root" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="external" path="." />
+</full-backup-content>

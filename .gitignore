@@ -1,0 +1,119 @@
+
+# ===========================================================================
+# Money Manager — Git ignore rules
+# Project original work is MIT-licensed; these rules protect private user data,
+# signing material, and local build state from ever being published.
+# ===========================================================================
+
+# ---- Gradle / Build tooling --------------------------------------------------
+.gradle/
+build/
+**/build/
+*.iml
+gradle-app.setting
+!gradle/wrapper/gradle-wrapper.jar
+
+# ---- Android Studio / IntelliJ -----------------------------------------------
+.idea/
+**/.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+*.hprof
+*.profraw
+*.dump
+
+# ---- Kotlin ------------------------------------------------------------------
+.kotlin/
+# KSP/Room schema snapshots are intentionally VERSIONED under app/schemas.
+
+# ---- Local / machine configuration (never commit) ----------------------------
+local.properties
+*.properties.orig
+
+# ---- Keystores & signing material (never commit these) -----------------------
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.p8
+*.sec
+*.jks.bak
+*.keystore.bak
+/release.jks
+/release.keystore
+signing.properties
+*.env
+.env
+.env.*
+.envrc
+
+# ---- Third-party service config ----------------------------------------------
+google-services.json
+fabric.properties
+secrets.properties
+
+# ---- Private / personal finance data (never commit these) --------------------
+private/
+/data/
+/exports/
+/backups/
+moneyview-export.csv
+/moneyview-export.csv
+moneyview-consolidated-statement.csv
+*.moneyview.csv
+*.statement.csv
+*.ledger.csv
+
+# ---- Merchant / receipt / user media never generated in repo -----------------
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ---- APK / AAB / packaged artifacts ------------------------------------------
+*.apk
+*.aab
+*.apk.idsig
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.log
+*.out
+*.tmp
+*.bak
+*.orig
+*.rej
+*~
+
+# ---- OS files ----------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ---- Editors ---------------------------------------------------------------
+.vscode/
+*.swp
+*.swo
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/shelf/
+.idea/safeToDelete.txt
+.idea/encodings.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/libraries/
+.idea/inspectionProfiles/
+
+# ---- Test / coverage artifacts (reports live under build/, this is belt & braces)
+*.gcda
+*.gcno
+*.ec

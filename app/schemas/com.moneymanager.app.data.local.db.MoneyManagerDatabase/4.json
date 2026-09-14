@@ -1,0 +1,1077 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "9df8c10185f66d8c3bf5c6ecdbbc0e12",
+    "entities": [
+      {
+        "tableName": "accounts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sourceAccountId` TEXT NOT NULL, `institutionName` TEXT NOT NULL, `nickname` TEXT NOT NULL, `accountType` TEXT NOT NULL, `businessPersonal` TEXT NOT NULL, `openingBalanceMinorUnits` INTEGER NOT NULL, `currentBalanceMinorUnits` INTEGER NOT NULL, `startingBalanceMinorUnits` INTEGER NOT NULL DEFAULT 0, `calculatedBalanceMinorUnits` INTEGER NOT NULL DEFAULT 0, `calculatedBalanceFromHistoryMinorUnits` INTEGER NOT NULL DEFAULT 0, `totalCreditMinorUnits` INTEGER NOT NULL DEFAULT 0, `totalDebitMinorUnits` INTEGER NOT NULL DEFAULT 0, `transferInMinorUnits` INTEGER NOT NULL DEFAULT 0, `transferOutMinorUnits` INTEGER NOT NULL DEFAULT 0, `adjustedCreditMinorUnits` INTEGER NOT NULL DEFAULT 0, `adjustedDebitMinorUnits` INTEGER NOT NULL DEFAULT 0, `parentAccountId` INTEGER, `bankId` TEXT, `bankAccountType` TEXT, `fullAccountId` TEXT, `status` TEXT, `deleted` INTEGER NOT NULL DEFAULT 0, `hide` INTEGER NOT NULL DEFAULT 0, `hideAccountTxns` INTEGER NOT NULL DEFAULT 0, `balanceSource` TEXT NOT NULL, `lastReportedBalanceMinorUnits` INTEGER, `lastReportedAtEpochMillis` INTEGER, `creditLimitMinorUnits` INTEGER, `availableLimitMinorUnits` INTEGER, `outstandingMinorUnits` INTEGER, `billingCycleStartDay` INTEGER, `dueDate` INTEGER, `billAmountMinorUnits` INTEGER, `autoPay` INTEGER NOT NULL, `active` INTEGER NOT NULL, `isSyntheticUnlinkedAccount` INTEGER NOT NULL, `metadataJson` TEXT, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceAccountId",
+            "columnName": "sourceAccountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "institutionName",
+            "columnName": "institutionName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nickname",
+            "columnName": "nickname",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountType",
+            "columnName": "accountType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "businessPersonal",
+            "columnName": "businessPersonal",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "openingBalanceMinorUnits",
+            "columnName": "openingBalanceMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentBalanceMinorUnits",
+            "columnName": "currentBalanceMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startingBalanceMinorUnits",
+            "columnName": "startingBalanceMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "calculatedBalanceMinorUnits",
+            "columnName": "calculatedBalanceMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "calculatedBalanceFromHistoryMinorUnits",
+            "columnName": "calculatedBalanceFromHistoryMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "totalCreditMinorUnits",
+            "columnName": "totalCreditMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "totalDebitMinorUnits",
+            "columnName": "totalDebitMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "transferInMinorUnits",
+            "columnName": "transferInMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "transferOutMinorUnits",
+            "columnName": "transferOutMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "adjustedCreditMinorUnits",
+            "columnName": "adjustedCreditMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "adjustedDebitMinorUnits",
+            "columnName": "adjustedDebitMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "parentAccountId",
+            "columnName": "parentAccountId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "bankId",
+            "columnName": "bankId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bankAccountType",
+            "columnName": "bankAccountType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fullAccountId",
+            "columnName": "fullAccountId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "deleted",
+            "columnName": "deleted",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "hide",
+            "columnName": "hide",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "hideAccountTxns",
+            "columnName": "hideAccountTxns",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "balanceSource",
+            "columnName": "balanceSource",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastReportedBalanceMinorUnits",
+            "columnName": "lastReportedBalanceMinorUnits",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastReportedAtEpochMillis",
+            "columnName": "lastReportedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "creditLimitMinorUnits",
+            "columnName": "creditLimitMinorUnits",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "availableLimitMinorUnits",
+            "columnName": "availableLimitMinorUnits",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "outstandingMinorUnits",
+            "columnName": "outstandingMinorUnits",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "billingCycleStartDay",
+            "columnName": "billingCycleStartDay",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "dueDate",
+            "columnName": "dueDate",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "billAmountMinorUnits",
+            "columnName": "billAmountMinorUnits",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "autoPay",
+            "columnName": "autoPay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "active",
+            "columnName": "active",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isSyntheticUnlinkedAccount",
+            "columnName": "isSyntheticUnlinkedAccount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "metadataJson",
+            "columnName": "metadataJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_accounts_sourceAccountId",
+            "unique": true,
+            "columnNames": [
+              "sourceAccountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_accounts_sourceAccountId` ON `${TABLE_NAME}` (`sourceAccountId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "categories",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `kind` TEXT NOT NULL, `iconKey` TEXT NOT NULL, `colorHex` TEXT NOT NULL, `isImportedOnly` INTEGER NOT NULL, `active` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "iconKey",
+            "columnName": "iconKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "colorHex",
+            "columnName": "colorHex",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isImportedOnly",
+            "columnName": "isImportedOnly",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "active",
+            "columnName": "active",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_categories_name",
+            "unique": true,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_categories_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "transactions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `occurredAtEpochMillis` INTEGER NOT NULL, `rawDateString` TEXT NOT NULL, `txnType` TEXT NOT NULL, `txnSubType` TEXT NOT NULL, `txnKind` TEXT NOT NULL, `paymentType` TEXT NOT NULL, `rawPaymentType` TEXT, `businessPersonal` TEXT NOT NULL, `merchantReceiverSender` TEXT, `categoryId` INTEGER, `rawCategoryName` TEXT, `accountId` INTEGER NOT NULL, `creditMinorUnits` INTEGER NOT NULL, `debitMinorUnits` INTEGER NOT NULL, `balanceSnapshotMinorUnits` INTEGER, `outstandingSnapshotMinorUnits` INTEGER, `availableLimitSnapshotMinorUnits` INTEGER, `notes` TEXT, `reimbursable` INTEGER NOT NULL, `reimbursed` INTEGER NOT NULL, `linkedTransferTransactionId` INTEGER, `isCreditCardBillPayment` INTEGER NOT NULL, `paysOffAccountId` INTEGER, `includeInStatistics` INTEGER NOT NULL DEFAULT 1, `isHistoricalImport` INTEGER NOT NULL, `importBatchId` INTEGER, `dedupeFingerprint` TEXT NOT NULL, `metadataJson` TEXT, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, FOREIGN KEY(`accountId`) REFERENCES `accounts`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "occurredAtEpochMillis",
+            "columnName": "occurredAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rawDateString",
+            "columnName": "rawDateString",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "txnType",
+            "columnName": "txnType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "txnSubType",
+            "columnName": "txnSubType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "txnKind",
+            "columnName": "txnKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "paymentType",
+            "columnName": "paymentType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rawPaymentType",
+            "columnName": "rawPaymentType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "businessPersonal",
+            "columnName": "businessPersonal",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "merchantReceiverSender",
+            "columnName": "merchantReceiverSender",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "categoryId",
+            "columnName": "categoryId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "rawCategoryName",
+            "columnName": "rawCategoryName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "creditMinorUnits",
+            "columnName": "creditMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "debitMinorUnits",
+            "columnName": "debitMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "balanceSnapshotMinorUnits",
+            "columnName": "balanceSnapshotMinorUnits",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "outstandingSnapshotMinorUnits",
+            "columnName": "outstandingSnapshotMinorUnits",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "availableLimitSnapshotMinorUnits",
+            "columnName": "availableLimitSnapshotMinorUnits",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reimbursable",
+            "columnName": "reimbursable",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reimbursed",
+            "columnName": "reimbursed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "linkedTransferTransactionId",
+            "columnName": "linkedTransferTransactionId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "isCreditCardBillPayment",
+            "columnName": "isCreditCardBillPayment",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "paysOffAccountId",
+            "columnName": "paysOffAccountId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "includeInStatistics",
+            "columnName": "includeInStatistics",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "isHistoricalImport",
+            "columnName": "isHistoricalImport",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importBatchId",
+            "columnName": "importBatchId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "dedupeFingerprint",
+            "columnName": "dedupeFingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "metadataJson",
+            "columnName": "metadataJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_transactions_accountId",
+            "unique": false,
+            "columnNames": [
+              "accountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_transactions_accountId` ON `${TABLE_NAME}` (`accountId`)"
+          },
+          {
+            "name": "index_transactions_categoryId",
+            "unique": false,
+            "columnNames": [
+              "categoryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_transactions_categoryId` ON `${TABLE_NAME}` (`categoryId`)"
+          },
+          {
+            "name": "index_transactions_occurredAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "occurredAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_transactions_occurredAtEpochMillis` ON `${TABLE_NAME}` (`occurredAtEpochMillis`)"
+          },
+          {
+            "name": "index_transactions_linkedTransferTransactionId",
+            "unique": false,
+            "columnNames": [
+              "linkedTransferTransactionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_transactions_linkedTransferTransactionId` ON `${TABLE_NAME}` (`linkedTransferTransactionId`)"
+          },
+          {
+            "name": "index_transactions_dedupeFingerprint",
+            "unique": false,
+            "columnNames": [
+              "dedupeFingerprint"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_transactions_dedupeFingerprint` ON `${TABLE_NAME}` (`dedupeFingerprint`)"
+          },
+          {
+            "name": "index_transactions_accountId_occurredAtEpochMillis_creditMinorUnits_debitMinorUnits",
+            "unique": false,
+            "columnNames": [
+              "accountId",
+              "occurredAtEpochMillis",
+              "creditMinorUnits",
+              "debitMinorUnits"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_transactions_accountId_occurredAtEpochMillis_creditMinorUnits_debitMinorUnits` ON `${TABLE_NAME}` (`accountId`, `occurredAtEpochMillis`, `creditMinorUnits`, `debitMinorUnits`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "accounts",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "accountId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "categories",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "categoryId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "bills",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `billerName` TEXT NOT NULL, `billerType` TEXT NOT NULL, `accountReferenceId` TEXT, `nickname` TEXT NOT NULL, `linkedAccountId` INTEGER, `billingCycle` TEXT NOT NULL, `nextDueDateEpochMillis` INTEGER NOT NULL, `estimatedAmountMinorUnits` INTEGER NOT NULL, `autoPay` INTEGER NOT NULL, `reminderEnabled` INTEGER NOT NULL, `reminderDaysBefore` INTEGER NOT NULL, `businessPersonal` TEXT NOT NULL, `active` INTEGER NOT NULL, `autoGenerateBills` INTEGER NOT NULL, `autoGenerateLeadDays` INTEGER NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, FOREIGN KEY(`linkedAccountId`) REFERENCES `accounts`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "billerName",
+            "columnName": "billerName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "billerType",
+            "columnName": "billerType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountReferenceId",
+            "columnName": "accountReferenceId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "nickname",
+            "columnName": "nickname",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "linkedAccountId",
+            "columnName": "linkedAccountId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "billingCycle",
+            "columnName": "billingCycle",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nextDueDateEpochMillis",
+            "columnName": "nextDueDateEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "estimatedAmountMinorUnits",
+            "columnName": "estimatedAmountMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoPay",
+            "columnName": "autoPay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reminderEnabled",
+            "columnName": "reminderEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reminderDaysBefore",
+            "columnName": "reminderDaysBefore",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "businessPersonal",
+            "columnName": "businessPersonal",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "active",
+            "columnName": "active",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoGenerateBills",
+            "columnName": "autoGenerateBills",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoGenerateLeadDays",
+            "columnName": "autoGenerateLeadDays",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_bills_linkedAccountId",
+            "unique": false,
+            "columnNames": [
+              "linkedAccountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_bills_linkedAccountId` ON `${TABLE_NAME}` (`linkedAccountId`)"
+          },
+          {
+            "name": "index_bills_nextDueDateEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "nextDueDateEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_bills_nextDueDateEpochMillis` ON `${TABLE_NAME}` (`nextDueDateEpochMillis`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "accounts",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "linkedAccountId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "bill_instances",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `billId` INTEGER NOT NULL, `dueDateEpochMillis` INTEGER NOT NULL, `amountDueMinorUnits` INTEGER NOT NULL, `paid` INTEGER NOT NULL, `paidAtEpochMillis` INTEGER, `paymentTransactionId` INTEGER, FOREIGN KEY(`billId`) REFERENCES `bills`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`paymentTransactionId`) REFERENCES `transactions`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "billId",
+            "columnName": "billId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dueDateEpochMillis",
+            "columnName": "dueDateEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "amountDueMinorUnits",
+            "columnName": "amountDueMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "paid",
+            "columnName": "paid",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "paidAtEpochMillis",
+            "columnName": "paidAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "paymentTransactionId",
+            "columnName": "paymentTransactionId",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_bill_instances_billId",
+            "unique": false,
+            "columnNames": [
+              "billId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_bill_instances_billId` ON `${TABLE_NAME}` (`billId`)"
+          },
+          {
+            "name": "index_bill_instances_dueDateEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "dueDateEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_bill_instances_dueDateEpochMillis` ON `${TABLE_NAME}` (`dueDateEpochMillis`)"
+          },
+          {
+            "name": "index_bill_instances_paymentTransactionId",
+            "unique": false,
+            "columnNames": [
+              "paymentTransactionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_bill_instances_paymentTransactionId` ON `${TABLE_NAME}` (`paymentTransactionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "bills",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "billId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "transactions",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "paymentTransactionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "budgets",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `year` INTEGER NOT NULL, `month` INTEGER NOT NULL, `budgetAmountMinorUnits` INTEGER NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "year",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "month",
+            "columnName": "month",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "budgetAmountMinorUnits",
+            "columnName": "budgetAmountMinorUnits",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "import_batches",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sourceFileName` TEXT NOT NULL, `startedAtEpochMillis` INTEGER NOT NULL, `completedAtEpochMillis` INTEGER, `totalRows` INTEGER NOT NULL, `validRows` INTEGER NOT NULL, `problemRows` INTEGER NOT NULL, `duplicateRowsDetected` INTEGER NOT NULL, `rowsImported` INTEGER NOT NULL, `dateRangeStartEpochMillis` INTEGER, `dateRangeEndEpochMillis` INTEGER)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceFileName",
+            "columnName": "sourceFileName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtEpochMillis",
+            "columnName": "startedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAtEpochMillis",
+            "columnName": "completedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "totalRows",
+            "columnName": "totalRows",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "validRows",
+            "columnName": "validRows",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "problemRows",
+            "columnName": "problemRows",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "duplicateRowsDetected",
+            "columnName": "duplicateRowsDetected",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rowsImported",
+            "columnName": "rowsImported",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateRangeStartEpochMillis",
+            "columnName": "dateRangeStartEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "dateRangeEndEpochMillis",
+            "columnName": "dateRangeEndEpochMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "import_row_results",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `importBatchId` INTEGER NOT NULL, `rowNumber` INTEGER NOT NULL, `status` TEXT NOT NULL, `problemDescription` TEXT, `rawLine` TEXT, `createdTransactionId` INTEGER, `possibleDuplicateOfTransactionId` INTEGER, FOREIGN KEY(`importBatchId`) REFERENCES `import_batches`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importBatchId",
+            "columnName": "importBatchId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rowNumber",
+            "columnName": "rowNumber",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "problemDescription",
+            "columnName": "problemDescription",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "rawLine",
+            "columnName": "rawLine",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdTransactionId",
+            "columnName": "createdTransactionId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "possibleDuplicateOfTransactionId",
+            "columnName": "possibleDuplicateOfTransactionId",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_import_row_results_importBatchId",
+            "unique": false,
+            "columnNames": [
+              "importBatchId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_import_row_results_importBatchId` ON `${TABLE_NAME}` (`importBatchId`)"
+          },
+          {
+            "name": "index_import_row_results_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_import_row_results_status` ON `${TABLE_NAME}` (`status`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "import_batches",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "importBatchId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9df8c10185f66d8c3bf5c6ecdbbc0e12')"
+    ]
+  }
+}
