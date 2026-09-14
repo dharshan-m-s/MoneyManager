@@ -81,7 +81,7 @@ ksp {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.core:core-ktx:1.19.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("androidx.lifecycle:lifecycle-runtime:2.10.0")
     implementation("androidx.activity:activity-compose:1.12.4")
