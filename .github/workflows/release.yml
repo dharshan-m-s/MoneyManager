@@ -86,7 +86,7 @@ jobs:
 
       - name: Calculate APK checksum
         shell: bash
-        run: sha256sum "MoneyManager-${VERSION_NAME}.apk" > "MoneyManager-${VERSION_NAME}.apk.sha256"
+        run: sha256sum "MoneyManager-v${VERSION_NAME}-release.apk" > "MoneyManager-v${VERSION_NAME}-release.apk.sha256"
 
       - name: Create GitHub Release
         env:
