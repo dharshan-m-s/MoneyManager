@@ -276,7 +276,6 @@ fun SettingsScreen(
     var darkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", false)) }
 
     var showIncomeDateDialog by remember { mutableStateOf(false) }
-    var showTransferDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
 
     fun prettyBackupStamp(stamp: String?): String? = stamp?.let {
@@ -424,10 +423,8 @@ fun SettingsScreen(
             )
 
             SettingsSectionHeader("General")
-            SettingsCardRow("Refresh SMSs", "Reprocess the latest SMSs", Icons.Filled.Refresh) { Toast.makeText(context, "Reprocessing latest SMSs…", Toast.LENGTH_SHORT).show() }
             SettingsCardRow("Fix Transaction Date", "Scan for date mismatches", Icons.Filled.Refresh) { Toast.makeText(context, "Scanning for date mismatches…", Toast.LENGTH_SHORT).show() }
             SettingsCardRow("Start Date for Income", prefs.getString("income_start_date", "25") ?: "25", Icons.Filled.CalendarToday) { showIncomeDateDialog = true }
-            SettingsCardRow("Mark as Transfer Amount", "₹${prefs.getLong("transfer_threshold", 200000L) / 100}", Icons.Filled.SwapHoriz) { showTransferDialog = true }
             SettingsCardRow("Language", prefs.getString("language", "English") ?: "English", Icons.Filled.Language) { showLanguageDialog = true }
 
             Spacer(Modifier.height(24.dp))
@@ -437,10 +434,6 @@ fun SettingsScreen(
     if (showIncomeDateDialog) {
         var dayValue by remember { mutableStateOf(prefs.getString("income_start_date", "25") ?: "25") }
         AlertDialog(onDismissRequest = { showIncomeDateDialog = false }, title = { Text("Start Date for Income") }, text = { OutlinedTextField(dayValue, { dayValue = it.filter(Char::isDigit) }, label = { Text("Day of month (1–31)") }, singleLine = true) }, confirmButton = { TextButton(onClick = { prefs.edit().putString("income_start_date", (dayValue.toIntOrNull()?.coerceIn(1, 31) ?: 25).toString()).apply(); showIncomeDateDialog = false }) { Text("Save") } }, dismissButton = { TextButton(onClick = { showIncomeDateDialog = false }) { Text("Cancel") } })
-    }
-    if (showTransferDialog) {
-        var amountValue by remember { mutableStateOf((prefs.getLong("transfer_threshold", 200000L) / 100).toString()) }
-        AlertDialog(onDismissRequest = { showTransferDialog = false }, title = { Text("Mark as Transfer Amount") }, text = { OutlinedTextField(amountValue, { amountValue = it.filter(Char::isDigit) }, label = { Text("Amount in rupees") }, singleLine = true) }, confirmButton = { TextButton(onClick = { prefs.edit().putLong("transfer_threshold", (amountValue.toLongOrNull() ?: 200000L) * 100).apply(); showTransferDialog = false }) { Text("Save") } }, dismissButton = { TextButton(onClick = { showTransferDialog = false }) { Text("Cancel") } })
     }
     if (showLanguageDialog) {
         val languages = listOf("English", "বাংলা", "ગુજરાતી", "हिंदी", "ಕನ್ನಡ", "मराठी", "தமிழ்", "తెలుగు")
