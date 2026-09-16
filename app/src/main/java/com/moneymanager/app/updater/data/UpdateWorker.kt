@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.google.gson.Gson
 import com.moneymanager.app.updater.model.ReleaseUpdate
+import java.io.File
 
 class UpdateWorker(
     appContext: Context,
@@ -24,6 +25,8 @@ class UpdateWorker(
             }
             is UpdateRepository.CheckResult.UpToDate -> {
                 prefs.edit().remove(PENDING_UPDATE_KEY).putLong(LAST_CHECKED_KEY, System.currentTimeMillis()).apply()
+                val dir = File(applicationContext.cacheDir, "updates")
+                dir.listFiles()?.forEach { it.delete() }
                 Result.success()
             }
             is UpdateRepository.CheckResult.Error -> {

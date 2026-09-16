@@ -54,6 +54,7 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
             repository.download(update) { progress, downloaded, total ->
                 _state.value = UpdateState.Downloading(update, progress, downloaded, total)
             }.onSuccess { file ->
+                repository.deleteOldVersions(file)
                 val verification = verifier.verify(file, update.versionCode)
                 if (verification.isFailure) {
                     file.delete()
@@ -79,7 +80,7 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
         val pending = runCatching { Gson().fromJson(prefs.getString(UpdateWorker.PENDING_UPDATE_KEY, null), ReleaseUpdate::class.java) }.getOrNull() ?: return
         if (BuildConfig.VERSION_CODE.toLong() >= pending.versionCode) {
             prefs.edit().remove(UpdateWorker.PENDING_UPDATE_KEY).putString(UpdateWorker.INSTALLED_UPDATE_KEY, pending.versionName).apply()
-            pendingDownloadedFile?.delete()
+            repository.cleanCache()
             pendingDownloadedFile = null
             _state.value = UpdateState.UpToDate(BuildConfig.VERSION_NAME)
             return
@@ -103,9 +104,13 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun restorePending() {
         val json = prefs.getString(UpdateWorker.PENDING_UPDATE_KEY, null) ?: return
-        val update = runCatching { Gson().fromJson(json, ReleaseUpdate::class.java) }.getOrNull() ?: return
+        val update = runCatching { Gson().fromJson(json, ReleaseUpdate::class.java) }.getOrNull() ?: run {
+            prefs.edit().remove(UpdateWorker.PENDING_UPDATE_KEY).apply()
+            return
+        }
         if (BuildConfig.VERSION_CODE.toLong() >= update.versionCode) {
             prefs.edit().remove(UpdateWorker.PENDING_UPDATE_KEY).apply()
+            repository.cleanCache()
             return
         }
         val file = File(getApplication<Application>().cacheDir, "updates/${update.apkName}")
@@ -113,6 +118,7 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
             pendingDownloadedFile = file
             _state.value = UpdateState.Downloaded(update, file.absolutePath)
         } else {
+            prefs.edit().remove(UpdateWorker.PENDING_UPDATE_KEY).apply()
             _state.value = UpdateState.UpdateAvailable(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE.toLong(), update)
         }
     }

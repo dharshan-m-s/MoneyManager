@@ -178,6 +178,18 @@ class UpdateRepository(context: Context) {
         return md.digest().joinToString("") { "%02x".format(it) }
     }
 
+    fun cleanCache() {
+        val dir = File(appContext.cacheDir, "updates")
+        if (!dir.exists()) return
+        dir.listFiles()?.forEach { it.delete() }
+    }
+
+    fun deleteOldVersions(keepFile: File) {
+        val dir = File(appContext.cacheDir, "updates")
+        if (!dir.exists()) return
+        dir.listFiles()?.filter { it != keepFile && it.name.endsWith(".apk") }?.forEach { it.delete() }
+    }
+
     sealed interface CheckResult {
         data class Available(val update: ReleaseUpdate) : CheckResult
         data class UpToDate(val versionName: String) : CheckResult
