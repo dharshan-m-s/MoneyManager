@@ -1,0 +1,11 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Monochrome ₹ symbol: single-color source of truth for themed icons -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M30,26 L78,26 78,35 30,35ZM30,47 L68,47 68,56 30,56ZM37,26 L46,26 46,76 37,76ZM46,56 Q46,84 70,84 L76,84 76,76 68,76 Q54,76 46,62Z" />
+</vector>
