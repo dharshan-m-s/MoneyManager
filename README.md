@@ -1,5 +1,9 @@
 # Money Manager
 
+<p align="center">
+  <img src="applogo.png" alt="Money Manager logo" width="160">
+</p>
+
 A privacy-first Android money manager built with Kotlin, Jetpack Compose, Room, and Hilt.
 
 ## Product highlights
