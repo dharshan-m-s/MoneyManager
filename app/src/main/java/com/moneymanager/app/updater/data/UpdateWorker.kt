@@ -5,7 +5,6 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.google.gson.Gson
 import com.moneymanager.app.updater.model.ReleaseUpdate
-import java.io.File
 
 class UpdateWorker(
     appContext: Context,
@@ -15,8 +14,10 @@ class UpdateWorker(
 
     override suspend fun doWork(): Result {
         if (!prefs.getBoolean(AUTO_UPDATE_KEY, false)) return Result.success()
-        return when (val result = UpdateRepository(applicationContext).checkForUpdate()) {
+        val repository = UpdateRepository(applicationContext)
+        return when (val result = repository.checkForUpdate()) {
             is UpdateRepository.CheckResult.Available -> {
+                repository.deleteApksExcept(result.update.versionName)
                 prefs.edit()
                     .putString(PENDING_UPDATE_KEY, Gson().toJson(result.update))
                     .putLong(LAST_CHECKED_KEY, System.currentTimeMillis())
@@ -25,8 +26,7 @@ class UpdateWorker(
             }
             is UpdateRepository.CheckResult.UpToDate -> {
                 prefs.edit().remove(PENDING_UPDATE_KEY).putLong(LAST_CHECKED_KEY, System.currentTimeMillis()).apply()
-                val dir = File(applicationContext.cacheDir, "updates")
-                dir.listFiles()?.forEach { it.delete() }
+                repository.cleanCache()
                 Result.success()
             }
             is UpdateRepository.CheckResult.Error -> {

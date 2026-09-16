@@ -40,7 +40,10 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = UpdateState.Checking
         job = viewModelScope.launch {
             when (val result = repository.checkForUpdate()) {
-                is UpdateRepository.CheckResult.Available -> _state.value = UpdateState.UpdateAvailable(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE.toLong(), result.update)
+                is UpdateRepository.CheckResult.Available -> {
+                    repository.deleteApksExcept(result.update.versionName)
+                    _state.value = UpdateState.UpdateAvailable(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE.toLong(), result.update)
+                }
                 is UpdateRepository.CheckResult.UpToDate -> _state.value = UpdateState.UpToDate(result.versionName)
                 is UpdateRepository.CheckResult.Error -> _state.value = if (result.error == UpdateError.NoInternet) UpdateState.Offline else UpdateState.Error(result.error)
             }
@@ -103,7 +106,10 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun restorePending() {
-        val json = prefs.getString(UpdateWorker.PENDING_UPDATE_KEY, null) ?: return
+        val json = prefs.getString(UpdateWorker.PENDING_UPDATE_KEY, null) ?: run {
+            repository.cleanCache()
+            return
+        }
         val update = runCatching { Gson().fromJson(json, ReleaseUpdate::class.java) }.getOrNull() ?: run {
             prefs.edit().remove(UpdateWorker.PENDING_UPDATE_KEY).apply()
             return

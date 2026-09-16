@@ -190,6 +190,13 @@ class UpdateRepository(context: Context) {
         dir.listFiles()?.filter { it != keepFile && it.name.endsWith(".apk") }?.forEach { it.delete() }
     }
 
+    fun deleteApksExcept(versionName: String) {
+        val marker = "-v${versionName.trimStart('v')}-"
+        val dir = File(appContext.cacheDir, "updates")
+        if (!dir.exists()) return
+        dir.listFiles()?.filter { it.name.endsWith(".apk") && !it.name.contains(marker) }?.forEach { it.delete() }
+    }
+
     sealed interface CheckResult {
         data class Available(val update: ReleaseUpdate) : CheckResult
         data class UpToDate(val versionName: String) : CheckResult
