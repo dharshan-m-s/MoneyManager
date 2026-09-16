@@ -1,0 +1,15 @@
+.gradle/
+.idea/
+*.iml
+local.properties
+build/
+**/build/
+*.jks
+*.keystore
+private/
+/moneyview-export.csv
+*.apk
+*.aab
+*.zip
+.DS_Store
+Thumbs.db

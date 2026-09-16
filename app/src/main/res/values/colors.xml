@@ -1,0 +1,15 @@
+<resources>
+    <color name="mm_green_dark">#006B45</color>
+    <color name="mm_green">#0A8F5A</color>
+    <color name="mm_green_light">#49C98A</color>
+    <color name="mm_blue">#3B82F6</color>
+    <color name="mm_red_expense">#D94B4B</color>
+    <color name="mm_green_income">#078455</color>
+    <color name="mm_amber_due">#B66A08</color>
+    <color name="mm_maroon_overdue">#9A312E</color>
+    <color name="mm_background">#F6F8F7</color>
+    <color name="mm_gray_text">#64706A</color>
+    <color name="mm_gray_divider">#E1E8E3</color>
+    <color name="mm_black">#151917</color>
+    <color name="mm_white">#FFFFFF</color>
+</resources>
