@@ -1,6 +1,9 @@
 package com.moneymanager.app.data.repository
 
 import androidx.room.withTransaction
+import com.moneymanager.app.data.local.dao.AccountDao
+import com.moneymanager.app.data.local.dao.BillDao
+import com.moneymanager.app.data.local.dao.CategoryDao
 import com.moneymanager.app.data.local.dao.TransactionDao
 import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.local.entity.TransactionEntity
@@ -38,8 +41,12 @@ data class NewTransactionInput(
 class TransactionRepository @Inject constructor(
     private val database: MoneyManagerDatabase,
     private val transactionDao: TransactionDao,
+    private val accountDao: AccountDao,
+    private val categoryDao: CategoryDao,
+    private val billDao: BillDao,
     private val accountingService: AccountingService,
-    private val backupManager: BackupManager
+    private val backupManager: BackupManager,
+    private val attachmentRepository: AttachmentRepository
 ) {
     /** Creates a new, live (non-historical) transaction and immediately applies its effect to
      *  the account's running balance via the app's own accounting engine - this is the path
@@ -95,39 +102,126 @@ class TransactionRepository @Inject constructor(
     }
 
 
-    /** Updates user-editable transaction fields while keeping the source row identity and all
-     *  imported snapshot fields intact. After editing, the owning account is recalculated by the
-     *  canonical accounting engine. */
+    /** Updates all user-editable transaction fields (amount, description, category, date,
+     *  account, payment type, flags). Historical snapshot fields stay intact. When the account
+     *  changes, both the old and new accounts are recalculated by the canonical engine; when a
+     *  category is chosen, the human-readable rawCategoryName is synced from the categories
+     *  table so the detail screens keep showing a sensible name. */
     suspend fun updateEditableTransaction(
         transactionId: Long,
-        amount: Money,
-        merchantReceiverSender: String?,
-        notes: String?,
-        businessPersonal: BusinessPersonal,
-        reimbursable: Boolean,
-        includeInStatistics: Boolean,
-        categoryId: Long? = null
+        amount: Money? = null,
+        merchantReceiverSender: String? = null,
+        notes: String? = null,
+        businessPersonal: BusinessPersonal? = null,
+        reimbursable: Boolean? = null,
+        includeInStatistics: Boolean? = null,
+        categoryId: Long? = null,
+        occurredAtEpochMillis: Long? = null,
+        accountId: Long? = null,
+        paymentType: PaymentType? = null,
+        /** Set only when the user explicitly switched this row between income and expense.
+         *  Null means "keep the existing direction and sign". Ignored for transfers. */
+        isIncome: Boolean? = null
     ) {
         database.withTransaction {
             val existing = transactionDao.findById(transactionId) ?: return@withTransaction
             val isTransfer = existing.txnSubType == TxnSubType.TRANSFER_IN || existing.txnSubType == TxnSubType.TRANSFER_OUT
-            val credit = if (isTransfer) existing.creditMinorUnits else if (existing.creditMinorUnits != 0L) {
-                if (existing.creditMinorUnits < 0L) -amount.minorUnits else amount.minorUnits
+            val amountValue = amount ?: Money(if (existing.creditMinorUnits != 0L) existing.creditMinorUnits else -existing.debitMinorUnits)
+            var credit = if (existing.creditMinorUnits != 0L) {
+                if (existing.creditMinorUnits < 0L) -amountValue.minorUnits else amountValue.minorUnits
             } else 0L
-            val debit = if (isTransfer) existing.debitMinorUnits else if (existing.debitMinorUnits != 0L) {
-                if (existing.debitMinorUnits < 0L) -amount.minorUnits else amount.minorUnits
+            var debit = if (existing.debitMinorUnits != 0L) {
+                if (existing.debitMinorUnits < 0L) -amountValue.minorUnits else amountValue.minorUnits
             } else 0L
-            val fingerprint = fingerprint(existing.occurredAtEpochMillis, existing.accountId, credit, debit, merchantReceiverSender, existing.rawCategoryName)
+            var newTxnType = existing.txnType
+            var newTxnSubType = existing.txnSubType
+            var newTxnKind = existing.txnKind
+            if (isIncome != null && !isTransfer) {
+                val magnitude = amountValue.abs().minorUnits
+                credit = if (isIncome) magnitude else 0L
+                debit = if (isIncome) 0L else magnitude
+                newTxnType = if (isIncome) TxnType.CREDIT_TRANSACTION else TxnType.DEBIT_TRANSACTION
+                newTxnSubType = if (isIncome) TxnSubType.INCOME else TxnSubType.EXPENSE
+                newTxnKind = if (existing.paymentType == PaymentType.CASH) {
+                    if (isIncome) TxnKind.CASH_INCOME else TxnKind.CASH_SPEND
+                } else TxnKind.REGULAR
+            }
+            val newCategoryId = if (categoryId == null && existing.categoryId != null) existing.categoryId else categoryId
+            val categoryName = newCategoryId?.let { categoryDao.findById(it)?.name } ?: existing.rawCategoryName
+            val newAccountId = accountId ?: existing.accountId
+            val newDate = occurredAtEpochMillis ?: existing.occurredAtEpochMillis
+            val newPaymentType = paymentType ?: existing.paymentType
+            val fingerprint = fingerprint(newDate, newAccountId, credit, debit, merchantReceiverSender ?: existing.merchantReceiverSender, categoryName)
             transactionDao.update(existing.copy(
+                occurredAtEpochMillis = newDate,
+                txnType = newTxnType,
+                txnSubType = newTxnSubType,
+                txnKind = newTxnKind,
                 creditMinorUnits = credit, debitMinorUnits = debit,
-                merchantReceiverSender = merchantReceiverSender, notes = notes,
-                categoryId = categoryId,
-                rawCategoryName = existing.rawCategoryName,
-                businessPersonal = businessPersonal, reimbursable = reimbursable,
-                includeInStatistics = includeInStatistics, dedupeFingerprint = fingerprint,
+                merchantReceiverSender = merchantReceiverSender ?: existing.merchantReceiverSender,
+                notes = notes ?: existing.notes,
+                categoryId = newCategoryId,
+                rawCategoryName = categoryName,
+                accountId = newAccountId,
+                paymentType = newPaymentType,
+                rawPaymentType = if (paymentType != null) newPaymentType.raw else existing.rawPaymentType,
+                businessPersonal = businessPersonal ?: existing.businessPersonal,
+                reimbursable = reimbursable ?: existing.reimbursable,
+                includeInStatistics = includeInStatistics ?: existing.includeInStatistics,
+                dedupeFingerprint = fingerprint,
                 updatedAtEpochMillis = System.currentTimeMillis()
             ))
-            accountingService.recalculateAccounts(setOf(existing.accountId))
+            val affected = if (newAccountId != existing.accountId) setOf(existing.accountId, newAccountId) else setOf(existing.accountId)
+            accountingService.recalculateAccounts(affected)
+        }.also { backupManager.scheduleAfterWrite() }
+    }
+
+    /** Permanently deletes a transaction and everything linked to it: the other leg of a
+     *  transfer, and any bill-instance payment marker (so a linked bill returns to unpaid and
+     *  never shows a stale payment). The owning account (and the peer leg's account for
+     *  transfers) is recalculated through the canonical engine afterwards. */
+    suspend fun deleteTransaction(transactionId: Long) {
+        database.withTransaction {
+            val existing = transactionDao.findById(transactionId) ?: return@withTransaction
+            val affected = linkedAccountIdsFor(existing)
+            val peerIdForAttachments = existing.linkedTransferTransactionId
+
+            // Un-link a credit-card/bill payment so the bill instance returns to unpaid.
+            billDao.findByPaymentTransactionId(transactionId)?.let { instance ->
+                billDao.updateInstance(instance.copy(paid = false, paidAtEpochMillis = null, paymentTransactionId = null))
+            }
+
+            transactionDao.deleteById(transactionId)
+
+            // Delete the paired transfer leg too, keeping the linkedTransferTransactionId
+            // columns consistent on both sides.
+            peerIdForAttachments?.let { peerId ->
+                transactionDao.findById(peerId)?.let { peer ->
+                    val moreAffected = linkedAccountIdsFor(peer)
+                    transactionDao.deleteById(peerId)
+                    affected.addAll(moreAffected)
+                }
+            }
+
+            accountingService.recalculateAccounts(affected)
+
+            // Remove the receipt image files too - the attachment ROWS cascade with the
+            // transaction, but the bytes live on disk and would otherwise be orphaned.
+            attachmentRepository.deleteFilesFor(transactionId)
+            peerIdForAttachments?.let { attachmentRepository.deleteFilesFor(it) }
+        }.also { backupManager.scheduleAfterWrite() }
+    }
+
+    private suspend fun linkedAccountIdsFor(txn: TransactionEntity): MutableSet<Long> =
+        mutableSetOf(txn.accountId)
+
+    /** Soft-deletes a credit-card account (keeps the row for audit) and removes any biller
+     *  linked to it so no orphan bill keeps referencing the card. Historical transactions stay
+     *  in place; aggregate balance queries already exclude `deleted` accounts. */
+    suspend fun deleteCreditCardAccount(accountId: Long) {
+        database.withTransaction {
+            billDao.deleteByLinkedAccountId(accountId)
+            accountDao.softDeleteById(accountId, System.currentTimeMillis())
         }.also { backupManager.scheduleAfterWrite() }
     }
 

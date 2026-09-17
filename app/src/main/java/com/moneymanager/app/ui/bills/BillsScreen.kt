@@ -1,8 +1,10 @@
 package com.moneymanager.app.ui.bills
 
+import com.moneymanager.app.ui.theme.MmColors
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -32,9 +36,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Payments
@@ -49,23 +61,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.AddBillerFab
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmEmptyState
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmPill
+import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MoneyFormat
-import com.moneymanager.app.ui.theme.MMAmberDue
-import com.moneymanager.app.ui.theme.MMBackground
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.theme.MMGreenDark
-import com.moneymanager.app.ui.theme.MMGrayText
-import com.moneymanager.app.ui.theme.MMGreenIncome
-import com.moneymanager.app.ui.theme.MMGreen
-import com.moneymanager.app.ui.theme.MMMaroonOverdue
-import com.moneymanager.app.ui.theme.MMRedExpense
 import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
-import com.moneymanager.app.ui.components.StatusPill
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -98,21 +110,14 @@ fun BillsScreen(
             )
 
             if (bills.isEmpty()) {
-                Column(
-                    Modifier.fillMaxSize().padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(Icons.Filled.Description, contentDescription = null, tint = MMGrayText)
-                    Text(
-                        "No bills added yet. Bills you add or that get generated from imported recurring payments will show up here.",
-                        color = MMGrayText, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)
-                    )
-                    Text(
-                        "Meanwhile add your bills for which you don't get SMSs like rent, maid, EMI etc",
-                        color = MMGrayText, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
+                MmEmptyState(
+                    icon = Icons.Filled.Payments,
+                    title = "No bills yet",
+                    message = "Add the bills you pay regularly - rent, maid, EMI, utilities - and track " +
+                        "them here. Recurring payments found in imported statements appear automatically.",
+                    actionLabel = "Add a bill",
+                    onAction = onAddBiller
+                )
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 112.dp)) {
                     items(bills) { row ->
@@ -213,29 +218,29 @@ private fun BillPaymentDialog(
                         Text(
                             "$billName • ${MoneyFormat.rupeesNoDecimals(amount)}",
                             fontSize = 12.sp,
-                            color = MMGrayText,
+                            color = MmColors.textSecondary,
                             maxLines = 1
                         )
                     }
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close", tint = MMGrayText)
+                        Icon(Icons.Filled.Close, contentDescription = "Close", tint = MmColors.textSecondary)
                     }
                 }
 
                 Card(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+                    shape = RoundedCornerShape(MmSpacing.radiusRow),
                     elevation = 0.dp,
-                    backgroundColor = com.moneymanager.app.ui.theme.MMSurfaceMuted
+                    backgroundColor = MmColors.surfaceMuted
                 ) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Search, contentDescription = null, tint = MMGreenDark, modifier = Modifier.size(22.dp))
+                    Row(Modifier.padding(MmSpacing.md), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Search, contentDescription = null, tint = MmColors.accent, modifier = Modifier.size(22.dp))
                         Column(Modifier.padding(start = 10.dp)) {
                             Text("We checked your recent payments", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             Text(
                                 "Pick the transaction you already recorded. Nothing new will be created.",
                                 fontSize = 11.sp,
-                                color = MMGrayText,
+                                color = MmColors.textSecondary,
                                 modifier = Modifier.padding(top = 2.dp)
                             )
                         }
@@ -248,7 +253,7 @@ private fun BillPaymentDialog(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Text("Searching recent transactions…", color = MMGrayText, fontSize = 13.sp)
+                        Text("Searching recent transactions…", color = MmColors.textSecondary, fontSize = 13.sp)
                     }
                 } else if (!showRecent) {
                     if (state.matches.isEmpty()) {
@@ -257,7 +262,7 @@ private fun BillPaymentDialog(
                             Text(
                                 "The biller name or amount may be different in your statement. Use Recent Transactions to choose it manually.",
                                 fontSize = 12.sp,
-                                color = MMGrayText,
+                                color = MmColors.textSecondary,
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                         }
@@ -278,14 +283,13 @@ private fun BillPaymentDialog(
                         }
                     }
                 } else {
-                    OutlinedTextField(
-                        value = recentQuery,
-                        onValueChange = { recentQuery = it },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                        placeholder = { Text("Search recent payments by name, amount, date, account…") },
-                        singleLine = true
-                    )
+                    Box(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
+                        MmSearchField(
+                            value = recentQuery,
+                            onValueChange = { recentQuery = it },
+                            hint = "Search by name, amount, date or account"
+                        )
+                    }
                     Text(
                         "Recent transactions",
                         fontWeight = FontWeight.Bold,
@@ -303,7 +307,7 @@ private fun BillPaymentDialog(
                     if (recentRows.isEmpty()) {
                         Text(
                             "No recent transaction matches that search.",
-                            color = MMGrayText,
+                            color = MmColors.textSecondary,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
                         )
@@ -311,7 +315,7 @@ private fun BillPaymentDialog(
                 }
 
                 state.error?.let {
-                    Text(it, color = MMMaroonOverdue, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                    Text(it, color = MmColors.expense, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                 }
 
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
@@ -320,8 +324,8 @@ private fun BillPaymentDialog(
                             onClick = { showRecent = true },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(backgroundColor = MMWhite, contentColor = MMGreenDark),
-                            border = BorderStroke(1.dp, MMGreenDark),
+                            colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.surface, contentColor = MmColors.accent),
+                            border = BorderStroke(1.dp, MmColors.outline),
                             elevation = null
                         ) {
                             Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(19.dp))
@@ -329,7 +333,7 @@ private fun BillPaymentDialog(
                         }
                     } else {
                         TextButton(onClick = { showRecent = false }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Back to Best Matches", color = MMGreenDark, fontWeight = FontWeight.SemiBold)
+                            Text("Back to Best Matches", color = MmColors.accent, fontWeight = FontWeight.SemiBold)
                         }
                     }
 
@@ -337,7 +341,7 @@ private fun BillPaymentDialog(
                         onClick = onPaidByCash,
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(backgroundColor = MMGreenDark, contentColor = MMWhite)
+                        colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent, contentColor = MmColors.onAccent)
                     ) {
                         Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(19.dp))
                         Text("Paid by Cash", modifier = Modifier.padding(start = 8.dp), fontWeight = FontWeight.Bold)
@@ -348,8 +352,8 @@ private fun BillPaymentDialog(
                         enabled = !state.loading && state.selectedTransactionId != null,
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(backgroundColor = MMWhite, contentColor = MMGreenDark),
-                        border = BorderStroke(1.dp, MMGreenDark),
+                        colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.surface, contentColor = MmColors.accent),
+                        border = BorderStroke(1.dp, MmColors.outline),
                         elevation = null
                     ) {
                         Text("Link Selected Payment", fontWeight = FontWeight.Bold)
@@ -380,7 +384,7 @@ private fun BillPaymentCandidateRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onSelectTransaction(tx.id) },
         shape = RoundedCornerShape(16.dp),
         elevation = if (selectedTransactionId == tx.id) 3.dp else 1.dp,
-        backgroundColor = if (selectedTransactionId == tx.id) MMGreen.copy(alpha = .07f) else MaterialTheme.colors.surface
+        backgroundColor = if (selectedTransactionId == tx.id) MmColors.accent.copy(alpha = .08f) else MmColors.surface
     ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -392,7 +396,7 @@ private fun BillPaymentCandidateRow(
                 Text(
                     listOf(dateText, accountText.ifBlank { null }).filterNotNull().joinToString(" • "),
                     fontSize = 11.sp,
-                    color = MMGrayText,
+                    color = MmColors.textSecondary,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp)
@@ -403,12 +407,12 @@ private fun BillPaymentCandidateRow(
                     MoneyFormat.rupeesNoDecimals(Money(tx.debitMinorUnits)),
                     fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                    color = MMRedExpense,
+                    color = MmColors.expense,
                     maxLines = 1,
                     softWrap = false
                 )
                 if (selectedTransactionId == tx.id) {
-                    Text("Selected", color = MMGreenDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("Selected", color = MmColors.accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -439,16 +443,16 @@ private fun BillCard(
     val statusColor: Color
     if (paid) {
         statusText = "Paid"
-        statusColor = MMGreenIncome
+        statusColor = MmColors.income
     } else if (next != null) {
         statusText = if (overdue) "${-daysUntilDue} days overdue" else {
             val days = daysUntilDue
             if (days == 1L) "1 day to pay" else "$days days to pay"
         }
-        statusColor = if (overdue) MMMaroonOverdue else MMAmberDue
+        statusColor = if (overdue) MmColors.expense else MmColors.warning
     } else {
         statusText = "No bill due"
-        statusColor = MMGrayText
+        statusColor = MmColors.textSecondary
     }
 
     val dueDateStr = dateFormat.format(Instant.ofEpochMilli(dueMillis).atZone(zone))
@@ -459,80 +463,100 @@ private fun BillCard(
         "Due on: $dueDateStr"
     }
 
-    Card(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
-            .clickableBill(onClick),
-        elevation = 1.dp,
-        shape = MaterialTheme.shapes.medium
+    MmCard(
+        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+        onClick = onClick,
+        contentPadding = PaddingValues(MmSpacing.card)
     ) {
-        Column(Modifier.padding(14.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                    Text(row.bill.billerName, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        row.bill.accountReferenceId?.let {
-                            Text(it, fontSize = 11.sp, color = MMGrayText)
-                        }
-                        Text(
-                            "  ${row.bill.businessPersonal.name}",
-                            fontSize = 10.sp,
-                            color = MMGrayText
-                        )
-                    }
-                }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MmIconBadge(
+                icon = billerIcon(row.bill.billerType),
+                tint = if (overdue) MmColors.expense else if (paid) MmColors.income else MmColors.warning,
+                size = 44.dp
+            )
+            Spacer(Modifier.width(MmSpacing.md))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    row.bill.billerName,
+                    style = MmType.body,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MmColors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (paid) {
-                        Icon(Icons.Filled.Check, contentDescription = null, tint = MMGreenIncome, modifier = Modifier.padding(end = 4.dp))
+                    row.bill.accountReferenceId?.takeIf { it.isNotBlank() }?.let {
+                        Text(
+                            it,
+                            style = MmType.caption,
+                            color = MmColors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.width(MmSpacing.xs))
                     }
                     Text(
-                        statusText,
-                        color = statusColor,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        row.bill.billerType.name.replace('_', ' ').lowercase()
+                            .replaceFirstChar { c -> c.uppercase() },
+                        style = MmType.caption,
+                        color = MmColors.textSecondary,
+                        maxLines = 1
                     )
                 }
             }
-            Row(
-                Modifier.fillMaxWidth().padding(top = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    MoneyFormat.rupeesNoDecimals(Money(next?.amountDueMinorUnits ?: row.bill.estimatedAmountMinorUnits)),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = if (overdue) MMMaroonOverdue else (if (paid) MMGreenIncome else MMRedExpense)
+            if (paid) {
+                Icon(
+                    Icons.Filled.Check,
+                    contentDescription = "Paid",
+                    tint = MmColors.income,
+                    modifier = Modifier.size(18.dp)
                 )
-                Text(displayDate, fontSize = 12.sp, color = MaterialTheme.colors.primary, fontWeight = FontWeight.Medium)
             }
+        }
+
+        Spacer(Modifier.height(MmSpacing.sm))
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "* Bill amount is based on previous month's bill",
-                fontSize = 10.sp,
-                color = MMGrayText,
-                modifier = Modifier.padding(top = 2.dp)
-            )
-            if (next != null) {
-                Button(
-                    onClick = onMarkPaid,
-                    enabled = true,
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = MMWhite,
-                        contentColor = MMGreenDark,
-                        disabledBackgroundColor = MMBackground,
-                        disabledContentColor = MMGrayText
-                    ),
-                    elevation = null,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, MMGreenDark)
-                ) {
-                    Text("Mark as Paid", fontWeight = FontWeight.Bold)
+                MoneyFormat.rupeesNoDecimals(Money(next?.amountDueMinorUnits ?: row.bill.estimatedAmountMinorUnits)),
+                style = MmType.amountRow,
+                color = when {
+                    overdue -> MmColors.expense
+                    paid -> MmColors.income
+                    else -> MmColors.textPrimary
                 }
+            )
+            Spacer(Modifier.width(MmSpacing.sm))
+            MmPill(statusText, tint = statusColor, filled = true)
+            Spacer(Modifier.weight(1f))
+            Text(displayDate, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1)
+        }
+
+        if (next != null) {
+            Spacer(Modifier.height(MmSpacing.md))
+            Button(
+                onClick = onMarkPaid,
+                modifier = Modifier.fillMaxWidth().height(44.dp),
+                shape = RoundedCornerShape(MmSpacing.radiusRow),
+                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
+            ) {
+                Text("Mark as paid", color = MmColors.onAccent, style = MmType.label)
             }
         }
     }
 }
 
-private fun Modifier.clickableBill(onClick: () -> Unit): Modifier =
-    this.pointerInput(Unit) { detectTapGestures { onClick() } }
+private fun billerIcon(type: com.moneymanager.app.data.local.entity.BillerType): androidx.compose.ui.graphics.vector.ImageVector =
+    when (type) {
+        com.moneymanager.app.data.local.entity.BillerType.ELECTRICITY -> Icons.Filled.Bolt
+        com.moneymanager.app.data.local.entity.BillerType.GAS -> Icons.Filled.LocalFireDepartment
+        com.moneymanager.app.data.local.entity.BillerType.WATER -> Icons.Filled.WaterDrop
+        com.moneymanager.app.data.local.entity.BillerType.MOBILE -> Icons.Filled.Phone
+        com.moneymanager.app.data.local.entity.BillerType.BROADBAND_WIFI -> Icons.Filled.Wifi
+        com.moneymanager.app.data.local.entity.BillerType.DTH -> Icons.Filled.Tv
+        com.moneymanager.app.data.local.entity.BillerType.INSURANCE -> Icons.Filled.Security
+        com.moneymanager.app.data.local.entity.BillerType.LOAN_EMI -> Icons.Filled.Payments
+        com.moneymanager.app.data.local.entity.BillerType.RENT -> Icons.Filled.Home
+        com.moneymanager.app.data.local.entity.BillerType.PENSION -> Icons.Filled.Savings
+        com.moneymanager.app.data.local.entity.BillerType.CREDIT_CARD -> Icons.Filled.CreditCard
+        com.moneymanager.app.data.local.entity.BillerType.OTHER -> Icons.Filled.Payments
+    }

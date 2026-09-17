@@ -1,50 +1,46 @@
 package com.moneymanager.app.ui.bills
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.ColorLens
-import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.moneymanager.app.data.local.entity.BillerType
-import com.moneymanager.app.ui.theme.MMGreenDark
-import com.moneymanager.app.ui.theme.MMGrayText
-import com.moneymanager.app.ui.theme.MMWhite
-import com.moneymanager.app.ui.theme.MMSurfaceMuted
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 
 data class BillTypeOption(
     val type: BillerType,
@@ -54,16 +50,16 @@ data class BillTypeOption(
 
 private val BILL_TYPES = listOf(
     BillTypeOption(BillerType.ELECTRICITY, "Electricity", Icons.Filled.Bolt),
-    BillTypeOption(BillerType.GAS, "Gas", Icons.Filled.ColorLens),
+    BillTypeOption(BillerType.GAS, "Gas", Icons.Filled.LocalFireDepartment),
     BillTypeOption(BillerType.WATER, "Water", Icons.Filled.WaterDrop),
     BillTypeOption(BillerType.MOBILE, "Mobile", Icons.Filled.Phone),
-    BillTypeOption(BillerType.BROADBAND_WIFI, "Broadband/WiFi", Icons.Filled.Wifi),
+    BillTypeOption(BillerType.BROADBAND_WIFI, "Broadband", Icons.Filled.Wifi),
     BillTypeOption(BillerType.DTH, "DTH", Icons.Filled.Tv),
     BillTypeOption(BillerType.INSURANCE, "Insurance", Icons.Filled.Security),
-    BillTypeOption(BillerType.LOAN_EMI, "Loan EMI", Icons.Filled.School),
-    BillTypeOption(BillerType.RENT, "Rent", Icons.Filled.DirectionsCar),
-    BillTypeOption(BillerType.PENSION, "Pension", Icons.Filled.ColorLens),
-    BillTypeOption(BillerType.CREDIT_CARD, "Credit Card", Icons.Filled.ColorLens),
+    BillTypeOption(BillerType.LOAN_EMI, "Loan EMI", Icons.Filled.Payments),
+    BillTypeOption(BillerType.RENT, "Rent", Icons.Filled.Home),
+    BillTypeOption(BillerType.PENSION, "Pension", Icons.Filled.Savings),
+    BillTypeOption(BillerType.CREDIT_CARD, "Credit card", Icons.Filled.CreditCard),
     BillTypeOption(BillerType.OTHER, "Other", Icons.Filled.Add),
 )
 
@@ -72,42 +68,21 @@ fun BillTypeSelectionScreen(
     onBack: () -> Unit,
     onBillTypeSelected: (BillerType) -> Unit
 ) {
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(MMGreenDark)
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MMWhite)
-            }
-            Text(
-                "Select Bill Type",
-                color = MMWhite,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        Text(
-            "Select the type of bill you want to add",
-            fontSize = 13.sp,
-            color = MMGrayText,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+        MoneyManagerTopBar(
+            title = "Choose bill type",
+            subtitle = "Pick the kind of bill you want to track",
+            onBack = onBack
         )
 
         LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            contentPadding = PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            columns = GridCells.Adaptive(minSize = 104.dp),
+            contentPadding = PaddingValues(MmSpacing.lg, MmSpacing.sm, MmSpacing.lg, MmSpacing.xxl),
+            horizontalArrangement = Arrangement.spacedBy(MmSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.md),
+            modifier = Modifier.fillMaxSize()
         ) {
-            items(BILL_TYPES) { option ->
+            items(BILL_TYPES, key = { it.type.name }) { option ->
                 BillTypeCard(option) { onBillTypeSelected(option.type) }
             }
         }
@@ -116,26 +91,24 @@ fun BillTypeSelectionScreen(
 
 @Composable
 private fun BillTypeCard(option: BillTypeOption, onClick: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .background(MMSurfaceMuted, RoundedCornerShape(16.dp))
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+    MmCard(
+        onClick = onClick,
+        contentPadding = PaddingValues(MmSpacing.md)
     ) {
-        Icon(
-            option.icon,
-            contentDescription = option.label,
-            tint = MMGreenDark,
-            modifier = Modifier.size(36.dp)
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            option.label,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center
-        )
+        Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            MmIconBadge(icon = option.icon, tint = MmColors.accent, size = 46.dp)
+            Spacer(Modifier.height(MmSpacing.sm))
+            Text(
+                option.label,
+                style = MmType.label,
+                color = MmColors.textPrimary,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }

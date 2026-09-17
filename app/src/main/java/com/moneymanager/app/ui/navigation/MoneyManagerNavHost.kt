@@ -40,6 +40,7 @@ import com.moneymanager.app.ui.categories.CreateCategoryScreen
 import com.moneymanager.app.ui.transfer.TransferScreen
 import com.moneymanager.app.ui.transactions.TransactionsScreen
 import com.moneymanager.app.ui.transactiondetail.TransactionDetailScreen
+import com.moneymanager.app.ui.transactionedit.TransactionEditScreen
 import com.moneymanager.app.ui.accountedit.AccountEditScreen
 import com.moneymanager.app.data.local.entity.BillerType
 
@@ -85,7 +86,8 @@ fun MoneyManagerNavHost(
                 onAddCashSpend = {
                     navController.navigate(Destination.Cash.route)
                 },
-                onOpenCash = { navController.navigate(Destination.Cash.route) }
+                onOpenCash = { navController.navigate(Destination.Cash.route) },
+                onTransactionClick = { id -> navController.navigate(Destination.TransactionDetail.route(id)) }
             )
         }
 
@@ -104,13 +106,15 @@ fun MoneyManagerNavHost(
                 onAddCreditCard = { navController.navigate(Destination.CreditCardForm.route(null)) },
                 onAddAccount = { navController.navigate(Destination.BankSelection.route) },
                 onAccountSettings = { navController.navigate(Destination.Settings.route) },
-                onEditAccount = { id -> navController.navigate(Destination.AccountEdit.route(id)) }
+                onEditAccount = { id -> navController.navigate(Destination.AccountEdit.route(id)) },
+                onEditCreditCard = { id -> navController.navigate(Destination.CreditCardForm.route(id)) }
             )
         }
         composable(Destination.Bills.route) {
             BillsScreen(
                 onBack = { safeBack() },
-                onAddBiller = { navController.navigate(Destination.BillForm.route(null)) },
+                // The "Bill & EMI Type" picker runs first so the form opens on the right template.
+                onAddBiller = { navController.navigate(Destination.BillTypeSelection.route) },
                 onEditBiller = { id -> navController.navigate(Destination.BillForm.route(id)) },
                 onAddAccountIncome = {
                     navController.navigate(Destination.AccountSelection.route("ACCOUNT_INCOME"))
@@ -147,7 +151,21 @@ fun MoneyManagerNavHost(
             val transactionId = backStackEntry.arguments?.getLong("transactionId") ?: return@composable
             TransactionDetailScreen(
                 transactionId = transactionId,
-                onBack = { safeBack() }
+                onBack = { safeBack() },
+                onEdit = { id -> navController.navigate(Destination.TransactionEdit.route(id)) },
+                onDeleted = { safeBack() }
+            )
+        }
+
+        composable(
+            route = Destination.TransactionEdit.route,
+            arguments = listOf(navArgument("transactionId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val transactionId = backStackEntry.arguments?.getLong("transactionId") ?: return@composable
+            TransactionEditScreen(
+                transactionId = transactionId,
+                onBack = { safeBack() },
+                onSaved = { safeBack() }
             )
         }
 
@@ -167,6 +185,7 @@ fun MoneyManagerNavHost(
             CashScreen(
                 onBack = { safeBack() },
                 onEditCash = { id -> navController.navigate(Destination.AccountEdit.route(id)) },
+                onTransactionClick = { id -> navController.navigate(Destination.TransactionDetail.route(id)) },
                 onAddCashIncome = { acctId ->
                     navController.navigate(Destination.AddTransaction.route("CASH_INCOME", acctId))
                 },
@@ -209,7 +228,10 @@ fun MoneyManagerNavHost(
             CategoryTransactionsScreen(categoryId = id, onBack = { safeBack() }, onTransactionClick = { tx -> navController.navigate(Destination.TransactionDetail.route(tx)) })
         }
         composable(Destination.Reimbursements.route) {
-            ReimbursementsScreen(onBack = { safeBack() })
+            ReimbursementsScreen(
+                onBack = { safeBack() },
+                onTransactionClick = { id -> navController.navigate(Destination.TransactionDetail.route(id)) }
+            )
         }
         composable(Destination.Settings.route) {
             SettingsScreen(
@@ -295,6 +317,8 @@ fun MoneyManagerNavHost(
                 accountId = accountId,
                 onBack = { safeBack() },
                 onEditAccount = { id -> navController.navigate(Destination.AccountEdit.route(id)) },
+                onEditCreditCard = { id -> navController.navigate(Destination.CreditCardForm.route(id)) },
+                onTransactionClick = { id -> navController.navigate(Destination.TransactionDetail.route(id)) },
                 onAddAccountIncome = {
                     navController.navigate(Destination.AddTransaction.route("ACCOUNT_INCOME", accountId))
                 },
@@ -318,7 +342,8 @@ fun MoneyManagerNavHost(
             CreditCardFormScreen(
                 editingAccountId = accountId.takeIf { it >= 0 },
                 onBack = { safeBack() },
-                onSaved = { safeBack() }
+                onSaved = { safeBack() },
+                onDeleted = { safeBack() }
             )
         }
 

@@ -9,6 +9,7 @@ import com.moneymanager.app.data.local.dao.BillDao
 import com.moneymanager.app.data.local.dao.BudgetDao
 import com.moneymanager.app.data.local.dao.CategoryDao
 import com.moneymanager.app.data.local.dao.ImportDao
+import com.moneymanager.app.data.local.dao.TransactionAttachmentDao
 import com.moneymanager.app.data.local.dao.TransactionDao
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.BillEntity
@@ -17,6 +18,7 @@ import com.moneymanager.app.data.local.entity.BudgetEntity
 import com.moneymanager.app.data.local.entity.CategoryEntity
 import com.moneymanager.app.data.local.entity.ImportBatchEntity
 import com.moneymanager.app.data.local.entity.ImportRowResultEntity
+import com.moneymanager.app.data.local.entity.TransactionAttachmentEntity
 import com.moneymanager.app.data.local.entity.TransactionEntity
 
 @Database(
@@ -28,9 +30,10 @@ import com.moneymanager.app.data.local.entity.TransactionEntity
         BillInstanceEntity::class,
         BudgetEntity::class,
         ImportBatchEntity::class,
-        ImportRowResultEntity::class
+        ImportRowResultEntity::class,
+        TransactionAttachmentEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -41,6 +44,7 @@ abstract class MoneyManagerDatabase : RoomDatabase() {
     abstract fun billDao(): BillDao
     abstract fun budgetDao(): BudgetDao
     abstract fun importDao(): ImportDao
+    abstract fun transactionAttachmentDao(): TransactionAttachmentDao
 
     companion object {
         const val DATABASE_NAME = "moneymanager.db"

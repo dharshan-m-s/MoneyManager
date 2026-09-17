@@ -46,4 +46,13 @@ interface BillDao {
 
     @Query("SELECT COALESCE(SUM(amountDueMinorUnits), 0) FROM bill_instances WHERE paid = 0")
     fun observeTotalUpcomingBillAmount(): Flow<Long>
+
+    @Query("SELECT * FROM bills WHERE linkedAccountId = :accountId LIMIT 1")
+    suspend fun findByLinkedAccountId(accountId: Long): BillEntity?
+
+    @Query("DELETE FROM bills WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM bills WHERE linkedAccountId = :accountId")
+    suspend fun deleteByLinkedAccountId(accountId: Long)
 }

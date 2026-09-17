@@ -68,4 +68,7 @@ interface AccountDao {
 
     @Query("UPDATE accounts SET outstandingMinorUnits = :outstanding, availableLimitMinorUnits = :availableLimit, updatedAtEpochMillis = :now WHERE id = :accountId")
     suspend fun updateCreditCardState(accountId: Long, outstanding: Long, availableLimit: Long?, now: Long)
+
+    @Query("UPDATE accounts SET deleted = 1, active = 0, hide = 1, updatedAtEpochMillis = :now WHERE id = :id")
+    suspend fun softDeleteById(id: Long, now: Long)
 }

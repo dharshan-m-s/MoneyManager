@@ -14,6 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Bolt
@@ -166,8 +169,8 @@ fun categoryIcon(name: String, key: String = ""): androidx.compose.ui.graphics.v
         "a/c to a/c" in n || "transfer" in n -> Icons.Filled.AccountBalance
         "beauty" in n || "fitness" in n -> Icons.Filled.Spa
         "bike" in n || "cycle" in n -> Icons.Filled.TwoWheeler
-        "bill" in n || "utility" in n -> Icons.Filled.ReceiptLong
-        "book" in n -> Icons.Filled.MenuBook
+        "bill" in n || "utility" in n -> Icons.AutoMirrored.Filled.ReceiptLong
+        "book" in n -> Icons.AutoMirrored.Filled.MenuBook
         "breakfast" in n -> Icons.Filled.Cake
         "bus" in n -> Icons.Filled.DirectionsBus
         "business" in n -> Icons.Filled.BusinessCenter
@@ -195,7 +198,7 @@ fun categoryIcon(name: String, key: String = ""): androidx.compose.ui.graphics.v
         "grocery" in n -> Icons.Filled.ShoppingCart
         "health" in n -> Icons.Filled.HealthAndSafety
         "insurance" in n -> Icons.Filled.Security
-        "investment" in n || "mutual fund" in n || "stock" in n -> Icons.Filled.ShowChart
+        "investment" in n || "mutual fund" in n || "stock" in n -> Icons.AutoMirrored.Filled.ShowChart
         "loan" in n -> Icons.Filled.AccountBalanceWallet
         "rent" in n || "mortgage" in n -> Icons.Filled.Home
         "shopping" in n -> Icons.Filled.ShoppingBag

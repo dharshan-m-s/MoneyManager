@@ -1,0 +1,2 @@
+Original repository used as the source reference:
+https://github.com/dharshan-m-s/MoneyManager

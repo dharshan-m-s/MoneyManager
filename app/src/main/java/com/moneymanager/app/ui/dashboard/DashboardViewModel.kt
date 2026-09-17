@@ -27,6 +27,7 @@ data class DashboardUiState(
     val netWorth: Money = Money.ZERO,
     val creditCardOutstanding: Money = Money.ZERO,
     val monthSpend: Money = Money.ZERO,
+    val monthIncome: Money = Money.ZERO,
     val upcomingBillsTotal: Money = Money.ZERO,
     val upcomingBillsCount: Int = 0,
     val safeToSpend: Money = Money.ZERO,
@@ -70,6 +71,7 @@ class DashboardViewModel @Inject constructor(
         accountDao.observeTotalCreditCardOutstanding(),
         accountDao.observeTotalLoanBalance(),
         transactionDao.observeTotalSpendInRange(monthStart, monthEndExclusive),
+        transactionDao.observeTotalIncomeInRange(monthStart, monthEndExclusive),
         billDao.observeTotalUpcomingBillAmount(),
         billDao.observeUpcomingUnpaid(),
         transactionDao.observeRecent(10),
@@ -83,13 +85,14 @@ class DashboardViewModel @Inject constructor(
         val ccOutstanding = values[2] as Long
         val loanBalance = values[3] as Long
         val monthSpend = values[4] as Long
-        val upcomingBillsTotal = values[5] as Long
-        @Suppress("UNCHECKED_CAST") val upcomingBills = values[6] as List<BillInstanceEntity>
-        @Suppress("UNCHECKED_CAST") val recent = values[7] as List<TransactionEntity>
-        @Suppress("UNCHECKED_CAST") val categoryTotals = values[8] as List<CategoryTotal>
-        val budgetEntity = values[9] as BudgetEntity?
-        @Suppress("UNCHECKED_CAST") val cashAccounts = values[10] as List<com.moneymanager.app.data.local.entity.AccountEntity>
-        @Suppress("UNCHECKED_CAST") val cashTransactions = values[11] as List<TransactionEntity>
+        val monthIncome = values[5] as Long
+        val upcomingBillsTotal = values[6] as Long
+        @Suppress("UNCHECKED_CAST") val upcomingBills = values[7] as List<BillInstanceEntity>
+        @Suppress("UNCHECKED_CAST") val recent = values[8] as List<TransactionEntity>
+        @Suppress("UNCHECKED_CAST") val categoryTotals = values[9] as List<CategoryTotal>
+        val budgetEntity = values[10] as BudgetEntity?
+        @Suppress("UNCHECKED_CAST") val cashAccounts = values[11] as List<com.moneymanager.app.data.local.entity.AccountEntity>
+        @Suppress("UNCHECKED_CAST") val cashTransactions = values[12] as List<TransactionEntity>
         val budget = budgetEntity?.budgetAmountMinorUnits ?: 0L
         val netWorth = netAssets - ccOutstanding - loanBalance
         val safeToSpend = if (budget > 0L) budget - monthSpend - upcomingBillsTotal else bankBalance - monthSpend - upcomingBillsTotal
@@ -121,6 +124,7 @@ class DashboardViewModel @Inject constructor(
             netWorth = Money(netWorth),
             creditCardOutstanding = Money(ccOutstanding),
             monthSpend = Money(monthSpend),
+            monthIncome = Money(monthIncome),
             upcomingBillsTotal = Money(upcomingBillsTotal),
             upcomingBillsCount = upcomingBills.size,
             safeToSpend = Money(safeToSpend),

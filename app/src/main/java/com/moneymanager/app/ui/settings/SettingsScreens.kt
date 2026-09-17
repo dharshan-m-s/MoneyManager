@@ -1,107 +1,90 @@
 package com.moneymanager.app.ui.settings
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
-import androidx.documentfile.provider.DocumentFile
-import java.text.SimpleDateFormat
-import java.util.Locale
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
-import androidx.compose.material.OutlinedButton
-import androidx.compose.material.Card
-import androidx.compose.material.Checkbox
-import androidx.compose.material.CheckboxDefaults
-import androidx.compose.material.Divider
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.OutlinedTextField
-import androidx.compose.material.RadioButton
-import androidx.compose.material.RadioButtonDefaults
+import androidx.compose.material.OutlinedButton
+import androidx.compose.material.SnackbarHost
+import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Switch
-import androidx.compose.material.SwitchDefaults
-import androidx.compose.material.Tab
-import androidx.compose.material.TabRow
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.moneymanager.app.ui.theme.MMAmberDue
-import com.moneymanager.app.ui.theme.MMGrayDivider
-import com.moneymanager.app.ui.theme.MMGrayText
-import com.moneymanager.app.ui.theme.MMGreen
-import com.moneymanager.app.ui.theme.MMGreenDark
-import com.moneymanager.app.ui.theme.MMGreenIncome
-import com.moneymanager.app.ui.theme.MMWhite
-import com.moneymanager.app.ui.components.MoneyManagerTopBar
-import dagger.hilt.android.EntryPointAccessors
+import androidx.documentfile.provider.DocumentFile
+import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.data.repository.BackupManager
+import com.moneymanager.app.security.AppLock
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmPill
+import com.moneymanager.app.ui.components.MmSwitchRow
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.home.HomePreferences
+import com.moneymanager.app.ui.security.PinSetupDialog
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
+import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Locale
 
-private const val PREFS_NAME = "moneymanager_settings"
-
+/** Kept for the updater screen, which shares this chrome. */
 @Composable
 fun SimpleTopBar(title: String, onBack: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
     MoneyManagerTopBar(title = title, onBack = onBack, actions = actions)
@@ -111,98 +94,72 @@ fun SimpleTopBar(title: String, onBack: () -> Unit, actions: @Composable RowScop
 private fun SettingsSectionHeader(title: String) {
     Text(
         text = title,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colors.primary,
+        style = MmType.label,
+        fontWeight = FontWeight.SemiBold,
+        color = MmColors.accent,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(start = MmSpacing.screen, end = MmSpacing.screen, top = MmSpacing.lg, bottom = MmSpacing.sm)
     )
 }
 
 @Composable
-private fun SettingsSwitchItem(
-    title: String,
-    subtitle: String? = null,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            if (subtitle != null) {
-                Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colors.onSurface.copy(alpha = 0.62f))
-            }
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedTrackColor = MMGreen.copy(alpha = 0.38f),
-                checkedThumbColor = MMGreenDark,
-                uncheckedTrackColor = MMGrayDivider,
-                uncheckedThumbColor = MMGrayText
-            )
-        )
-    }
-}
-
-@Composable
-private fun SettingsCheckBoxItem(
-    title: String,
-    subtitle: String? = null,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            if (subtitle != null) {
-                Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colors.onSurface.copy(alpha = 0.62f))
-            }
-        }
-        Checkbox(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = CheckboxDefaults.colors(checkedColor = MMGreen)
-        )
-    }
-}
-
-@Composable
-private fun SettingsClickItem(
+private fun SettingsRow(
     title: String,
     subtitle: String? = null,
     icon: ImageVector? = null,
-    onClick: () -> Unit
+    onClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null
 ) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .pointerInput(Unit) { detectTapGestures { onClick() } }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+    MmCard(
+        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+        onClick = onClick,
+        contentPadding = PaddingValues(MmSpacing.md)
     ) {
-        if (icon != null) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colors.primary, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                MmIconBadge(icon = icon, tint = MmColors.accent, size = 40.dp)
+                Spacer(Modifier.width(MmSpacing.md))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MmType.body, color = MmColors.textPrimary)
+                subtitle?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        it,
+                        style = MmType.caption,
+                        color = MmColors.textSecondary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            trailing?.invoke()
         }
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            if (subtitle != null) {
-                Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colors.onSurface.copy(alpha = 0.62f))
+    }
+}
+
+@Composable
+private fun SettingsSwitchRow(
+    title: String,
+    subtitle: String?,
+    icon: ImageVector,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    MmCard(
+        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+        contentPadding = PaddingValues(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MmIconBadge(icon = icon, tint = MmColors.accent, size = 40.dp)
+            Spacer(Modifier.width(MmSpacing.md))
+            Box(Modifier.weight(1f)) {
+                MmSwitchRow(
+                    title = title,
+                    subtitle = subtitle,
+                    checked = checked,
+                    onCheckedChange = onCheckedChange
+                )
             }
         }
     }
@@ -216,35 +173,53 @@ fun SettingsScreen(
     onAppUpdates: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
     val backupManager = remember {
         EntryPointAccessors.fromApplication(
             context.applicationContext,
             BackupEntryPoint::class.java
         ).backupManager()
     }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val entryPoint = remember {
+        EntryPointAccessors.fromApplication(context.applicationContext, SettingsEntryPoint::class.java)
+    }
+    val homePreferences: HomePreferences = remember { entryPoint.homePreferences() }
+    val appLock: AppLock = remember { entryPoint.appLock() }
+
+    val scope = rememberCoroutineScope()
+    val snackbarState = remember { SnackbarHostState() }
+
     var backupFolder by remember { mutableStateOf(backupManager.configuredTreeUri()) }
     var backupBusy by remember { mutableStateOf(false) }
-    var backupMessage by remember { mutableStateOf<String?>(null) }
-    val lastBackup by backupManager.lastSuccessfulBackup.collectAsState()
+    var lastBackup by remember { mutableStateOf(backupManager.lastSuccessfulBackup.value) }
+
+    val showIncome by homePreferences.showIncome.collectAsState()
+    val showCashSummary by homePreferences.showCashSummary.collectAsState()
+    val hideAmounts by homePreferences.hideAmounts.collectAsState()
+    var darkMode by remember { mutableStateOf(homePreferences.isDarkMode()) }
+    var autoBackup by remember { mutableStateOf(backupManager.autoBackupEnabled()) }
+    var lockEnabled by remember { mutableStateOf(appLock.isEnabled()) }
+    var showPinDialog by remember { mutableStateOf(false) }
+
+    fun message(text: String) {
+        scope.launch { snackbarState.showSnackbar(text) }
+    }
 
     val backupFolderLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         if (uri != null) {
             runCatching { backupManager.setTreeUri(uri) }
-                .onFailure { backupMessage = it.message ?: "Could not use that folder" }
+                .onFailure { message(it.message ?: "Could not use that folder") }
                 .onSuccess {
                     backupFolder = uri
-                    backupMessage = "Folder connected. Creating your first backup…"
                     backupBusy = true
                     scope.launch {
                         backupManager.backupNow()
-                            .onFailure { backupMessage = it.message ?: "Backup failed" }
+                            .onFailure { message(it.message ?: "Backup failed") }
                             .onSuccess {
-                                backupMessage = "Backup created and synced to the selected folder"
-                                        }
+                                lastBackup = backupManager.lastSuccessfulBackup.value
+                                message("Backup created in the selected folder")
+                            }
                         backupBusy = false
                     }
                 }
@@ -257,309 +232,407 @@ fun SettingsScreen(
         if (uri != null) {
             scope.launch {
                 backupManager.exportCsvToUri(uri)
-                    .onFailure { backupMessage = it.message ?: "CSV export failed" }
-                    .onSuccess { backupMessage = "CSV exported successfully" }
+                    .onFailure { message(it.message ?: "CSV export failed") }
+                    .onSuccess { message("CSV exported successfully") }
             }
         }
     }
 
-    var showIncome by remember { mutableStateOf(prefs.getBoolean("show_income", false)) }
-    var showCashIncome by remember { mutableStateOf(prefs.getBoolean("show_cash_income", true)) }
-    var protectBalance by remember { mutableStateOf(prefs.getBoolean("protect_balance", false)) }
-    var pinEnabled by remember { mutableStateOf(prefs.getBoolean("pin_enabled", true)) }
-    var autoBackup by remember { mutableStateOf(backupManager.autoBackupEnabled()) }
-    var playAlarm by remember { mutableStateOf(prefs.getBoolean("play_alarm", false)) }
-    var dailyReport by remember { mutableStateOf(prefs.getBoolean("daily_report", true)) }
-    var cashReminder by remember { mutableStateOf(prefs.getBoolean("cash_reminder", true)) }
-    var smartNotification by remember { mutableStateOf(prefs.getBoolean("smart_notification", true)) }
-    var hideDuplicate by remember { mutableStateOf(prefs.getBoolean("hide_duplicate", false)) }
-    var darkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", false)) }
+    Box(Modifier.fillMaxSize().background(MmColors.background)) {
+        Column(Modifier.fillMaxSize()) {
+            MoneyManagerTopBar(title = "Settings", onBack = onBack)
 
-    var showIncomeDateDialog by remember { mutableStateOf(false) }
-    var showLanguageDialog by remember { mutableStateOf(false) }
-
-    fun prettyBackupStamp(stamp: String?): String? = stamp?.let {
-        runCatching {
-            SimpleDateFormat("dd MMM yyyy, HH:mm:ss", Locale.US).format(SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).parse(it)!!)
-        }.getOrNull()
-    }
-
-    fun createBackup() {
-        if (backupFolder == null) {
-            backupMessage = "Choose a backup folder first"
-            backupFolderLauncher.launch(null)
-            return
-        }
-        backupBusy = true
-        backupMessage = "Creating a fresh backup…"
-        scope.launch {
-            backupManager.backupNow()
-                .onFailure { backupMessage = it.message ?: "Backup failed" }
-                .onSuccess {
-                    backupMessage = "Backup created and synced to the selected folder"
-                }
-            backupBusy = false
-        }
-    }
-
-    Column(Modifier.fillMaxSize()) {
-        SimpleTopBar("Settings", onBack)
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)
-        ) {
-            SettingsSectionHeader("Money & Planning")
-            SettingsCardRow(
-                title = "Monthly budget",
-                subtitle = "Set your monthly personal-spend target",
-                icon = Icons.Filled.Settings,
-                onClick = onBudget
-            )
-
-            SettingsSectionHeader("Home & Privacy")
-            SettingsSwitchItem("Show Income", "On Home Screen", showIncome) { showIncome = it; prefs.edit().putBoolean("show_income", it).apply() }
-            SettingsSwitchItem("Show Cash Income/Wdl", null, showCashIncome) { showCashIncome = it; prefs.edit().putBoolean("show_cash_income", it).apply() }
-            SettingsSwitchItem("Protect Balance/Income", "Use proximity sensor to display amounts", protectBalance) { protectBalance = it; prefs.edit().putBoolean("protect_balance", it).apply() }
-
-            SettingsSectionHeader("Security")
-            SettingsSwitchItem("PIN lock", "Protect the app from accidental viewing", pinEnabled) { pinEnabled = it; prefs.edit().putBoolean("pin_enabled", it).apply() }
-            SettingsCardRow("Change PIN", "Enter your current PIN and choose a new one", Icons.Filled.Lock) { Toast.makeText(context, "PIN change screen is ready for your security flow", Toast.LENGTH_SHORT).show() }
-
-            SettingsSectionHeader("Backup & Restore")
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                shape = MaterialTheme.shapes.large,
-                elevation = 2.dp
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = MmSpacing.xxl)
             ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SettingsSectionHeader("Money & planning")
+                SettingsRow(
+                    title = "Monthly budget",
+                    subtitle = "Set your personal spending limit for the month",
+                    icon = Icons.Filled.MonetizationOn,
+                    onClick = onBudget
+                )
+
+                SettingsSectionHeader("Home screen")
+                SettingsSwitchRow(
+                    title = "Show income",
+                    subtitle = "Include this month's income in the dashboard summary",
+                    icon = Icons.Filled.Share,
+                    checked = showIncome,
+                    onCheckedChange = homePreferences::setShowIncome
+                )
+                SettingsSwitchRow(
+                    title = "Show cash wallet",
+                    subtitle = "Show the cash card and its monthly activity",
+                    icon = Icons.Filled.MonetizationOn,
+                    checked = showCashSummary,
+                    onCheckedChange = homePreferences::setShowCashSummary
+                )
+                SettingsSwitchRow(
+                    title = "Hide amounts by default",
+                    subtitle = "Balances and totals stay masked until you tap to reveal them",
+                    icon = Icons.Filled.VisibilityOff,
+                    checked = hideAmounts,
+                    onCheckedChange = homePreferences::setHideAmounts
+                )
+
+                SettingsSectionHeader("Security")
+                SettingsSwitchRow(
+                    title = "PIN lock",
+                    subtitle = if (lockEnabled)
+                        "Ask for your PIN whenever the app returns from the background"
+                    else
+                        "Protect the app with a 4-8 digit PIN you choose",
+                    icon = Icons.Filled.Lock,
+                    checked = lockEnabled,
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            showPinDialog = true
+                        } else {
+                            lockEnabled = false
+                            appLock.disable()
+                            message("PIN lock turned off")
+                        }
+                    }
+                )
+                if (lockEnabled) {
+                    SettingsRow(
+                        title = "Change PIN",
+                        subtitle = "Set a new PIN for this device",
+                        icon = Icons.Filled.Security,
+                        onClick = { showPinDialog = true }
+                    )
+                }
+
+                SettingsSectionHeader("Backup & restore")
+                MmCard(modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(44.dp).background(MMGreen.copy(alpha = .11f), CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Filled.CloudUpload, null, tint = MMGreenDark, modifier = Modifier.size(23.dp))
-                        }
-                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text("Backup & Restore", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                            Text("Keep a current copy in the folder you choose", color = MMGrayText, fontSize = 12.sp)
+                        MmIconBadge(icon = Icons.Filled.CloudUpload, tint = MmColors.accent, size = 44.dp)
+                        Spacer(Modifier.width(MmSpacing.md))
+                        Column(Modifier.weight(1f)) {
+                            Text("Backup & restore", style = MmType.sectionTitle, color = MmColors.textPrimary)
+                            Text(
+                                "Keeps a database snapshot and a CSV in the folder you choose",
+                                style = MmType.caption,
+                                color = MmColors.textSecondary
+                            )
                         }
                     }
-
-                    Column(Modifier.fillMaxWidth().background(MaterialTheme.colors.background, MaterialTheme.shapes.medium).padding(12.dp)) {
-                        Text("Backup location", fontSize = 11.sp, color = MMGrayText, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            if (backupFolder == null) "Not connected yet"
-                            else DocumentFile.fromTreeUri(context, backupFolder!!)?.name ?: "Selected folder",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                        Text(
-                            if (lastBackup == null) "No successful backup yet" else "Last successful backup: ${prettyBackupStamp(lastBackup) ?: lastBackup}",
-                            fontSize = 11.sp,
-                            color = if (lastBackup == null) MMAmberDue else MMGreenDark,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
+                    Spacer(Modifier.height(MmSpacing.md))
+                    Text("Location", style = MmType.caption, color = MmColors.textSecondary)
+                    Text(
+                        if (backupFolder == null) "Not connected yet"
+                        else DocumentFile.fromTreeUri(context, backupFolder!!)?.name ?: "Selected folder",
+                        style = MmType.body,
+                        color = MmColors.textPrimary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(MmSpacing.xs))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (lastBackup == null) {
+                            MmPill("No backup yet", tint = MmColors.warning, filled = true)
+                        } else {
+                            MmPill("Last backup ${prettyStamp(lastBackup)}", tint = MmColors.income, filled = true)
+                        }
                     }
-
+                    Spacer(Modifier.height(MmSpacing.md))
                     Button(
-                        onClick = ::createBackup,
+                        onClick = {
+                            if (backupFolder == null) {
+                                backupFolderLauncher.launch(null)
+                                return@Button
+                            }
+                            backupBusy = true
+                            scope.launch {
+                                backupManager.backupNow()
+                                    .onFailure { message(it.message ?: "Backup failed") }
+                                    .onSuccess {
+                                        lastBackup = backupManager.lastSuccessfulBackup.value
+                                        message("Backup created")
+                                    }
+                                backupBusy = false
+                            }
+                        },
                         enabled = !backupBusy,
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        shape = MaterialTheme.shapes.medium,
-                        colors = androidx.compose.material.ButtonDefaults.buttonColors(backgroundColor = MMGreenDark)
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(MmSpacing.radiusRow),
+                        colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
                     ) {
                         if (backupBusy) {
-                            androidx.compose.material.CircularProgressIndicator(color = MMWhite, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                            CircularProgressIndicator(color = MmColors.onAccent, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
                         } else {
-                            Icon(Icons.Filled.CloudUpload, null, tint = MMWhite)
+                            Icon(Icons.Filled.CloudUpload, contentDescription = null, tint = MmColors.onAccent, modifier = Modifier.size(18.dp))
                         }
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (backupBusy) "Creating backup…" else "Create backup", color = MMWhite, fontWeight = FontWeight.Bold)
-                    }
-
-                    OutlinedButton(onClick = { backupFolderLauncher.launch(null) }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
-                        Text(if (backupFolder == null) "Choose backup folder" else "Change backup folder", color = MMGreenDark, fontWeight = FontWeight.SemiBold)
-                    }
-
-                    SettingsSwitchItem(
-                        title = "Auto Backup",
-                        subtitle = if (backupFolder == null) "Choose a folder to start automatic syncing" else "Every data change updates the selected folder automatically",
-                        checked = autoBackup
-                    ) {
-                        autoBackup = it
-                        backupManager.setAutoBackupEnabled(it)
-                    }
-
-                    if (backupMessage != null) {
+                        Spacer(Modifier.width(MmSpacing.sm))
                         Text(
-                            backupMessage!!,
-                            fontSize = 12.sp,
-                            color = if (backupMessage!!.contains("failed", ignoreCase = true) || backupMessage!!.contains("error", ignoreCase = true)) MaterialTheme.colors.error else MMGreenDark,
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                            when {
+                                backupBusy -> "Creating backup…"
+                                backupFolder == null -> "Choose folder & back up"
+                                else -> "Back up now"
+                            },
+                            color = MmColors.onAccent,
+                            style = MmType.label
+                        )
+                    }
+                    Spacer(Modifier.height(MmSpacing.sm))
+                    OutlinedButton(
+                        onClick = { backupFolderLauncher.launch(null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(MmSpacing.radiusRow)
+                    ) {
+                        Text(
+                            if (backupFolder == null) "Choose backup folder" else "Change backup folder",
+                            style = MmType.label
+                        )
+                    }
+                    Box(Modifier.fillMaxWidth()) {
+                        MmSwitchRow(
+                            title = "Automatic backup",
+                            subtitle = if (backupFolder == null)
+                                "Connect a folder to keep it up to date automatically"
+                            else
+                                "Every change is written to the folder shortly after you make it",
+                            checked = autoBackup,
+                            onCheckedChange = {
+                                autoBackup = it
+                                backupManager.setAutoBackupEnabled(it)
+                            }
                         )
                     }
                 }
-            }
 
-            SettingsSectionHeader("Export & Import")
-            SettingsCardRow("Export as CSV", "Export your complete transaction history", Icons.Filled.Description) { csvExportLauncher.launch("moneymanager_transactions.csv") }
-            SettingsCardRow("Import Statement", "Import your Moneyview consolidated CSV", Icons.Filled.CloudUpload, onImportStatement)
+                SettingsSectionHeader("Data")
+                SettingsRow(
+                    title = "Export transactions as CSV",
+                    subtitle = "Save your full history to a file you choose",
+                    icon = Icons.Filled.Description,
+                    onClick = { csvExportLauncher.launch("moneymanager_transactions.csv") }
+                )
+                SettingsRow(
+                    title = "Import a statement",
+                    subtitle = "Bring in a Moneyview consolidated CSV",
+                    icon = Icons.Filled.Download,
+                    onClick = onImportStatement
+                )
 
-            SettingsSectionHeader("Alerts & Notifications")
-            SettingsCheckBoxItem("Play Alarm", "If there's a bill due today", playAlarm) { playAlarm = it; prefs.edit().putBoolean("play_alarm", it).apply() }
-            SettingsCheckBoxItem("Daily Report", "Daily Report", dailyReport) { dailyReport = it; prefs.edit().putBoolean("daily_report", it).apply() }
-            SettingsCheckBoxItem("Cash Spend Reminder", "Daily evening", cashReminder) { cashReminder = it; prefs.edit().putBoolean("cash_reminder", it).apply() }
-            SettingsSwitchItem("Smart Transactional Notification", "Better notification experience", smartNotification) { smartNotification = it; prefs.edit().putBoolean("smart_notification", it).apply() }
-            SettingsSwitchItem("Hide Duplicate SMS notification", "Hide repeated SMS notifications", hideDuplicate) { hideDuplicate = it; prefs.edit().putBoolean("hide_duplicate", it).apply() }
+                SettingsSectionHeader("Appearance")
+                SettingsSwitchRow(
+                    title = "Dark mode",
+                    subtitle = "Use the dark theme throughout the app",
+                    icon = Icons.Filled.DarkMode,
+                    checked = darkMode,
+                    onCheckedChange = {
+                        darkMode = it
+                        homePreferences.setDarkMode(it)
+                    }
+                )
 
-            SettingsSectionHeader("Appearance")
-            SettingsSwitchItem("Dark mode", "Use a dark theme throughout the app", darkMode) { darkMode = it; prefs.edit().putBoolean("dark_mode", it).apply() }
-
-            SettingsSectionHeader("Updates")
-            SettingsCardRow(
-                "App Updates",
-                "Check GitHub for the latest stable Money Manager release",
-                Icons.Filled.SystemUpdate,
-                onAppUpdates
-            )
-
-            SettingsSectionHeader("General")
-            SettingsCardRow("Fix Transaction Date", "Scan for date mismatches", Icons.Filled.Refresh) { Toast.makeText(context, "Scanning for date mismatches…", Toast.LENGTH_SHORT).show() }
-            SettingsCardRow("Start Date for Income", prefs.getString("income_start_date", "25") ?: "25", Icons.Filled.CalendarToday) { showIncomeDateDialog = true }
-            SettingsCardRow("Language", prefs.getString("language", "English") ?: "English", Icons.Filled.Language) { showLanguageDialog = true }
-
-            Spacer(Modifier.height(24.dp))
-        }
-    }
-
-    if (showIncomeDateDialog) {
-        var dayValue by remember { mutableStateOf(prefs.getString("income_start_date", "25") ?: "25") }
-        AlertDialog(onDismissRequest = { showIncomeDateDialog = false }, title = { Text("Start Date for Income") }, text = { OutlinedTextField(dayValue, { dayValue = it.filter(Char::isDigit) }, label = { Text("Day of month (1–31)") }, singleLine = true) }, confirmButton = { TextButton(onClick = { prefs.edit().putString("income_start_date", (dayValue.toIntOrNull()?.coerceIn(1, 31) ?: 25).toString()).apply(); showIncomeDateDialog = false }) { Text("Save") } }, dismissButton = { TextButton(onClick = { showIncomeDateDialog = false }) { Text("Cancel") } })
-    }
-    if (showLanguageDialog) {
-        val languages = listOf("English", "বাংলা", "ગુજરાતી", "हिंदी", "ಕನ್ನಡ", "मराठी", "தமிழ்", "తెలుగు")
-        var selected by remember { mutableStateOf(prefs.getString("language", "English") ?: "English") }
-        AlertDialog(onDismissRequest = { showLanguageDialog = false }, title = { Text("Language") }, text = { Column { languages.forEach { lang -> Row(Modifier.fillMaxWidth().clickable { selected = lang }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected == lang, { selected = lang }, colors = RadioButtonDefaults.colors(selectedColor = MMGreen)); Spacer(Modifier.width(8.dp)); Text(lang) } } } }, confirmButton = { TextButton(onClick = { prefs.edit().putString("language", selected).apply(); showLanguageDialog = false }) { Text("Save") } }, dismissButton = { TextButton(onClick = { showLanguageDialog = false }) { Text("Cancel") } })
-    }
-}
-
-@Composable
-private fun SettingsCardRow(title: String, subtitle: String? = null, icon: ImageVector? = null, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.large,
-        elevation = 0.dp,
-        backgroundColor = MaterialTheme.colors.surface
-    ) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (icon != null) {
-                Box(Modifier.size(40.dp).background(MMGreen.copy(alpha = .09f), CircleShape), contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = MMGreenDark, modifier = Modifier.size(21.dp))
-                }
-                Spacer(Modifier.width(12.dp))
-            }
-            Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                subtitle?.let { Text(it, fontSize = 11.sp, color = MMGrayText, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp)) }
-            }
-            Icon(Icons.Filled.ChevronRight, null, tint = MMGrayText)
-        }
-    }
-}
-
-@Composable
-fun FeedbackScreen(onBack: () -> Unit) {
-    var selectedTab by remember { mutableIntStateOf(0) }
-
-    Column(Modifier.fillMaxSize()) {
-        SimpleTopBar("Feedback & Report Issues", onBack)
-
-        val tabs = listOf("MISSING TRANSACTION", "OTHER")
-        TabRow(selectedTabIndex = selectedTab, backgroundColor = androidx.compose.material.MaterialTheme.colors.surface, contentColor = androidx.compose.material.MaterialTheme.colors.primary) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                SettingsSectionHeader("About")
+                SettingsRow(
+                    title = "App updates",
+                    subtitle = "Check GitHub for the latest stable release",
+                    icon = Icons.Filled.SystemUpdate,
+                    onClick = onAppUpdates
+                )
+                SettingsRow(
+                    title = "Version ${BuildConfig.VERSION_NAME}",
+                    subtitle = "Build ${BuildConfig.VERSION_CODE}",
+                    icon = Icons.Filled.Info
                 )
             }
         }
 
-        when (selectedTab) {
-            0 -> {
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(Icons.Filled.BugReport, contentDescription = null, tint = MMGrayText, modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.height(16.dp))
-                    Text("No SMSes To Track", fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Make sure you're using a number linked with your bank account", fontSize = 13.sp, color = MaterialTheme.colors.onSurface.copy(alpha = 0.62f))
+        SnackbarHost(
+            hostState = snackbarState,
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
+        )
+    }
+
+    if (showPinDialog) {
+        PinSetupDialog(
+            isChange = lockEnabled,
+            onDismiss = { showPinDialog = false },
+            onSubmit = { pin ->
+                if (appLock.setPin(pin)) {
+                    lockEnabled = appLock.isEnabled()
+                    showPinDialog = false
+                    message("PIN lock is on")
+                } else {
+                    message("Choose 4 to 8 digits")
                 }
             }
-            1 -> {
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(Icons.Filled.Warning, contentDescription = null, tint = MMGrayText, modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.height(16.dp))
-                    Text("Report an Issue", fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Describe the problem you are facing and our team will get back to you.", fontSize = 13.sp, color = MaterialTheme.colors.onSurface.copy(alpha = 0.62f))
-                }
+        )
+    }
+}
+
+private fun prettyStamp(stamp: String?): String = stamp?.let {
+    runCatching {
+        SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.US)
+            .format(SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).parse(it)!!)
+    }.getOrNull() ?: it
+} ?: ""
+
+private fun openUrl(context: Context, url: String) {
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+}
+
+@Composable
+fun FeedbackScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val repoUrl = "https://github.com/${BuildConfig.GITHUB_OWNER}/${BuildConfig.GITHUB_REPOSITORY}"
+
+    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+        MoneyManagerTopBar(title = "Help & feedback", onBack = onBack)
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(MmSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+        ) {
+            MmCard {
+                Text("Something wrong with your numbers?", style = MmType.sectionTitle, color = MmColors.textPrimary)
+                Spacer(Modifier.height(MmSpacing.xs))
+                Text(
+                    "Include the screen you were on, what you expected and what you saw. Never attach " +
+                        "your exported CSV or backup file to a public issue - it contains your real " +
+                        "financial data.",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary
+                )
             }
+            SettingsRow(
+                title = "Report a bug",
+                subtitle = "Opens a new issue on the project's GitHub repository",
+                icon = Icons.Filled.BugReport,
+                onClick = { openUrl(context, "$repoUrl/issues/new") }
+            )
+            SettingsRow(
+                title = "Browse existing issues",
+                subtitle = "Check whether someone already reported it",
+                icon = Icons.Filled.Description,
+                onClick = { openUrl(context, "$repoUrl/issues") }
+            )
+            SettingsRow(
+                title = "Project repository",
+                subtitle = repoUrl,
+                icon = Icons.Filled.Code,
+                onClick = { openUrl(context, repoUrl) }
+            )
         }
     }
 }
 
+private data class LicenseEntry(val name: String, val license: String)
+
+private val LICENSES = listOf(
+    LicenseEntry("AndroidX / Jetpack Compose", "Apache License 2.0"),
+    LicenseEntry("Kotlin & kotlinx.coroutines", "Apache License 2.0"),
+    LicenseEntry("Room", "Apache License 2.0"),
+    LicenseEntry("Hilt / Dagger", "Apache License 2.0"),
+    LicenseEntry("WorkManager", "Apache License 2.0"),
+    LicenseEntry("Navigation Compose", "Apache License 2.0"),
+    LicenseEntry("OpenCSV", "Apache License 2.0"),
+    LicenseEntry("Gson", "Apache License 2.0"),
+    LicenseEntry("Timber", "Apache License 2.0"),
+    LicenseEntry("JUnit & Robolectric (test only)", "Eclipse Public License 1.0 / MIT")
+)
+
 @Composable
 fun OpenSourceScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    Column(Modifier.fillMaxSize()) {
-        SimpleTopBar("Open Source", onBack)
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-            Text("Money Manager", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text("A local-first, open-source personal finance app.", fontSize = 13.sp, color = MaterialTheme.colors.onSurface.copy(alpha = .68f), modifier = Modifier.padding(top = 4.dp))
-            Spacer(Modifier.height(20.dp))
-            SettingsClickItem("Project repository", "Open-source source code and documentation", Icons.Filled.Code) {
-                Toast.makeText(context, "Repository URL can be configured for your release", Toast.LENGTH_SHORT).show()
+    val repoUrl = "https://github.com/${BuildConfig.GITHUB_OWNER}/${BuildConfig.GITHUB_REPOSITORY}"
+
+    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+        MoneyManagerTopBar(title = "Open source", onBack = onBack)
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(MmSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+        ) {
+            MmCard {
+                Text("Money Manager", style = MmType.sectionTitle, color = MmColors.textPrimary)
+                Text(
+                    "A local-first personal finance app. There is no account, no server and no " +
+                        "analytics - your ledger lives in a database on this device.",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary
+                )
+                Spacer(Modifier.height(MmSpacing.md))
+                Button(
+                    onClick = { openUrl(context, repoUrl) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(MmSpacing.radiusRow),
+                    colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
+                ) {
+                    Icon(Icons.Filled.Code, contentDescription = null, tint = MmColors.onAccent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(MmSpacing.sm))
+                    Text("Open the repository", color = MmColors.onAccent, style = MmType.label)
+                }
             }
-            Divider(color = MMGrayDivider)
-            SettingsClickItem("Report a bug", "Capture details and report it to the project maintainers", Icons.Filled.BugReport) {
-                Toast.makeText(context, "Bug reporting endpoint can be configured for your release", Toast.LENGTH_SHORT).show()
+
+            MmCard {
+                Text("Third-party libraries", style = MmType.sectionTitle, color = MmColors.textPrimary)
+                Spacer(Modifier.height(MmSpacing.sm))
+                LICENSES.forEach { entry ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(entry.name, style = MmType.body, color = MmColors.textPrimary, modifier = Modifier.weight(1f))
+                        Text(entry.license, style = MmType.caption, color = MmColors.textSecondary)
+                    }
+                }
             }
-            Divider(color = MMGrayDivider)
-            SettingsClickItem("Licenses", "Open-source dependencies and their licenses", Icons.Filled.Description) {
-                Toast.makeText(context, "Third-party license viewer", Toast.LENGTH_SHORT).show()
-            }
-            Divider(color = MMGrayDivider)
-            SettingsClickItem("Privacy", "Your financial data stays on your device unless you explicitly export it", Icons.Filled.Security) { }
         }
     }
 }
 
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
-    Column(Modifier.fillMaxSize()) {
-        SimpleTopBar("About", onBack)
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-            Text("Money Manager", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text("Open-source personal finance manager", fontSize = 13.sp, color = MaterialTheme.colors.onSurface.copy(alpha = .68f), modifier = Modifier.padding(top = 4.dp, bottom = 20.dp))
-            Divider(color = MMGrayDivider)
-            SettingsClickItem("Open-source project", "Source code and documentation", Icons.Filled.Code) { }
-            Divider(color = MMGrayDivider)
-            SettingsClickItem("Privacy", "Local-first financial data handling", Icons.Filled.Security) { }
-            Divider(color = MMGrayDivider)
-            SettingsClickItem("Licenses", "Third-party open-source licenses", Icons.Filled.Description) { }
-            Divider(color = MMGrayDivider)
-            Text("Version 1.0.0 (100)", fontSize = 12.sp, color = MaterialTheme.colors.onSurface.copy(alpha = .62f), modifier = Modifier.padding(top = 20.dp))
+    val context = LocalContext.current
+    val repoUrl = "https://github.com/${BuildConfig.GITHUB_OWNER}/${BuildConfig.GITHUB_REPOSITORY}"
+
+    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+        MoneyManagerTopBar(title = "About", onBack = onBack)
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(MmSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+        ) {
+            MmCard {
+                Text("Money Manager", style = MmType.screenTitle, color = MmColors.textPrimary)
+                Text(
+                    "Version ${BuildConfig.VERSION_NAME} • build ${BuildConfig.VERSION_CODE}",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary
+                )
+                Spacer(Modifier.height(MmSpacing.md))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MmColors.income, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(MmSpacing.sm))
+                    Text(
+                        "Local-first: nothing leaves this device unless you export it",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
+                    )
+                }
+            }
+            SettingsRow(
+                title = "Project repository",
+                subtitle = "Source code and documentation",
+                icon = Icons.Filled.Code,
+                onClick = { openUrl(context, repoUrl) }
+            )
+            SettingsRow(
+                title = "Privacy",
+                subtitle = "Transactions, accounts and receipts stay in the app's private storage",
+                icon = Icons.Filled.Security
+            )
+            SettingsRow(
+                title = "Licenses",
+                subtitle = "Open-source dependencies used by this app",
+                icon = Icons.Filled.Description
+            )
         }
     }
 }

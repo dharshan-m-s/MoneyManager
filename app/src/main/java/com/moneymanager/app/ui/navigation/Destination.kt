@@ -59,6 +59,9 @@ sealed class Destination(val route: String, val label: String, val icon: ImageVe
     data object TransactionDetail : Destination("transaction_detail/{transactionId}", "Transaction", Icons.Filled.Description) {
         fun route(transactionId: Long) = "transaction_detail/$transactionId"
     }
+    data object TransactionEdit : Destination("transaction_edit/{transactionId}", "Edit Transaction", Icons.Filled.Description) {
+        fun route(transactionId: Long) = "transaction_edit/$transactionId"
+    }
     data object CreditCardForm : Destination("credit_card_form?accountId={accountId}", "Credit Card", Icons.Filled.AccountBalance) {
         fun route(accountId: Long?) = "credit_card_form?accountId=${accountId ?: -1L}"
     }

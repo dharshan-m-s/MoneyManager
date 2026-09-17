@@ -127,6 +127,13 @@ interface TransactionDao {
     fun observeTotalSpendInRange(startInclusive: Long, endExclusive: Long): Flow<Long>
 
     @Query(
+        "SELECT COALESCE(SUM(creditMinorUnits - debitMinorUnits), 0) FROM transactions " +
+            "WHERE txnSubType = 'INCOME' AND includeInStatistics = 1 " +
+            "AND occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive"
+    )
+    fun observeTotalIncomeInRange(startInclusive: Long, endExclusive: Long): Flow<Long>
+
+    @Query(
         "SELECT categoryId, COALESCE(SUM(debitMinorUnits - creditMinorUnits), 0) as total FROM transactions " +
             "WHERE txnSubType = 'EXPENSE' AND includeInStatistics = 1 " +
             "AND occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive " +
@@ -157,6 +164,16 @@ interface TransactionDao {
         "SELECT * FROM transactions WHERE reimbursable = 1 AND reimbursed = 0 ORDER BY occurredAtEpochMillis DESC"
     )
     fun observePendingReimbursements(): Flow<List<TransactionEntity>>
+
+    @Query("DELETE FROM transactions WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query(
+        "SELECT * FROM transactions WHERE accountId = :accountId " +
+            "AND occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive " +
+            "ORDER BY occurredAtEpochMillis ASC"
+    )
+    suspend fun findByAccountInRange(accountId: Long, startInclusive: Long, endExclusive: Long): List<TransactionEntity>
 }
 
 data class CategoryTotal(val categoryId: Long?, val total: Long)

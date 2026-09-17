@@ -1,10 +1,6 @@
 package com.moneymanager.app.ui.categories
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,41 +9,25 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
-import androidx.compose.material.Button
-import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Card
-import androidx.compose.material.Divider
 import androidx.compose.material.DropdownMenu
 import androidx.compose.material.DropdownMenuItem
+import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.OutlinedButton
-import androidx.compose.material.OutlinedTextField
-import androidx.compose.material.RadioButton
-import androidx.compose.material.RadioButtonDefaults
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
-import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
@@ -55,23 +35,24 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.moneymanager.app.data.local.entity.CategoryEntity
-import com.moneymanager.app.data.local.entity.CategoryKind
-import com.moneymanager.app.ui.theme.MMGrayDivider
-import com.moneymanager.app.ui.theme.MMGrayText
-import com.moneymanager.app.ui.theme.MMGreen
-import com.moneymanager.app.ui.theme.MMGreenDark
-import com.moneymanager.app.ui.theme.MMWhite
-import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.moneymanager.app.data.local.entity.CategoryEntity
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmEmptyState
+import com.moneymanager.app.ui.components.MmPill
+import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.MmTextField
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 
 @Composable
 fun CategoryManagerScreen(
@@ -82,56 +63,68 @@ fun CategoryManagerScreen(
     viewModel: CategoryManagerViewModel = hiltViewModel()
 ) {
     val categories by viewModel.categories.collectAsState()
-    var query by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
     var editing by remember { mutableStateOf<CategoryEntity?>(null) }
-    val filtered = remember(categories, query) {
-        categories.filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
-    }
-    val selectionMode = onCategorySelected != null
-    val title = if (selectionMode) "Choose Category" else "Categories"
+    var showHidden by rememberSaveable { mutableStateOf(false) }
 
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colors.background)) {
+    val selectionMode = onCategorySelected != null
+    val visible = remember(categories, query, showHidden, selectionMode) {
+        categories
+            .filter { if (selectionMode) it.active else showHidden || it.active }
+            .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
+    }
+    val hiddenCount = remember(categories) { categories.count { !it.active } }
+
+    Box(Modifier.fillMaxSize().background(MmColors.background)) {
         Column(Modifier.fillMaxSize()) {
             MoneyManagerTopBar(
-                title = title,
-                subtitle = if (selectionMode) "Pick a category for your transaction" else "Customize categories used across the app",
-                onBack = onBack,
-                actions = {
-                    if (!selectionMode) {
-                        IconButton(onClick = onCreateCategory) {
-                            Icon(Icons.Filled.Add, "Create category", tint = MMWhite)
+                title = if (selectionMode) "Choose category" else "Categories",
+                subtitle = if (selectionMode) "Pick a category for your transaction"
+                else "${categories.count { it.active }} active • $hiddenCount hidden",
+                onBack = onBack
+            )
+
+            Column(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md)) {
+                MmSearchField(
+                    value = query,
+                    onValueChange = { query = it },
+                    hint = "Search categories"
+                )
+                if (!selectionMode) {
+                    Spacer(Modifier.padding(top = MmSpacing.sm))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (showHidden) "Showing hidden categories too" else "Hidden categories are excluded",
+                            style = MmType.caption,
+                            color = MmColors.textSecondary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { showHidden = !showHidden }) {
+                            Text(if (showHidden) "Hide them" else "Show hidden", style = MmType.caption)
                         }
                     }
                 }
-            )
+            }
 
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Filled.Search, null) },
-                placeholder = { Text("Search categories…") },
-                shape = MaterialTheme.shapes.large
-            )
-
-            if (filtered.isEmpty()) {
-                Column(
-                    Modifier.fillMaxSize().padding(28.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(Icons.Filled.Search, null, tint = MMGrayText, modifier = Modifier.size(42.dp))
-                    Text("No categories found", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
-                    Text("Try another search or create a new category.", color = MMGrayText, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-                }
+            if (visible.isEmpty()) {
+                MmEmptyState(
+                    icon = Icons.Filled.Search,
+                    title = if (query.isBlank()) "No categories yet" else "No match for \"$query\"",
+                    message = if (query.isBlank()) "Create your first category to classify transactions."
+                    else "Try a shorter search, or create a new category.",
+                    actionLabel = if (query.isBlank()) "Create category" else "Clear search",
+                    onAction = if (query.isBlank()) onCreateCategory else ({ query = "" })
+                )
             } else {
                 LazyColumn(
-                    Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 112.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    contentPadding = PaddingValues(
+                        start = MmSpacing.lg,
+                        end = MmSpacing.lg,
+                        bottom = 112.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {
-                    items(filtered, key = { it.id }) { category ->
+                    items(visible, key = { it.id }) { category ->
                         CategoryRow(
                             category = category,
                             selectionMode = selectionMode,
@@ -153,11 +146,16 @@ fun CategoryManagerScreen(
         }
 
         FloatingActionButton(
-                onClick = onCreateCategory,
-                backgroundColor = MMGreenDark,
-                contentColor = MMWhite,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(18.dp)
-            ) { Icon(Icons.Filled.Add, "Create category") }
+            onClick = onCreateCategory,
+            backgroundColor = MmColors.accent,
+            contentColor = MmColors.onAccent,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(MmSpacing.lg)
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "Create category")
+        }
     }
 
     editing?.let { category ->
@@ -180,40 +178,49 @@ private fun CategoryRow(
     onToggle: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(enabled = selectionMode && category.active, onClick = onSelect),
-        shape = MaterialTheme.shapes.large,
-        elevation = 1.dp
+    MmCard(
+        onClick = if (selectionMode && category.active) onSelect else null,
+        contentPadding = PaddingValues(horizontal = MmSpacing.md, vertical = MmSpacing.sm)
     ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CategoryVisual(category = category, size = 50.dp)
-            Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
-                Text(category.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CategoryVisual(category = category, size = 46.dp)
+            Spacer(Modifier.width(MmSpacing.md))
+            Column(Modifier.weight(1f)) {
                 Text(
-                    when {
-                        !category.active -> "Hidden"
-                        category.isCustom -> "Custom category"
-                        category.isImportedOnly -> "Imported category"
-                        else -> "Default category"
-                    },
-                    color = MMGrayText,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(top = 2.dp)
+                    category.name,
+                    style = MmType.body,
+                    color = MmColors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                Spacer(Modifier.padding(top = 2.dp))
+                when {
+                    !category.active -> MmPill("Hidden", tint = MmColors.textSecondary)
+                    category.isCustom -> MmPill("Custom", tint = MmColors.accent)
+                    category.isImportedOnly -> MmPill("Imported", tint = MmColors.textSecondary)
+                    else -> MmPill("Default", tint = MmColors.textSecondary)
+                }
             }
             if (selectionMode) {
-                Icon(Icons.Filled.ChevronRight, "Select ${category.name}", tint = MMGreenDark)
+                Icon(Icons.Filled.ChevronRight, contentDescription = "Select ${category.name}", tint = MmColors.textTertiary)
             } else {
-                IconButton(onClick = onUp) { Icon(Icons.Filled.ArrowUpward, "Move up", tint = MMGrayText) }
-                IconButton(onClick = onDown) { Icon(Icons.Filled.ArrowDownward, "Move down", tint = MMGrayText) }
-                IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, "Rename", tint = MMGreenDark) }
+                IconButton(onClick = onUp) {
+                    Icon(Icons.Filled.ArrowUpward, contentDescription = "Move up", tint = MmColors.textSecondary)
+                }
+                IconButton(onClick = onDown) {
+                    Icon(Icons.Filled.ArrowDownward, contentDescription = "Move down", tint = MmColors.textSecondary)
+                }
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Rename category", tint = MmColors.accent)
+                }
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More actions", tint = MMGrayText) }
+                    IconButton(onClick = { menu = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "More actions", tint = MmColors.textSecondary)
+                    }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(onClick = { menu = false; onToggle() }) { Text(if (category.active) "Hide category" else "Show category") }
+                        DropdownMenuItem(onClick = { menu = false; onToggle() }) {
+                            Text(if (category.active) "Hide category" else "Show category")
+                        }
                     }
                 }
             }
@@ -222,27 +229,27 @@ private fun CategoryRow(
 }
 
 @Composable
-private fun RenameCategoryDialog(category: CategoryEntity, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+private fun RenameCategoryDialog(
+    category: CategoryEntity,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
     var name by remember { mutableStateOf(category.name) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Category") },
-        text = { OutlinedTextField(name, { name = it }, label = { Text("Category name") }, singleLine = true) },
-        confirmButton = { TextButton(onClick = { onSave(name.trim()) }, enabled = name.isNotBlank()) { Text("Save") } },
+        title = { Text("Rename category") },
+        text = {
+            MmTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = "Category name"
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(name.trim()) }, enabled = name.isNotBlank()) {
+                Text("Save", color = MmColors.accent)
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
-
-@Composable
-private fun FilterKindChip(selected: Boolean, onClick: () -> Unit, content: @Composable () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.medium,
-        colors = ButtonDefaults.outlinedButtonColors(
-            backgroundColor = if (selected) MMGreen.copy(alpha = .10f) else MaterialTheme.colors.surface,
-            contentColor = if (selected) MMGreenDark else MMGrayText
-        ),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp)
-    ) { content() }
-}
-

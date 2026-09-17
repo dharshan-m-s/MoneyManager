@@ -1,39 +1,38 @@
 package com.moneymanager.app.ui.accounts
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.moneymanager.app.ui.theme.MMGreenDark
-import com.moneymanager.app.ui.theme.MMWhite
-import com.moneymanager.app.ui.theme.MMSurfaceMuted
-import com.moneymanager.app.ui.theme.MMGrayText
-import com.moneymanager.app.ui.theme.MMBlack
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmEmptyState
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 
 data class BankInfo(val name: String, val iconRes: String = "")
 
@@ -93,84 +92,55 @@ fun BankSelectionScreen(
     onBack: () -> Unit,
     onBankSelected: (String) -> Unit
 ) {
-    var searchQuery by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
 
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(MMGreenDark)
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MMWhite)
-            }
-            Text(
-                "Select Bank",
-                color = MMWhite,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f)
+    val filteredPopular = remember(query) {
+        POPULAR_BANKS.filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
+    }
+    val filteredOther = remember(query) {
+        OTHER_BANKS.filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
+    }
+
+    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+        MoneyManagerTopBar(
+            title = "Select bank",
+            subtitle = "Choose the bank this account belongs to",
+            onBack = onBack
+        )
+
+        Column(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md)) {
+            MmSearchField(
+                value = query,
+                onValueChange = { query = it },
+                hint = "Search for a bank"
             )
         }
 
-        // Search bar
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .background(MMSurfaceMuted, RoundedCornerShape(14.dp))
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Filled.Search, contentDescription = null, tint = MMGrayText, modifier = Modifier.size(20.dp))
-            Text(
-                if (searchQuery.isEmpty()) "Enter Bank Name" else searchQuery,
-                color = if (searchQuery.isEmpty()) MMGrayText else MMBlack,
-                fontSize = 14.sp,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 8.dp)
-                    .clickable { /* Could open keyboard */ }
+        if (filteredPopular.isEmpty() && filteredOther.isEmpty()) {
+            MmEmptyState(
+                icon = Icons.Filled.Search,
+                title = "No bank matches \"$query\"",
+                message = "Try a shorter name, or add the account without a bank match.",
+                actionLabel = "Clear search",
+                onAction = { query = "" }
             )
-        }
-
-        val filteredPopular = POPULAR_BANKS.filter {
-            searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
-        }
-        val filteredOther = OTHER_BANKS.filter {
-            searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
-        }
-
-        LazyColumn {
-            if (filteredPopular.isNotEmpty()) {
-                item {
-                    Text(
-                        "POPULAR BANKS",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MMGrayText,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
+        } else {
+            LazyColumn(contentPadding = PaddingValues(bottom = MmSpacing.xxl)) {
+                if (filteredPopular.isNotEmpty()) {
+                    item(key = "popular-header") {
+                        BankSectionHeader("Popular banks")
+                    }
+                    items(filteredPopular, key = { "p-${it.name}" }) { bank ->
+                        BankRow(bank) { onBankSelected(bank.name) }
+                    }
                 }
-                items(filteredPopular) { bank ->
-                    BankRow(bank) { onBankSelected(bank.name) }
-                }
-            }
-
-            if (filteredOther.isNotEmpty()) {
-                item {
-                    Text(
-                        "OTHER BANKS",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MMGrayText,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
-                items(filteredOther) { bank ->
-                    BankRow(bank) { onBankSelected(bank.name) }
+                if (filteredOther.isNotEmpty()) {
+                    item(key = "other-header") {
+                        BankSectionHeader("Other banks")
+                    }
+                    items(filteredOther, key = { "o-${it.name}" }) { bank ->
+                        BankRow(bank) { onBankSelected(bank.name) }
+                    }
                 }
             }
         }
@@ -178,26 +148,34 @@ fun BankSelectionScreen(
 }
 
 @Composable
+private fun BankSectionHeader(title: String) {
+    Text(
+        title,
+        style = MmType.label,
+        color = MmColors.textSecondary,
+        modifier = Modifier.padding(
+            start = MmSpacing.screen,
+            end = MmSpacing.screen,
+            top = MmSpacing.lg,
+            bottom = MmSpacing.sm
+        )
+    )
+}
+
+@Composable
 private fun BankRow(bank: BankInfo, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+    MmCard(
+        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+        onClick = onClick,
+        contentPadding = PaddingValues(MmSpacing.md)
     ) {
-        Icon(
-            Icons.Filled.AccountBalance,
-            contentDescription = null,
-            tint = MMGreenDark,
-            modifier = Modifier
-                .size(40.dp)
-                .padding(4.dp)
-        )
-        Text(
-            bank.name,
-            fontSize = 15.sp,
-            modifier = Modifier.padding(start = 12.dp)
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)
+        ) {
+            MmIconBadge(icon = Icons.Filled.AccountBalance, tint = MmColors.accent, size = 40.dp)
+            Text(bank.name, style = MmType.body, color = MmColors.textPrimary, modifier = Modifier.weight(1f))
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MmColors.textTertiary)
+        }
     }
 }

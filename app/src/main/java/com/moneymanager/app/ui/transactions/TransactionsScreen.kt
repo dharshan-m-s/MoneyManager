@@ -2,60 +2,102 @@ package com.moneymanager.app.ui.transactions
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.Icon
+import androidx.compose.material.RadioButton
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sort
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.entity.TransactionEntity
-import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.model.TxnSubType
-import com.moneymanager.app.ui.components.MoneyFormat
-import com.moneymanager.app.ui.theme.*
+import com.moneymanager.app.ui.components.MmAmountField
+import com.moneymanager.app.ui.components.MmBottomSheet
+import com.moneymanager.app.ui.components.MmChip
+import com.moneymanager.app.ui.components.MmDateField
+import com.moneymanager.app.ui.components.MmEmptyState
+import com.moneymanager.app.ui.components.MmOption
+import com.moneymanager.app.ui.components.MmPickerField
+import com.moneymanager.app.ui.components.MmPickerSheet
+import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.MmSwitchRow
+import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.formatFullDate
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
-private enum class TxnSort { NEWEST, OLDEST, HIGHEST, LOWEST, NAME_AZ, NAME_ZA }
-private enum class TxnFilterType { ALL, EXPENSE, INCOME, TRANSFER }
+private val txnZone: ZoneId = ZoneId.of("Asia/Kolkata")
+
+private enum class TxnSort(val label: String) {
+    NEWEST("Newest first"),
+    OLDEST("Oldest first"),
+    HIGHEST("Highest amount"),
+    LOWEST("Lowest amount"),
+    NAME_AZ("Name (A–Z)"),
+    NAME_ZA("Name (Z–A)")
+}
+
+private enum class TxnTypeFilter(val label: String) {
+    ALL("All"),
+    EXPENSE("Expense"),
+    INCOME("Income"),
+    TRANSFER("Transfer")
+}
 
 private data class TxnFilters(
-    val type: TxnFilterType = TxnFilterType.ALL,
-    val text: String = "",
-    val category: String = "",
-    val payment: String = "",
-    val businessPersonal: String = "",
-    val txnSubtype: String = "",
-    val account: String = "",
-    val fromDate: String = "",
-    val toDate: String = "",
+    val type: TxnTypeFilter = TxnTypeFilter.ALL,
+    val categoryId: Long? = null,
+    val accountId: Long? = null,
+    val fromEpoch: Long? = null,
+    val toEpoch: Long? = null,
     val minAmount: String = "",
     val maxAmount: String = "",
     val reimbursableOnly: Boolean = false,
     val pendingReimbursementOnly: Boolean = false
 ) {
-    fun isActive(): Boolean = this != TxnFilters()
+    val isActive: Boolean
+        get() = type != TxnTypeFilter.ALL || categoryId != null || accountId != null ||
+            fromEpoch != null || toEpoch != null || minAmount.isNotBlank() || maxAmount.isNotBlank() ||
+            reimbursableOnly || pendingReimbursementOnly
 }
-
-private val dateInputFormatter = DateTimeFormatter.ISO_LOCAL_DATE
-private val zone = ZoneId.of("Asia/Kolkata")
 
 @Composable
 fun TransactionsScreen(
@@ -64,14 +106,31 @@ fun TransactionsScreen(
     viewModel: TransactionsViewModel = hiltViewModel()
 ) {
     val rows by viewModel.transactions.collectAsState()
-    var sort by remember { mutableStateOf(TxnSort.NEWEST) }
+    val categories by viewModel.categories.collectAsState()
+    val accounts by viewModel.accounts.collectAsState()
+
+    var query by rememberSaveable { mutableStateOf("") }
+    var sort by rememberSaveable { mutableStateOf(TxnSort.NEWEST.name) }
     var filters by remember { mutableStateOf(TxnFilters()) }
     var showSort by remember { mutableStateOf(false) }
     var showFilter by remember { mutableStateOf(false) }
 
-    val visibleRows = remember(rows, sort, filters) {
-        val filtered = rows.filter { txn -> matchesFilters(txn, filters) }
-        when (sort) {
+    val activeSort = TxnSort.valueOf(sort)
+    val categoryNames = remember(categories) { categories.associate { it.id to it.name } }
+    val accountNames = remember(accounts) {
+        accounts.associate { it.id to it.nickname.ifBlank { it.institutionName } }
+    }
+
+    val visibleRows = remember(rows, sort, filters, query, categoryNames, accountNames) {
+        val searched = if (query.isBlank()) rows else rows.filter { txn ->
+            val haystack = listOfNotNull(
+                txn.merchantReceiverSender, txn.rawCategoryName, txn.notes, txn.rawPaymentType,
+                accountNames[txn.accountId]
+            ).joinToString(" ")
+            haystack.contains(query.trim(), ignoreCase = true)
+        }
+        val filtered = searched.filter { matchesFilters(it, filters) }
+        when (activeSort) {
             TxnSort.NEWEST -> filtered.sortedWith(compareByDescending<TransactionEntity> { it.occurredAtEpochMillis }.thenByDescending { it.id })
             TxnSort.OLDEST -> filtered.sortedWith(compareBy<TransactionEntity> { it.occurredAtEpochMillis }.thenBy { it.id })
             TxnSort.HIGHEST -> filtered.sortedWith(compareByDescending<TransactionEntity> { kotlin.math.abs(it.creditMinorUnits - it.debitMinorUnits) }.thenByDescending { it.occurredAtEpochMillis })
@@ -81,111 +140,332 @@ fun TransactionsScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colors.background)) {
+    val grouped = remember(visibleRows) {
+        visibleRows.groupBy {
+            Instant.ofEpochMilli(it.occurredAtEpochMillis).atZone(txnZone).toLocalDate()
+        }.toSortedMap(compareByDescending { it })
+    }
+
+    Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
             title = "Transactions",
-            subtitle = "${visibleRows.size} transactions",
+            subtitle = "${visibleRows.size} of ${rows.size}",
             onBack = onBack,
             actions = {
-                IconButton(onClick = { showFilter = true }) {
-                    Icon(Icons.Filled.FilterList, "Filter transactions", tint = MMWhite)
-                }
-                IconButton(onClick = { showSort = true }) {
-                    Icon(Icons.Filled.Sort, "Sort transactions", tint = MMWhite)
-                }
+                FilterAction(
+                    icon = Icons.Filled.NorthEast,
+                    contentDescription = "Sort transactions",
+                    onClick = { showSort = true }
+                )
+                FilterAction(
+                    icon = Icons.Filled.FilterList,
+                    contentDescription = "Filter transactions",
+                    onClick = { showFilter = true },
+                    badge = filters.isActive
+                )
             }
         )
 
-        if (filters.isActive()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Filters active • ${visibleRows.size} results",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colors.primary,
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(onClick = { filters = TxnFilters() }) { Text("Clear") }
+        Box(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
+            MmSearchField(
+                value = query,
+                onValueChange = { query = it },
+                hint = "Search merchant, category, notes or account"
+            )
+        }
+
+        if (filters.isActive) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = MmSpacing.lg),
+                horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                filters.activeChips(categoryNames, accountNames).forEach { label ->
+                    MmChip(label = label, selected = true, onClick = { showFilter = true })
+                }
+                TextButton(onClick = { filters = TxnFilters() }) { Text("Clear all") }
             }
         }
 
         if (visibleRows.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.Search, contentDescription = null, tint = MMGrayText, modifier = Modifier.size(32.dp))
-                    Text("No transactions match these filters.", color = MMGrayText, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
-                    if (filters.isActive()) TextButton(onClick = { filters = TxnFilters() }) { Text("Clear filters") }
-                }
-            }
+            MmEmptyState(
+                icon = Icons.Filled.Search,
+                title = if (rows.isEmpty()) "No transactions yet" else "Nothing matches",
+                message = if (rows.isEmpty()) "Add a transaction to get started."
+                else "Try a different search or clear the filters.",
+                actionLabel = if (filters.isActive || query.isNotBlank()) "Clear" else null,
+                onAction = if (filters.isActive || query.isNotBlank()) {
+                    { filters = TxnFilters(); query = "" }
+                } else null
+            )
         } else {
-            LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-                items(visibleRows, key = { it.id }) { txn ->
-                    ResponsiveTransactionRow(txn = txn, onClick = { onTransactionClick(txn.id) })
-                    Divider(color = MaterialTheme.colors.onSurface.copy(alpha = .10f))
+            LazyColumn(contentPadding = PaddingValues(bottom = MmSpacing.xxl)) {
+                grouped.forEach { (date, list) ->
+                    item(key = "header-$date") {
+                        DayHeader(date = date)
+                    }
+                    items(list, key = { it.id }) { txn ->
+                        MmTransactionRow(txn = txn, onClick = { onTransactionClick(txn.id) })
+                    }
                 }
             }
         }
     }
 
     if (showSort) {
-        AlertDialog(
-            onDismissRequest = { showSort = false },
-            title = { Text("Sort transactions") },
-            text = {
-                Column {
-                    listOf(
-                        TxnSort.NEWEST to "Newest first",
-                        TxnSort.OLDEST to "Oldest first",
-                        TxnSort.HIGHEST to "Highest amount",
-                        TxnSort.LOWEST to "Lowest amount",
-                        TxnSort.NAME_AZ to "Name (A–Z)",
-                        TxnSort.NAME_ZA to "Name (Z–A)"
-                    ).forEach { (value, label) ->
-                        Row(Modifier.fillMaxWidth().clickable { sort = value; showSort = false }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = sort == value, onClick = { sort = value; showSort = false })
-                            Text(label)
-                        }
-                    }
+        MmBottomSheet(title = "Sort transactions", onDismiss = { showSort = false }) {
+            TxnSort.entries.forEach { option ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(MmSpacing.radiusRow))
+                        .clickable { sort = option.name; showSort = false }
+                        .padding(vertical = MmSpacing.xs),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = activeSort == option,
+                        onClick = { sort = option.name; showSort = false },
+                        colors = androidx.compose.material.RadioButtonDefaults.colors(selectedColor = MmColors.accent)
+                    )
+                    Text(option.label, style = MmType.body, color = MmColors.textPrimary)
                 }
-            },
-            confirmButton = { TextButton(onClick = { showSort = false }) { Text("CLOSE") } }
-        )
+            }
+            Spacer(Modifier.height(MmSpacing.md))
+        }
     }
 
     if (showFilter) {
-        TransactionFilterDialog(
+        TransactionFilterSheet(
             initial = filters,
+            categories = categories.map { MmOption(it.id, it.name) },
+            accounts = accounts.map {
+                MmOption(it.id, it.nickname.ifBlank { it.institutionName }, it.accountType.name.replace('_', ' ').lowercase())
+            },
+            resultCount = visibleRows.size,
             onDismiss = { showFilter = false },
             onApply = { filters = it; showFilter = false }
         )
     }
 }
 
+@Composable
+private fun DayHeader(date: LocalDate) {
+    val today = LocalDate.now(txnZone)
+    val label = when (date) {
+        today -> "Today"
+        today.minusDays(1) -> "Yesterday"
+        else -> formatFullDate(date.atStartOfDay(txnZone).toInstant().toEpochMilli())
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(MmColors.background)
+            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
+    ) {
+        Text(label, style = MmType.label, fontWeight = FontWeight.SemiBold, color = MmColors.textPrimary)
+    }
+}
+
+@Composable
+private fun FilterAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    badge: Boolean = false
+) {
+    Box {
+        androidx.compose.material.IconButton(onClick = onClick) {
+            Icon(icon, contentDescription = contentDescription, tint = Color.White)
+        }
+        if (badge) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 10.dp, end = 10.dp)
+                    .size(9.dp)
+                    .background(MmColors.warning, androidx.compose.foundation.shape.CircleShape)
+            )
+        }
+    }
+}
+
+@Composable
+private fun TransactionFilterSheet(
+    initial: TxnFilters,
+    categories: List<MmOption>,
+    accounts: List<MmOption>,
+    resultCount: Int,
+    onDismiss: () -> Unit,
+    onApply: (TxnFilters) -> Unit
+) {
+    var draft by remember(initial) { mutableStateOf(initial) }
+    var categorySheet by remember { mutableStateOf(false) }
+    var accountSheet by remember { mutableStateOf(false) }
+
+    MmBottomSheet(title = "Filter transactions", onDismiss = onDismiss) {
+        Text("Type", style = MmType.label, color = MmColors.textSecondary)
+        Spacer(Modifier.height(MmSpacing.sm))
+        Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
+            TxnTypeFilter.entries.forEach { option ->
+                MmChip(
+                    label = option.label,
+                    selected = draft.type == option,
+                    onClick = { draft = draft.copy(type = option) }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(MmSpacing.lg))
+        MmPickerField(
+            label = "Category",
+            value = categories.firstOrNull { it.id == draft.categoryId }?.label.orEmpty(),
+            placeholder = "Any category",
+            onClick = { categorySheet = true }
+        )
+        Spacer(Modifier.height(MmSpacing.md))
+        MmPickerField(
+            label = "Account",
+            value = accounts.firstOrNull { it.id == draft.accountId }?.label.orEmpty(),
+            placeholder = "Any account",
+            onClick = { accountSheet = true }
+        )
+
+        Spacer(Modifier.height(MmSpacing.lg))
+        MmDateField(
+            label = "From",
+            epochMillis = draft.fromEpoch,
+            onChange = { draft = draft.copy(fromEpoch = it) }
+        )
+        Spacer(Modifier.height(MmSpacing.md))
+        MmDateField(
+            label = "To",
+            epochMillis = draft.toEpoch,
+            onChange = { draft = draft.copy(toEpoch = it) }
+        )
+
+        Spacer(Modifier.height(MmSpacing.lg))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
+            Box(Modifier.weight(1f)) {
+                MmAmountField(
+                    value = draft.minAmount,
+                    onValueChange = { draft = draft.copy(minAmount = it) },
+                    label = "Min amount"
+                )
+            }
+            Box(Modifier.weight(1f)) {
+                MmAmountField(
+                    value = draft.maxAmount,
+                    onValueChange = { draft = draft.copy(maxAmount = it) },
+                    label = "Max amount"
+                )
+            }
+        }
+
+        Spacer(Modifier.height(MmSpacing.md))
+        MmSwitchRow(
+            title = "Reimbursable only",
+            checked = draft.reimbursableOnly,
+            onCheckedChange = { draft = draft.copy(reimbursableOnly = it) }
+        )
+        MmSwitchRow(
+            title = "Pending reimbursement only",
+            checked = draft.pendingReimbursementOnly,
+            onCheckedChange = { draft = draft.copy(pendingReimbursementOnly = it) }
+        )
+
+        Spacer(Modifier.height(MmSpacing.xl))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
+            TextButton(
+                onClick = { draft = TxnFilters() },
+                modifier = Modifier.weight(1f)
+            ) { Text("Clear all") }
+            Button(
+                onClick = { onApply(draft) },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(MmSpacing.radiusRow),
+                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
+            ) {
+                Text("Apply", color = MmColors.onAccent)
+            }
+        }
+        if (resultCount == 0) {
+            Text(
+                "No transactions match yet — adjust the filters.",
+                style = MmType.caption,
+                color = MmColors.textSecondary,
+                modifier = Modifier.padding(top = MmSpacing.sm)
+            )
+        }
+    }
+
+    if (categorySheet) {
+        MmPickerSheet(
+            title = "Choose category",
+            options = categories,
+            selectedId = draft.categoryId,
+            onSelect = { option ->
+                draft = draft.copy(categoryId = option.id.takeIf { it > 0 })
+                categorySheet = false
+            },
+            onDismiss = { categorySheet = false },
+            allowNone = true,
+            noneLabel = "Any category"
+        )
+    }
+
+    if (accountSheet) {
+        MmPickerSheet(
+            title = "Choose account",
+            options = accounts,
+            selectedId = draft.accountId,
+            onSelect = { option ->
+                draft = draft.copy(accountId = option.id.takeIf { it > 0 })
+                accountSheet = false
+            },
+            onDismiss = { accountSheet = false },
+            allowNone = true,
+            noneLabel = "Any account"
+        )
+    }
+}
+
+private fun TxnFilters.activeChips(
+    categoryNames: Map<Long, String>,
+    accountNames: Map<Long, String>
+): List<String> {
+    val chips = mutableListOf<String>()
+    if (type != TxnTypeFilter.ALL) chips += type.label
+    categoryId?.let { categoryNames[it]?.let { name -> chips += name } }
+    accountId?.let { accountNames[it]?.let { name -> chips += name } }
+    fromEpoch?.let { chips += "From ${formatFullDate(it)}" }
+    toEpoch?.let { chips += "To ${formatFullDate(it)}" }
+    if (minAmount.isNotBlank()) chips += "≥ ₹$minAmount"
+    if (maxAmount.isNotBlank()) chips += "≤ ₹$maxAmount"
+    if (reimbursableOnly) chips += "Reimbursable"
+    if (pendingReimbursementOnly) chips += "Pending reimbursement"
+    return chips
+}
+
 private fun matchesFilters(txn: TransactionEntity, f: TxnFilters): Boolean {
-    val text = f.text.trim().lowercase()
-    if (text.isNotBlank()) {
-        val haystack = listOfNotNull(
-            txn.merchantReceiverSender, txn.rawCategoryName, txn.notes, txn.rawPaymentType,
-            txn.txnType.name, txn.txnSubType.name, txn.txnKind.name, txn.paymentType.name,
-            txn.businessPersonal.name, txn.rawDateString
-        ).joinToString(" ").lowercase()
-        if (!haystack.contains(text)) return false
-    }
     when (f.type) {
-        TxnFilterType.ALL -> Unit
-        TxnFilterType.EXPENSE -> if (txn.txnSubType != TxnSubType.EXPENSE) return false
-        TxnFilterType.INCOME -> if (txn.txnSubType != TxnSubType.INCOME) return false
-        TxnFilterType.TRANSFER -> if (txn.txnSubType != TxnSubType.TRANSFER_IN && txn.txnSubType != TxnSubType.TRANSFER_OUT) return false
+        TxnTypeFilter.ALL -> Unit
+        TxnTypeFilter.EXPENSE -> if (txn.txnSubType != TxnSubType.EXPENSE) return false
+        TxnTypeFilter.INCOME -> if (txn.txnSubType != TxnSubType.INCOME) return false
+        TxnTypeFilter.TRANSFER -> if (txn.txnSubType != TxnSubType.TRANSFER_IN && txn.txnSubType != TxnSubType.TRANSFER_OUT) return false
     }
-    if (f.category.isNotBlank() && !(txn.rawCategoryName ?: "").contains(f.category, ignoreCase = true)) return false
-    if (f.payment.isNotBlank() && !(txn.rawPaymentType ?: txn.paymentType.name).contains(f.payment, ignoreCase = true)) return false
-    if (f.businessPersonal.isNotBlank() && !txn.businessPersonal.name.equals(f.businessPersonal.trim(), ignoreCase = true)) return false
-    if (f.txnSubtype.isNotBlank() && !txn.txnSubType.name.equals(f.txnSubtype.trim(), ignoreCase = true)) return false
-    if (f.account.isNotBlank() && !txn.accountId.toString().contains(f.account.trim(), ignoreCase = true)) return false
-
-    val date = Instant.ofEpochMilli(txn.occurredAtEpochMillis).atZone(zone).toLocalDate()
-    parseDate(f.fromDate)?.let { if (date.isBefore(it)) return false }
-    parseDate(f.toDate)?.let { if (date.isAfter(it)) return false }
-
+    f.categoryId?.let { if (txn.categoryId != it) return false }
+    f.accountId?.let { if (txn.accountId != it) return false }
+    val date = Instant.ofEpochMilli(txn.occurredAtEpochMillis).atZone(txnZone).toLocalDate()
+    f.fromEpoch?.let {
+        if (date.isBefore(Instant.ofEpochMilli(it).atZone(txnZone).toLocalDate())) return false
+    }
+    f.toEpoch?.let {
+        if (date.isAfter(Instant.ofEpochMilli(it).atZone(txnZone).toLocalDate())) return false
+    }
     val amount = kotlin.math.abs(txn.creditMinorUnits - txn.debitMinorUnits)
     parseMinorAmount(f.minAmount)?.let { if (amount < it) return false }
     parseMinorAmount(f.maxAmount)?.let { if (amount > it) return false }
@@ -194,90 +474,6 @@ private fun matchesFilters(txn: TransactionEntity, f: TxnFilters): Boolean {
     return true
 }
 
-private fun parseDate(value: String): LocalDate? = runCatching { LocalDate.parse(value.trim(), dateInputFormatter) }.getOrNull()
-
 private fun parseMinorAmount(value: String): Long? = value.trim().takeIf { it.isNotEmpty() }?.let {
     runCatching { (it.toBigDecimal() * java.math.BigDecimal(100)).longValueExact() }.getOrNull()
-}
-
-@Composable
-private fun TransactionFilterDialog(
-    initial: TxnFilters,
-    onDismiss: () -> Unit,
-    onApply: (TxnFilters) -> Unit
-) {
-    var draft by remember(initial) { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Filter transactions") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                OutlinedTextField(draft.text, { draft = draft.copy(text = it) }, label = { Text("Search all fields") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-                Text("Type", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf(TxnFilterType.ALL to "All", TxnFilterType.EXPENSE to "Expense", TxnFilterType.INCOME to "Income", TxnFilterType.TRANSFER to "Transfer").forEach { (v, label) ->
-                        FilterChip(label, draft.type == v) { draft = draft.copy(type = v) }
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(draft.fromDate, { draft = draft.copy(fromDate = it) }, label = { Text("From date (YYYY-MM-DD)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(draft.toDate, { draft = draft.copy(toDate = it) }, label = { Text("To date (YYYY-MM-DD)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(draft.minAmount, { draft = draft.copy(minAmount = it) }, label = { Text("Minimum amount") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(draft.maxAmount, { draft = draft.copy(maxAmount = it) }, label = { Text("Maximum amount") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(draft.category, { draft = draft.copy(category = it) }, label = { Text("Category") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(draft.payment, { draft = draft.copy(payment = it) }, label = { Text("Payment type") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(draft.businessPersonal, { draft = draft.copy(businessPersonal = it) }, label = { Text("Business / Personal") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(draft.txnSubtype, { draft = draft.copy(txnSubtype = it) }, label = { Text("Transaction subtype") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(draft.account, { draft = draft.copy(account = it) }, label = { Text("Account ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(draft.reimbursableOnly, { draft = draft.copy(reimbursableOnly = it) })
-                    Text("Reimbursable only")
-                }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(draft.pendingReimbursementOnly, { draft = draft.copy(pendingReimbursementOnly = it) })
-                    Text("Pending reimbursement only")
-                }
-                if (draft.fromDate.isNotBlank() && parseDate(draft.fromDate) == null) Text("Invalid from date", color = MaterialTheme.colors.error, fontSize = 11.sp)
-                if (draft.toDate.isNotBlank() && parseDate(draft.toDate) == null) Text("Invalid to date", color = MaterialTheme.colors.error, fontSize = 11.sp)
-                if (draft.minAmount.isNotBlank() && parseMinorAmount(draft.minAmount) == null) Text("Invalid minimum amount", color = MaterialTheme.colors.error, fontSize = 11.sp)
-                if (draft.maxAmount.isNotBlank() && parseMinorAmount(draft.maxAmount) == null) Text("Invalid maximum amount", color = MaterialTheme.colors.error, fontSize = 11.sp)
-            }
-        },
-        dismissButton = { TextButton(onClick = { draft = TxnFilters() }) { Text("RESET") } },
-        confirmButton = { TextButton(onClick = { onApply(draft) }) { Text("APPLY") } }
-    )
-}
-
-@Composable
-private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.small,
-        color = if (selected) MaterialTheme.colors.primary else MaterialTheme.colors.surface,
-        border = if (selected) null else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colors.onSurface.copy(alpha = .18f))
-    ) { Text(label, color = if (selected) MaterialTheme.colors.onPrimary else MaterialTheme.colors.onSurface, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) }
-}
-
-@Composable
-private fun ResponsiveTransactionRow(txn: TransactionEntity, onClick: () -> Unit) {
-    val amount = Money(txn.creditMinorUnits - txn.debitMinorUnits)
-    val title = txn.merchantReceiverSender ?: txn.rawCategoryName ?: "Transaction"
-    val subtitle = listOfNotNull(txn.rawCategoryName, txn.rawPaymentType).distinct().joinToString(" • ")
-    val date = DateTimeFormatter.ofPattern("dd MMM yyyy").format(Instant.ofEpochMilli(txn.occurredAtEpochMillis).atZone(zone))
-
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (txn.txnSubType == TxnSubType.TRANSFER_IN || txn.txnSubType == TxnSubType.TRANSFER_OUT) {
-            Icon(Icons.Filled.SwapHoriz, contentDescription = "Transfer", tint = MaterialTheme.colors.onSurface.copy(alpha = .55f), modifier = Modifier.padding(top = 2.dp).size(20.dp))
-            Spacer(Modifier.width(10.dp))
-        }
-        Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title.ifBlank { "Transaction" }, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (subtitle.isNotBlank()) Text(subtitle, fontSize = 11.sp, color = MaterialTheme.colors.onSurface.copy(alpha = .62f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-        }
-        Column(horizontalAlignment = Alignment.End, modifier = Modifier.widthIn(min = 92.dp, max = 122.dp)) {
-            Text(MoneyFormat.rupeesNoDecimals(amount.abs()), color = if (amount.isNegative) MMRedExpense else MMGreenIncome, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
-            Text(date, fontSize = 10.sp, color = MaterialTheme.colors.onSurface.copy(alpha = .58f), maxLines = 1, softWrap = false)
-        }
-    }
 }

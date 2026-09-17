@@ -1,31 +1,66 @@
 package com.moneymanager.app.ui.billform
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
+import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.BillerType
 import com.moneymanager.app.data.local.entity.BillingCycle
-import com.moneymanager.app.ui.theme.*
+import com.moneymanager.app.ui.components.MmAmountField
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmOption
+import com.moneymanager.app.ui.components.MmPickerField
+import com.moneymanager.app.ui.components.MmPickerSheet
+import com.moneymanager.app.ui.components.MmSectionHeader
+import com.moneymanager.app.ui.components.MmStepper
+import com.moneymanager.app.ui.components.MmSwitchRow
+import com.moneymanager.app.ui.components.MmTextField
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 
+/**
+ * Add/edit a bill or EMI. Rows are grouped by the question they answer (what is it, when is it
+ * due, how should we remind you) instead of a flat wall of fields, and the two schedule inputs
+ * that used to be free-form text are now a real stepper and a proper currency field.
+ */
 @Composable
 fun BillFormScreen(
     editingBillId: Long?,
@@ -41,102 +76,258 @@ fun BillFormScreen(
     }
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
-    Column(Modifier.fillMaxSize().background(MMBackground)) {
-        Row(Modifier.fillMaxWidth().background(MMGreenDark).padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MMWhite) }
-            Column(Modifier.weight(1f)) {
-                Text(if (editingBillId == null) "Add Bill / EMI" else "Edit Bill / EMI", color = MMWhite, fontSize = 18.sp, fontWeight = FontWeight.Medium)
-                Text("Set payment, reminder and account details", color = MMWhite.copy(alpha = .72f), fontSize = 11.sp)
-            }
-            IconButton(onClick = viewModel::save) { Icon(Icons.Filled.Check, "Save", tint = MMWhite) }
-        }
+    var showBillerTypeSheet by remember { mutableStateOf(false) }
+    var showBillingCycleSheet by remember { mutableStateOf(false) }
+    var showCardSheet by remember { mutableStateOf(false) }
 
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            FormSection("BILL DETAILS") {
-                FormField("Biller name", state.billerName, "e.g. Airtel, EB, Rent") { viewModel.onField { copy(billerName = it) } }
-                BillerTypePicker(state.billerType) { viewModel.onField { copy(billerType = it) } }
-                FormField("Account / mobile / consumer number", state.accountReferenceId, "Optional") { viewModel.onField { copy(accountReferenceId = it) } }
-                FormField("Nickname", state.nickname, "Optional") { viewModel.onField { copy(nickname = it) } }
+    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+        MoneyManagerTopBar(
+            title = if (editingBillId == null) "Add bill or EMI" else "Edit bill or EMI",
+            subtitle = "Payment, reminder and account details",
+            onBack = onBack,
+            actions = {
+                IconButton(onClick = viewModel::save) {
+                    Icon(Icons.Filled.Check, contentDescription = "Save", tint = androidx.compose.ui.graphics.Color.White)
+                }
+            }
+        )
+
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .imePadding()
+                .navigationBarsPadding()
+                .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
+        ) {
+            MmSectionHeader(title = "What is it")
+
+            MmCard {
+                MmTextField(
+                    value = state.billerName,
+                    onValueChange = { viewModel.onField { copy(billerName = it) } },
+                    label = "Biller name",
+                    placeholder = "e.g. Airtel, electricity, rent"
+                )
+                Spacer(Modifier.height(MmSpacing.md))
+                MmPickerField(
+                    label = "Bill type",
+                    value = pretty(state.billerType.name),
+                    onClick = { showBillerTypeSheet = true }
+                )
+                Spacer(Modifier.height(MmSpacing.md))
+                MmTextField(
+                    value = state.accountReferenceId,
+                    onValueChange = { viewModel.onField { copy(accountReferenceId = it) } },
+                    label = "Account / mobile / consumer number",
+                    placeholder = "Optional"
+                )
+                Spacer(Modifier.height(MmSpacing.md))
+                MmTextField(
+                    value = state.nickname,
+                    onValueChange = { viewModel.onField { copy(nickname = it) } },
+                    label = "Nickname",
+                    placeholder = "Optional — how you'll see it in lists"
+                )
                 if (state.billerType == BillerType.CREDIT_CARD && state.creditCards.isNotEmpty()) {
-                    CreditCardPicker(state.creditCards, state.linkedAccountId) { viewModel.onField { copy(linkedAccountId = it) } }
+                    Spacer(Modifier.height(MmSpacing.md))
+                    val card = state.creditCards.firstOrNull { it.id == state.linkedAccountId }
+                    MmPickerField(
+                        label = "Linked credit card",
+                        value = card?.let { it.nickname.ifBlank { it.institutionName } } ?: "",
+                        placeholder = "Choose a card",
+                        onClick = { showCardSheet = true },
+                        leading = {
+                            Icon(
+                                Icons.Filled.CreditCard,
+                                contentDescription = null,
+                                tint = MmColors.textSecondary,
+                                modifier = Modifier.width(20.dp)
+                            )
+                        }
+                    )
                 }
             }
 
-            FormSection("PAYMENT SCHEDULE") {
-                BillingCyclePicker(state.billingCycle) { viewModel.onField { copy(billingCycle = it) } }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FormField("Due day", state.dueDay, "1–31", KeyboardType.Number, Modifier.weight(1f)) { viewModel.onField { copy(dueDay = it) } }
-                    FormField("Estimated amount", state.estimatedAmount, "₹ amount", KeyboardType.Decimal, Modifier.weight(1.6f)) { viewModel.onField { copy(estimatedAmount = it) } }
-                }
-                Text("Bill amount is an estimate until the actual bill is reconciled.", fontSize = 11.sp, color = MMGrayText)
+            MmSectionHeader(
+                title = "When it's due",
+                subtitle = "Used for reminders and bill generation"
+            )
+
+            MmCard {
+                MmPickerField(
+                    label = "Billing cycle",
+                    value = pretty(state.billingCycle.name),
+                    onClick = { showBillingCycleSheet = true }
+                )
+                Spacer(Modifier.height(MmSpacing.md))
+                MmStepper(
+                    label = "Due day of the month",
+                    value = state.dueDay.toIntOrNull(),
+                    onChange = { viewModel.onField { copy(dueDay = it.toString()) } },
+                    supportingText = "1 = the 1st, 31 = the end of the month"
+                )
+                Spacer(Modifier.height(MmSpacing.md))
+                MmAmountField(
+                    value = state.estimatedAmount,
+                    onValueChange = { viewModel.onField { copy(estimatedAmount = it) } },
+                    label = "Estimated amount",
+                    supportingText = "An estimate until the actual bill is reconciled"
+                )
             }
 
-            FormSection("REMINDERS & PAYMENT") {
-                SettingRow("Remind me", state.reminderEnabled) { viewModel.onField { copy(reminderEnabled = it) } }
+            MmSectionHeader(title = "Reminders & payment")
+
+            MmCard(contentPadding = PaddingValues(horizontal = MmSpacing.card, vertical = MmSpacing.xs)) {
+                MmSwitchRow(
+                    title = "Remind me before it's due",
+                    subtitle = "Get notified so a bill never slips past",
+                    checked = state.reminderEnabled,
+                    onCheckedChange = { viewModel.onField { copy(reminderEnabled = it) } }
+                )
                 if (state.reminderEnabled) {
-                    FormField("Days before due date", state.reminderDaysBefore, "0–30", KeyboardType.Number) { viewModel.onField { copy(reminderDaysBefore = it) } }
+                    MmCard(contentPadding = PaddingValues(vertical = MmSpacing.xs)) {
+                        MmTextField(
+                            value = state.reminderDaysBefore,
+                            onValueChange = { viewModel.onField { copy(reminderDaysBefore = it) } },
+                            label = "Days before the due date",
+                            keyboardType = KeyboardType.Number
+                        )
+                    }
+                    Spacer(Modifier.height(MmSpacing.sm))
                 }
-                SettingRow("Auto-pay", state.autoPay) { viewModel.onField { copy(autoPay = it) } }
-                SettingRow("Auto-generate bills 10 days before due", state.autoGenerateBills) { viewModel.onField { copy(autoGenerateBills = it) } }
+                MmSwitchRow(
+                    title = "Auto-pay",
+                    subtitle = "Marks the bill paid when the matching transaction is recorded",
+                    checked = state.autoPay,
+                    onCheckedChange = { viewModel.onField { copy(autoPay = it) } }
+                )
+                MmSwitchRow(
+                    title = "Auto-generate bills",
+                    subtitle = "Create the next bill 10 days before it's due",
+                    checked = state.autoGenerateBills,
+                    onCheckedChange = { viewModel.onField { copy(autoGenerateBills = it) } }
+                )
             }
 
-            FormSection("ACCOUNT SETTINGS") {
-                SettingRow("Business account", state.isBusiness) { viewModel.onField { copy(isBusiness = it) } }
-                SettingRow("Inactive", state.inactive) { viewModel.onField { copy(inactive = it) } }
+            MmSectionHeader(title = "Account settings")
+
+            MmCard(contentPadding = PaddingValues(horizontal = MmSpacing.card, vertical = MmSpacing.xs)) {
+                MmSwitchRow(
+                    title = "Business bill",
+                    subtitle = "Keep it out of your personal spending picture",
+                    checked = state.isBusiness,
+                    onCheckedChange = { viewModel.onField { copy(isBusiness = it) } }
+                )
+                MmSwitchRow(
+                    title = "Inactive",
+                    subtitle = "Stop reminders for a bill you no longer pay",
+                    checked = state.inactive,
+                    onCheckedChange = { viewModel.onField { copy(inactive = it) } }
+                )
             }
 
-            state.error?.let { Text(it, color = MMRedExpense, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp)) }
-            Button(onClick = viewModel::save, Modifier.fillMaxWidth().height(50.dp), shape = MaterialTheme.shapes.small, colors = ButtonDefaults.buttonColors(backgroundColor = MMGreenDark)) {
-                Text(if (editingBillId == null) "ADD BILL" else "SAVE CHANGES", color = MMWhite, fontWeight = FontWeight.Bold)
+            state.error?.let { error ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.EventBusy,
+                        contentDescription = null,
+                        tint = MmColors.expense,
+                        modifier = Modifier.width(18.dp)
+                    )
+                    Spacer(Modifier.width(MmSpacing.sm))
+                    Text(error, style = MmType.caption, color = MmColors.expense)
+                }
             }
-            Spacer(Modifier.height(20.dp))
+
+            Button(
+                onClick = viewModel::save,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(MmSpacing.radiusRow),
+                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
+            ) {
+                Icon(
+                    Icons.Filled.Receipt,
+                    contentDescription = null,
+                    tint = MmColors.onAccent,
+                    modifier = Modifier.width(18.dp)
+                )
+                Spacer(Modifier.width(MmSpacing.sm))
+                Text(
+                    if (editingBillId == null) "Add bill" else "Save changes",
+                    color = MmColors.onAccent,
+                    style = MmType.label
+                )
+            }
+
+            if (state.reminderEnabled) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.NotificationsActive,
+                        contentDescription = null,
+                        tint = MmColors.textSecondary,
+                        modifier = Modifier.width(14.dp)
+                    )
+                    Spacer(Modifier.width(MmSpacing.sm))
+                    Text(
+                        "Reminders use the system notification channel for bills.",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(MmSpacing.xxl))
         }
     }
-}
 
-@Composable private fun FormSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(Modifier.fillMaxWidth(), elevation = 1.dp, shape = RoundedCornerShape(7.dp)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, color = MMGreenDark, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = .7.sp)
-            Divider(color = MMGrayDivider)
-            content()
-        }
+    if (showBillerTypeSheet) {
+        MmPickerSheet(
+            title = "Bill type",
+            options = BillerType.entries.map { MmOption(id = it.ordinal.toLong(), label = pretty(it.name)) },
+            selectedId = state.billerType.ordinal.toLong(),
+            onSelect = {
+                viewModel.onField { copy(billerType = BillerType.entries[it.id.toInt()]) }
+                showBillerTypeSheet = false
+            },
+            onDismiss = { showBillerTypeSheet = false }
+        )
+    }
+
+    if (showBillingCycleSheet) {
+        MmPickerSheet(
+            title = "Billing cycle",
+            options = BillingCycle.entries.map { MmOption(id = it.ordinal.toLong(), label = pretty(it.name)) },
+            selectedId = state.billingCycle.ordinal.toLong(),
+            onSelect = {
+                viewModel.onField { copy(billingCycle = BillingCycle.entries[it.id.toInt()]) }
+                showBillingCycleSheet = false
+            },
+            onDismiss = { showBillingCycleSheet = false }
+        )
+    }
+
+    if (showCardSheet) {
+        val cards: List<AccountEntity> = state.creditCards
+        MmPickerSheet(
+            title = "Linked credit card",
+            options = cards.map { card ->
+                MmOption(id = card.id, label = card.nickname.ifBlank { card.institutionName })
+            },
+            selectedId = state.linkedAccountId,
+            allowNone = true,
+            noneLabel = "Not linked",
+            onSelect = {
+                viewModel.onField { copy(linkedAccountId = if (it.id < 0) null else it.id) }
+                showCardSheet = false
+            },
+            onDismiss = { showCardSheet = false }
+        )
     }
 }
 
-@Composable private fun FormField(label: String, value: String, hint: String = "", keyboard: KeyboardType = KeyboardType.Text, modifier: Modifier = Modifier, onChange: (String) -> Unit) {
-    OutlinedTextField(value, onChange, modifier.fillMaxWidth(), singleLine = true, label = { Text(label) }, placeholder = { if (hint.isNotBlank()) Text(hint) }, keyboardOptions = KeyboardOptions(keyboardType = keyboard), shape = MaterialTheme.shapes.small)
-}
-
-@Composable private fun BillerTypePicker(selected: BillerType, onSelect: (BillerType) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    OutlinedButton(onClick = { expanded = true }, Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
-        Text(pretty(selected.name), Modifier.weight(1f)); Icon(Icons.Filled.ExpandMore, null)
+private fun pretty(raw: String): String =
+    raw.replace('_', ' ').lowercase().split(' ').joinToString(" ") { word ->
+        word.replaceFirstChar(Char::uppercase)
     }
-    DropdownMenu(expanded, { expanded = false }) { BillerType.entries.forEach { t -> DropdownMenuItem({ onSelect(t); expanded = false }) { Text(pretty(t.name)) } } }
-}
-
-@Composable private fun BillingCyclePicker(selected: BillingCycle, onSelect: (BillingCycle) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    OutlinedButton(onClick = { expanded = true }, Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
-        Text("Billing cycle: ${pretty(selected.name)}", Modifier.weight(1f)); Icon(Icons.Filled.ExpandMore, null)
-    }
-    DropdownMenu(expanded, { expanded = false }) { BillingCycle.entries.forEach { c -> DropdownMenuItem({ onSelect(c); expanded = false }) { Text(pretty(c.name)) } } }
-}
-
-@Composable private fun CreditCardPicker(cards: List<AccountEntity>, selectedId: Long?, onSelect: (Long?) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    val selected = cards.firstOrNull { it.id == selectedId }
-    OutlinedButton(onClick = { expanded = true }, Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
-        Text("Credit card: ${selected?.nickname ?: "Select card"}", Modifier.weight(1f)); Icon(Icons.Filled.ExpandMore, null)
-    }
-    DropdownMenu(expanded, { expanded = false }) { cards.forEach { c -> DropdownMenuItem({ onSelect(c.id); expanded = false }) { Text(c.nickname.ifBlank { c.institutionName }) } } }
-}
-
-@Composable private fun SettingRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 14.sp, modifier = Modifier.weight(1f)); Switch(checked, onChange)
-    }
-}
-
-private fun pretty(raw: String) = raw.replace('_', ' ').lowercase().split(' ').joinToString(" ") { it.replaceFirstChar(Char::uppercase) }

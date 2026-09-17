@@ -103,6 +103,32 @@ object AppDatabaseMigrations {
     }
 
     /**
+     * Migration 8 -> 9: persist bill/receipt images attached to a transaction. The image bytes
+     * live in the app's private files directory and only the relative path is stored, so
+     * attachments survive restarts, navigation and process death. The foreign key cascades so
+     * deleting a transaction also removes its attachment rows.
+     */
+    val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `transaction_attachments` (" +
+                    "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, " +
+                    "`transactionId` INTEGER NOT NULL, " +
+                    "`relativePath` TEXT NOT NULL, " +
+                    "`mimeType` TEXT, " +
+                    "`displayName` TEXT, " +
+                    "`sizeBytes` INTEGER NOT NULL, " +
+                    "`createdAtEpochMillis` INTEGER NOT NULL, " +
+                    "FOREIGN KEY(`transactionId`) REFERENCES `transactions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_transaction_attachments_transactionId` " +
+                    "ON `transaction_attachments` (`transactionId`)"
+            )
+        }
+    }
+
+    /**
      * Add new migrations above this line. Each migration must:
      * 1. Be backward-safe (can't drop columns used by older code)
      * 2. Preserve all existing data
@@ -116,12 +142,13 @@ object AppDatabaseMigrations {
         MIGRATION_4_5,
         MIGRATION_5_6,
         MIGRATION_6_7,
-        MIGRATION_7_8
+        MIGRATION_7_8,
+        MIGRATION_8_9
     )
 
     /**
      * Returns the latest database version. Used by DatabaseModule to set the version
      * parameter dynamically so it stays in sync with migrations.
      */
-    fun latestVersion(): Int = 8
+    fun latestVersion(): Int = 9
 }

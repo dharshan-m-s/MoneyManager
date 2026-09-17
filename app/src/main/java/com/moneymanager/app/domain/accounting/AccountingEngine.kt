@@ -1,6 +1,10 @@
 package com.moneymanager.app.domain.accounting
 
 import com.moneymanager.app.domain.model.AccountType
+import java.time.Instant
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * The canonical Moneyview-style accounts engine.
@@ -550,5 +554,62 @@ object AccountingEngine {
             loanPositionMinorUnits = loan,
             netBalanceMinorUnits = net
         )
+    }
+
+    // ------------------------------------------------------------------
+    // Billing-cycle windows (credit-card statement periods)
+    // ------------------------------------------------------------------
+
+    /**
+     * One credit-card billing (statement) period. A card whose cycle starts on day X of a
+     * month runs from that day until the day before the next cycle starts - e.g. a card with
+     * start day 4 and a transaction on 20 Sep belongs to the "04 SEP - 03 OCT" window. The
+     * java.time max-day clamp means a start day of 29-31 falls back to the 28th so end-of-month
+     * cycles (e.g. "25 SEP - 24 OCT") never skip a month.
+     */
+    data class BillingCycleWindow(
+        val startInclusive: Long,
+        val endExclusive: Long,
+        val label: String
+    ) {
+        fun contains(epochMillis: Long): Boolean =
+            epochMillis >= startInclusive && epochMillis < endExclusive
+    }
+
+    private val cycleDateFormatter = DateTimeFormatter.ofPattern("dd MMM")
+
+    private fun cycleStartDateFor(cycleStartDay: Int, anchorDate: java.time.LocalDate): java.time.LocalDate {
+        val day = cycleStartDay.coerceIn(1, 28)
+        val thisMonthStart = YearMonth.from(anchorDate).atDay(day)
+        val candidate = thisMonthStart.minusMonths(1).withDayOfMonth(day).let { prev ->
+            if (thisMonthStart.isAfter(anchorDate)) prev else thisMonthStart
+        }
+        return if (candidate.isAfter(anchorDate)) {
+            YearMonth.from(candidate).minusMonths(1).atDay(day)
+        } else {
+            candidate
+        }
+    }
+
+    /**
+     * The billing cycle containing [epochMillis] for a card whose cycle starts on
+     * [cycleStartDay]. Returns [BillingCycleWindow] with epoch-millis (day-start, IST) bounds
+     * and a display label like "04 SEP - 03 OCT" (end's year is included when the period
+     * crosses a year boundary).
+     */
+    fun billingCycleWindowFor(
+        cycleStartDay: Int,
+        epochMillis: Long,
+        zone: ZoneId = ZoneId.of("Asia/Kolkata")
+    ): BillingCycleWindow {
+        val anchor = Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalDate()
+        val start = cycleStartDateFor(cycleStartDay, anchor)
+        val end = start.plusMonths(1)
+        val startEpoch = start.atStartOfDay(zone).toInstant().toEpochMilli()
+        val endEpoch = end.atStartOfDay(zone).toInstant().toEpochMilli()
+        val labelEnd = end.minusDays(1)
+        val endYear = if (labelEnd.year != start.year) " ${labelEnd.year}" else ""
+        val label = "${start.format(cycleDateFormatter).uppercase()} - ${labelEnd.format(cycleDateFormatter).uppercase()}$endYear"
+        return BillingCycleWindow(startEpoch, endEpoch, label)
     }
 }

@@ -9,6 +9,7 @@ import com.moneymanager.app.data.local.dao.BillDao
 import com.moneymanager.app.data.local.dao.BudgetDao
 import com.moneymanager.app.data.local.dao.CategoryDao
 import com.moneymanager.app.data.local.dao.ImportDao
+import com.moneymanager.app.data.local.dao.TransactionAttachmentDao
 import com.moneymanager.app.data.local.dao.TransactionDao
 import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.local.db.migration.AppDatabaseMigrations
@@ -70,4 +71,5 @@ object DatabaseModule {
     @Provides fun provideBillDao(db: MoneyManagerDatabase): BillDao = db.billDao()
     @Provides fun provideBudgetDao(db: MoneyManagerDatabase): BudgetDao = db.budgetDao()
     @Provides fun provideImportDao(db: MoneyManagerDatabase): ImportDao = db.importDao()
+    @Provides fun provideTransactionAttachmentDao(db: MoneyManagerDatabase): TransactionAttachmentDao = db.transactionAttachmentDao()
 }

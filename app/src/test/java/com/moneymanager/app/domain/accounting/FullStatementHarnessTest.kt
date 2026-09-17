@@ -210,7 +210,7 @@ class FullStatementHarnessTest {
         // validated source rather than the retired 13,305-row export.
         assertEquals("72 groupable accounts from candidates", 72, reconciliations.size)
         // No unflagged gap: every account's row count equals the number of rows assigned to it.
-        assertEquals(candidates.size, reconciliations.sumBy { it.transactionCount })
+        assertEquals(candidates.size, reconciliations.sumOf { it.transactionCount })
         // Ambiguity must stay at zero across the entire file (every row cleanly classified).
         assertEquals(0, reconciliations.map { it.ambiguousCount }.sum())
 

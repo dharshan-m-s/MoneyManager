@@ -1,58 +1,33 @@
-# Money Manager
+# Money Manager – Credit Card & Transaction Management Rework
 
-<p align="center">
-  <img src="applogo.png" alt="Money Manager logo" width="160">
-</p>
+This local project is a standalone reworked implementation based on the `dharshan-m-s/MoneyManager` project structure and the supplied reference screenshots.
 
-A privacy-first Android money manager built with Kotlin, Jetpack Compose, Room, and Hilt.
+## What was changed
 
-## Product highlights
+### Credit-card management
+- Dedicated credit-card account editor with biller name, last-four digits, nickname, credit limit, last reported outstanding, report date, billing-cycle start day, due day, bill amount, auto-pay, automatic bill generation, personal/business and inactive state.
+- Credit-card detail page follows the supplied reference layout more closely: blue card header, large outstanding figure, last-reported line, credit-limit/available/bill metrics, and View / Monthly / Billing Cycle tabs.
+- Billing-cycle dates are calculated from the stored cycle start day.
+- Card purchases increase outstanding.
+- Card-payment transactions reduce outstanding.
+- Card-payment transactions are excluded from ordinary spend totals.
+- Current outstanding is anchored to the latest reported outstanding checkpoint and then recalculated from transactions after that checkpoint.
+- Credit-card bill settings are synchronised to the local bill table.
 
-- Account-aware transaction entry: **Home → Choose Account → Transaction** with no second account selector.
-- Direct account flow: **Accounts → Account → Add Transaction**.
-- Bills can link to an already-recorded transaction instead of creating a duplicate expense.
-- Bill payment matching uses merchant/name similarity, amount similarity, and payment-date recency.
-- Manual **Choose from Recent Transactions** fallback and **Paid by Cash**.
-- Ledger-based cash balance calculation and minor-unit/paise money storage.
-- Import, filtering, search, budgets, categories, reimbursements, backup/export, and transaction history.
-- Responsive transaction rows that remain stable with long merchant names.
-- Hardened navigation/back behavior and a consistent green/neutral visual system.
+### Transaction management
+- Every transaction row is clickable.
+- Clicking a transaction opens a dedicated transaction detail page.
+- The detail page exposes an Edit action and Delete action.
+- Transactions can be edited for amount, merchant, category, date, type, account, payment type, notes, statistics inclusion and reimbursement flag.
+- The same transaction detail flow is used from the dashboard, account detail and all-transactions views.
+- Search/filter chips and sorting were added to the all-transactions screen.
 
-## Modules
+### Import
+- A Moneyview CSV import entry point is available from the dashboard.
+- Imported transactions are mapped into the same ledger used by normal app transactions.
 
-- `app/` Android application
-- `core/` shared core utilities
+## Important build note
 
-## Build variants
+The execution environment used for this deliverable does not have outbound DNS/network access, so Gradle dependency/bootstrap download could not be completed here. The project contains its Gradle bootstrap script and project files, but the final Android build must be performed in an environment with Android SDK/Gradle dependency access (for example Android Studio on your machine).
 
-- `dev` — local development flavor
-- `staging` — staging flavor
-- standard release build
-
-Published releases use `release`.
-
-## GitHub CI/CD
-
-The repository is prepared for GitHub Actions:
-
-- `.github/workflows/ci.yml` runs tests and builds a debug APK on pushes/PRs.
-- `.github/workflows/release.yml` builds, signs, and publishes a production APK when a `vX.Y.Z` tag is pushed.
-- The signing key is supplied through GitHub Actions Secrets and is never stored in Git. Release `versionCode` is deterministic from the semantic version, preventing accidental reuse of an older code.
-
-Read `docs/GITHUB_RELEASE_GUIDE.md` before creating the first public release.
-
-## Private verification data
-
-The original `moneyview-export.csv` was a private development verification dataset and is intentionally **not included** in the publishable repository. The full-statement harness skips unless `MONEYVIEW_REFERENCE_CSV` points to a local copy.
-
-## Categories, backup, and safe updates
-
-The transaction category grid is intentionally fixed and non-scrollable. It shows the curated categories on the transaction screen and opens the full category picker through **More categories**. The full picker supports creating custom categories with an optional user-selected picture. Category artwork is stored locally with the category record.
-
-When **Auto Backup** is enabled and a backup folder has been selected through Android's document picker, every data write schedules a durable WorkManager backup. The same database snapshot, CSV export, and manifest files are refreshed in the selected folder; automatic backup is not dependent on the app staying open.
-
-The database uses explicit Room migrations. Category artwork uses migration `7 -> 8`, so existing installations are upgraded without destructive data loss.
-
-## In-app updates
-
-Money Manager checks published stable GitHub Releases through a dedicated updater layer. The release workflow publishes a deterministic APK asset (`MoneyManager-v<version>-release.apk`) and a SHA-256 file. The app validates the package name, version code, signing certificate, and GitHub asset digest before handing the APK to Android's package installer. See `docs/UPDATER_ARCHITECTURE.md` for the update contract.
+No changes were pushed from this local deliverable.

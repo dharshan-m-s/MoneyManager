@@ -31,7 +31,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // Draw edge-to-edge on every supported API level. The status bar is covered by the
+        // brand header (which applies its own statusBarsPadding) and the navigation bar inset is
+        // handled once in the navigation host, so no content can hide behind system UI.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         // Reconcile legacy databases on every launch. This makes all screens consume the same
         // canonical ledger calculation and repairs the historical `cash` account-type mismatch.
@@ -40,8 +43,9 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences(settingsPrefsName, Context.MODE_PRIVATE)
         var darkMode by mutableStateOf(prefs.getBoolean(darkModeKey, false))
         fun applySystemBarAppearance(isDark: Boolean) {
-            window.statusBarColor = android.graphics.Color.parseColor(if (isDark) "#04271A" else "#006B45")
-            window.navigationBarColor = android.graphics.Color.parseColor(if (isDark) "#0C120F" else "#F6F8F7")
+            // Window.statusBarColor/navigationBarColor are deprecated and ignored from API 35, so
+            // the bars stay transparent and the app paints behind them. Only the icon contrast
+            // still needs to be declared.
             val controller = WindowInsetsControllerCompat(window, window.decorView)
             controller.isAppearanceLightStatusBars = false
             controller.isAppearanceLightNavigationBars = !isDark

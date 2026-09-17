@@ -1,5 +1,6 @@
 package com.moneymanager.app.updater.presentation
 
+import com.moneymanager.app.ui.theme.MmColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,12 +55,11 @@ import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.updater.domain.ApkInstaller
 import com.moneymanager.app.updater.model.UpdateError
 import com.moneymanager.app.updater.model.UpdateState
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.settings.SimpleTopBar
-import com.moneymanager.app.ui.theme.MMAmberDue
 import com.moneymanager.app.ui.theme.MMGreenDark
-import com.moneymanager.app.ui.theme.MMGreenTint
-import com.moneymanager.app.ui.theme.MMGrayText
-import com.moneymanager.app.ui.theme.MMRedExpense
 
 @Composable
 fun AppUpdatesScreen(onBack: () -> Unit) {
@@ -89,59 +89,57 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, elevation = 1.dp) {
+            MmCard {
                 Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    val (icon, tint, iconBg) = when (state) {
-                        is UpdateState.UpToDate -> Triple(Icons.Filled.CheckCircle, MMGreenDark, MMGreenTint)
-                        is UpdateState.UpdateAvailable, is UpdateState.Downloaded -> Triple(Icons.Filled.SystemUpdate, MMGreenDark, MMGreenTint)
-                        is UpdateState.Checking, is UpdateState.Downloading, is UpdateState.Installing -> Triple(Icons.Filled.CloudDownload, MMGreenDark, MMGreenTint)
-                        UpdateState.Offline, is UpdateState.Error -> Triple(Icons.Filled.CloudOff, MMRedExpense, MMRedExpense.copy(alpha = .10f))
-                        UpdateState.Idle -> Triple(Icons.Filled.Verified, MMGreenDark, MMGreenTint)
+                    val (icon, tint) = when (state) {
+                        is UpdateState.UpToDate -> Icons.Filled.CheckCircle to MmColors.income
+                        is UpdateState.UpdateAvailable, is UpdateState.Downloaded -> Icons.Filled.SystemUpdate to MmColors.accent
+                        is UpdateState.Checking, is UpdateState.Downloading, is UpdateState.Installing -> Icons.Filled.CloudDownload to MmColors.accent
+                        UpdateState.Offline, is UpdateState.Error -> Icons.Filled.CloudOff to MmColors.expense
+                        UpdateState.Idle -> Icons.Filled.Verified to MmColors.accent
                     }
-                    Box(Modifier.size(72.dp).background(iconBg, CircleShape), contentAlignment = Alignment.Center) {
-                        Icon(icon, null, tint = tint, modifier = Modifier.size(38.dp))
-                    }
+                    MmIconBadge(icon = icon, tint = tint, size = 68.dp)
                     Spacer(Modifier.height(14.dp))
                     when (val current = state) {
                         UpdateState.Idle -> {
                             Text("App Updates", style = MaterialTheme.typography.h6)
-                            Text("Current version ${BuildConfig.VERSION_NAME}", color = MMGrayText, modifier = Modifier.padding(top = 4.dp))
+                            Text("Current version ${BuildConfig.VERSION_NAME}", color = MmColors.textSecondary, modifier = Modifier.padding(top = 4.dp))
                         }
                         UpdateState.Checking -> {
                             Text("Checking for updates", style = MaterialTheme.typography.h6)
-                            Text("Looking for the latest Money Manager release…", color = MMGrayText, modifier = Modifier.padding(top = 4.dp))
+                            Text("Looking for the latest Money Manager release…", color = MmColors.textSecondary, modifier = Modifier.padding(top = 4.dp))
                             Spacer(Modifier.height(14.dp))
-                            CircularProgressIndicator(color = MMGreenDark, modifier = Modifier.size(26.dp), strokeWidth = 2.5.dp)
+                            CircularProgressIndicator(color = MmColors.accent, modifier = Modifier.size(26.dp), strokeWidth = 2.5.dp)
                         }
                         is UpdateState.UpToDate -> {
                             Text("You're up to date", style = MaterialTheme.typography.h6)
-                            Text("Money Manager ${current.currentVersionName}", color = MMGrayText, modifier = Modifier.padding(top = 4.dp))
+                            Text("Money Manager ${current.currentVersionName}", color = MmColors.textSecondary, modifier = Modifier.padding(top = 4.dp))
                             Spacer(Modifier.height(14.dp))
-                            Button(onClick = viewModel::checkForUpdates, colors = ButtonDefaults.buttonColors(backgroundColor = MMGreenDark)) { Text("Check again", color = Color.White) }
+                            Button(onClick = viewModel::checkForUpdates, colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)) { Text("Check again", color = MmColors.onAccent) }
                         }
                         is UpdateState.UpdateAvailable -> {
                             Text("Update available", style = MaterialTheme.typography.h6)
-                            Text("${current.currentVersionName}  →  ${current.update.versionName}", color = MMGrayText, modifier = Modifier.padding(top = 4.dp))
+                            Text("${current.currentVersionName}  →  ${current.update.versionName}", color = MmColors.textSecondary, modifier = Modifier.padding(top = 4.dp))
                             if (current.update.releaseNotes.isNotBlank()) {
                                 Spacer(Modifier.height(14.dp))
-                                Column(Modifier.fillMaxWidth().background(MaterialTheme.colors.background, MaterialTheme.shapes.medium).padding(12.dp)) {
+                                Column(Modifier.fillMaxWidth().background(MmColors.surfaceMuted, MaterialTheme.shapes.medium).padding(12.dp)) {
                                     Text("What's new", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                                    Text(current.update.releaseNotes.take(1400), color = MMGrayText, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                                    Text(current.update.releaseNotes.take(1400), color = MmColors.textSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
-                            Button(onClick = { viewModel.download(current.update) }, colors = ButtonDefaults.buttonColors(backgroundColor = MMGreenDark)) { Text("Download update", color = Color.White) }
+                            Button(onClick = { viewModel.download(current.update) }, colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)) { Text("Download update", color = MmColors.onAccent) }
                         }
                         is UpdateState.Downloading -> {
                             Text("Downloading update", style = MaterialTheme.typography.h6)
-                            Text(current.update.versionName, color = MMGrayText)
+                            Text(current.update.versionName, color = MmColors.textSecondary)
                             Spacer(Modifier.height(14.dp))
-                            if (current.progress >= 0) LinearProgressIndicator(progress = current.progress / 100f, color = MMGreenDark, modifier = Modifier.fillMaxWidth()) else LinearProgressIndicator(color = MMGreenDark, modifier = Modifier.fillMaxWidth())
-                            Text(if (current.progress >= 0) "${current.progress}%" else "Downloading…", color = MMGrayText, modifier = Modifier.padding(top = 6.dp))
+                            if (current.progress >= 0) LinearProgressIndicator(progress = current.progress / 100f, color = MmColors.accent, modifier = Modifier.fillMaxWidth()) else LinearProgressIndicator(color = MmColors.accent, modifier = Modifier.fillMaxWidth())
+                            Text(if (current.progress >= 0) "${current.progress}%" else "Downloading…", color = MmColors.textSecondary, modifier = Modifier.padding(top = 6.dp))
                         }
                         is UpdateState.Downloaded -> {
                             Text("Update ready", style = MaterialTheme.typography.h6)
-                            Text("${current.update.versionName} is ready to install.", color = MMGrayText, modifier = Modifier.padding(top = 4.dp))
+                            Text("${current.update.versionName} is ready to install.", color = MmColors.textSecondary, modifier = Modifier.padding(top = 4.dp))
                             Spacer(Modifier.height(14.dp))
                             Button(
                                 onClick = {
@@ -161,45 +159,44 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                                         }
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(backgroundColor = MMGreenDark)
-                            ) { Text("Install update", color = Color.White) }
+                                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
+                            ) { Text("Install update", color = MmColors.onAccent) }
                         }
                         UpdateState.Installing -> {
                             Text("Installing update", style = MaterialTheme.typography.h6)
-                            Text("Complete the Android installation prompt. Money Manager will verify the new version when you return.", color = MMGrayText, modifier = Modifier.padding(top = 4.dp))
+                            Text("Complete the Android installation prompt. Money Manager will verify the new version when you return.", color = MmColors.textSecondary, modifier = Modifier.padding(top = 4.dp))
                             Spacer(Modifier.height(12.dp))
-                            CircularProgressIndicator(color = MMGreenDark, modifier = Modifier.size(26.dp))
+                            CircularProgressIndicator(color = MmColors.accent, modifier = Modifier.size(26.dp))
                         }
                         UpdateState.Offline -> {
                             Text("No internet connection", style = MaterialTheme.typography.h6)
-                            Text("Connect to the internet to check for updates.", color = MMGrayText, modifier = Modifier.padding(top = 4.dp))
+                            Text("Connect to the internet to check for updates.", color = MmColors.textSecondary, modifier = Modifier.padding(top = 4.dp))
                             Spacer(Modifier.height(14.dp))
-                            Button(onClick = viewModel::checkForUpdates, colors = ButtonDefaults.buttonColors(backgroundColor = MMGreenDark)) { Text("Try again", color = Color.White) }
+                            Button(onClick = viewModel::checkForUpdates, colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)) { Text("Try again", color = MmColors.onAccent) }
                         }
                         is UpdateState.Error -> {
                             Text(errorTitle(current.error), style = MaterialTheme.typography.h6)
-                            Text(errorMessage(current.error), color = MMGrayText, modifier = Modifier.padding(top = 4.dp))
+                            Text(errorMessage(current.error), color = MmColors.textSecondary, modifier = Modifier.padding(top = 4.dp))
                             Spacer(Modifier.height(14.dp))
-                            Button(onClick = viewModel::checkForUpdates, colors = ButtonDefaults.buttonColors(backgroundColor = MMGreenDark)) { Text("Try again", color = Color.White) }
+                            Button(onClick = viewModel::checkForUpdates, colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)) { Text("Try again", color = MmColors.onAccent) }
                         }
                     }
-                    installNote?.let { Text(it, color = MMAmberDue, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp)) }
+                    installNote?.let { Text(it, color = MmColors.warning, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp)) }
                 }
             }
 
-            Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, elevation = 0.dp) {
-                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Automatic update checks", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                        Text("Check GitHub for new stable releases in the background.", color = MMGrayText, fontSize = 12.sp)
-                    }
-                    Switch(checked = viewModel.autoUpdateEnabled(), onCheckedChange = viewModel::setAutoUpdateEnabled)
-                }
+            MmCard {
+                MmSwitchRow(
+                    title = "Automatic update checks",
+                    subtitle = "Check GitHub for new stable releases in the background.",
+                    checked = viewModel.autoUpdateEnabled(),
+                    onCheckedChange = viewModel::setAutoUpdateEnabled
+                )
             }
 
             if (BuildConfig.DEBUG) {
-                Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, elevation = 0.dp) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                MmCard {
+                    Column(Modifier.fillMaxWidth()) {
                         Text("Developer diagnostics", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
                         DiagnosticRow("Repository", diagnostics.repository)
                         DiagnosticRow("Endpoint", diagnostics.endpoint)
@@ -219,7 +216,7 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
 @Composable
 private fun DiagnosticRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-        Text(label, fontSize = 11.sp, color = MMGrayText, modifier = Modifier.width(92.dp))
+        Text(label, fontSize = 11.sp, color = MmColors.textSecondary, modifier = Modifier.width(92.dp))
         Text(value, fontSize = 11.sp, modifier = Modifier.weight(1f))
     }
 }

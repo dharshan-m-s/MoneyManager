@@ -34,7 +34,7 @@ The updater is independently written using the proven separation pattern seen in
 | Stable/draft/prerelease release selection tests | PASS |
 | Deterministic APK asset selection tests | PASS |
 | Missing APK selection test | PASS |
-| Navigation destination/handler audit | PASS — 32 / 32 |
+| Navigation destination/handler audit | PASS — 33 / 33 |
 | GitHub workflow YAML parse | PASS |
 | Android manifest XML parse | PASS |
 | FileProvider paths XML parse | PASS |
@@ -42,14 +42,25 @@ The updater is independently written using the proven separation pattern seen in
 | Release APK naming consistency | PASS |
 | GitHub owner/repository BuildConfig centralization | PASS |
 | Update permissions/provider presence | PASS |
-| Room migration chain through category image migration | PASS — 1→8 chain present |
+| Room migration chain through the receipt-attachment migration | PASS — 1→9 chain present, 8→9 SQL checked against the exported schema |
 | ZIP integrity | PASS |
+| `clean compileDebugKotlin` | PASS — 0 errors, 0 warnings |
+| `testDebugUnitTest` | PASS — 40 tests, 0 failures |
+| `assembleDebug` | PASS — debug APK produced |
+| `assembleRelease` (R8, resource shrinking, `lintVitalRelease`) | PASS — unsigned release APK produced |
+| Light-only colour literals outside `Theme.kt` | PASS — 0 remaining |
+| `Color.White` on an accent surface | PASS — 0 remaining |
+
+See `MODIFICATION_SUMMARY.md` for the full UI/UX pass and its verification table, and
+`docs/UI_DESIGN_SYSTEM.md` for the design-system contract.
 
 ## Environment limitation
 
-A complete Android Gradle build could not be executed in this environment.
-
-Reason: the project does not contain `gradle/wrapper/gradle-wrapper.jar`, and this environment cannot resolve `services.gradle.org` to download the Gradle distribution. Therefore APK compilation, Android lint, instrumentation tests, and a real-device GitHub Release install/upgrade test remain the required external verification gate.
+Compilation, unit tests, R8/`lintVital` release packaging and the scripted audits listed above all
+run locally. What still requires a device or emulator is the visual and hardware behaviour:
+dark-mode appearance, small and large screen widths, keyboard interaction, camera capture and
+receipt persistence across a real app restart. Those are the remaining external verification
+gates.
 
 The repository is configured so GitHub Actions supplies Gradle 9.5.0 and performs the authoritative CI/release build.
 
