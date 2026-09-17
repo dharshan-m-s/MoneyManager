@@ -23,6 +23,9 @@ interface BillDao {
     @Query("SELECT * FROM bills WHERE id = :id")
     suspend fun findById(id: Long): BillEntity?
 
+    @Query("SELECT * FROM bills WHERE linkedAccountId = :accountId LIMIT 1")
+    suspend fun findByLinkedAccountId(accountId: Long): BillEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertInstance(instance: BillInstanceEntity): Long
 
@@ -31,6 +34,9 @@ interface BillDao {
 
     @Query("SELECT * FROM bill_instances WHERE billId = :billId ORDER BY dueDateEpochMillis DESC")
     fun observeInstancesForBill(billId: Long): Flow<List<BillInstanceEntity>>
+
+    @Query("SELECT * FROM bill_instances WHERE billId = :billId AND paid = 0 ORDER BY dueDateEpochMillis ASC LIMIT 1")
+    suspend fun findNextUnpaidInstance(billId: Long): BillInstanceEntity?
 
     @Query("SELECT * FROM bill_instances WHERE paid = 0 ORDER BY dueDateEpochMillis")
     fun observeUpcomingUnpaid(): Flow<List<BillInstanceEntity>>
