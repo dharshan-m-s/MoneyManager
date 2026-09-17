@@ -43,10 +43,7 @@ class TransactionRepository @Inject constructor(
             val now = System.currentTimeMillis()
             val credit = if (input.isIncome) input.amount.minorUnits else 0L
             val debit = if (input.isIncome) 0L else input.amount.minorUnits
-            val fingerprint = fingerprint(
-                input.occurredAtEpochMillis, input.accountId, credit, debit,
-                input.merchantReceiverSender, input.rawCategoryName
-            )
+            val fingerprint = fingerprint(input.occurredAtEpochMillis, input.accountId, credit, debit, input.merchantReceiverSender, input.rawCategoryName)
             val entity = TransactionEntity(
                 occurredAtEpochMillis = input.occurredAtEpochMillis,
                 rawDateString = "",
@@ -82,12 +79,6 @@ class TransactionRepository @Inject constructor(
         }.also { backupManager.scheduleAfterWrite() }
     }
 
-    /**
-     * Edits only fields that are safe to change from the UI. The original transaction kind,
-     * subtype, account, payment type and imported statement snapshots are deliberately retained.
-     * This is important for credit cards: a purchase must continue to increase outstanding while
-     * a CC bill-payment must continue to reduce outstanding after an amount edit.
-     */
     suspend fun updateEditableTransaction(
         transactionId: Long,
         amount: Money,
@@ -96,7 +87,8 @@ class TransactionRepository @Inject constructor(
         businessPersonal: BusinessPersonal,
         reimbursable: Boolean,
         includeInStatistics: Boolean,
-        categoryId: Long? = null
+        categoryId: Long? = null,
+        occurredAtEpochMillis: Long? = null
     ) {
         database.withTransaction {
             val existing = transactionDao.findById(transactionId) ?: return@withTransaction
@@ -112,13 +104,13 @@ class TransactionRepository @Inject constructor(
                 }
                 else -> 0L to 0L
             }
+            val newDate = occurredAtEpochMillis ?: existing.occurredAtEpochMillis
             val categoryName = categoryId?.let { categoryDao.findById(it)?.name }
-            val fingerprint = fingerprint(
-                existing.occurredAtEpochMillis, existing.accountId, credit, debit,
-                merchantReceiverSender, categoryName ?: existing.rawCategoryName
-            )
+            val fingerprint = fingerprint(newDate, existing.accountId, credit, debit, merchantReceiverSender, categoryName ?: existing.rawCategoryName)
             transactionDao.update(
                 existing.copy(
+                    occurredAtEpochMillis = newDate,
+                    rawDateString = if (occurredAtEpochMillis != null) newDate.toString() else existing.rawDateString,
                     creditMinorUnits = credit,
                     debitMinorUnits = debit,
                     merchantReceiverSender = merchantReceiverSender,
@@ -142,13 +134,7 @@ class TransactionRepository @Inject constructor(
         backupManager.scheduleAfterWrite()
     }
 
-    suspend fun createTransfer(
-        occurredAtEpochMillis: Long,
-        fromAccountId: Long,
-        toAccountId: Long,
-        amount: Money,
-        notes: String?
-    ): Pair<Long, Long> {
+    suspend fun createTransfer(occurredAtEpochMillis: Long, fromAccountId: Long, toAccountId: Long, amount: Money, notes: String?): Pair<Long, Long> {
         return database.withTransaction {
             val now = System.currentTimeMillis()
             val outFingerprint = fingerprint(occurredAtEpochMillis, fromAccountId, 0, amount.minorUnits, "Transfer", "A/c to A/c")
@@ -180,16 +166,7 @@ class TransactionRepository @Inject constructor(
                 updatedAtEpochMillis = now
             )
             val outId = transactionDao.insert(outEntity)
-            val inEntity = outEntity.copy(
-                id = 0,
-                txnType = TxnType.CREDIT_TRANSACTION,
-                txnSubType = TxnSubType.TRANSFER_IN,
-                accountId = toAccountId,
-                creditMinorUnits = amount.minorUnits,
-                debitMinorUnits = 0,
-                dedupeFingerprint = inFingerprint,
-                linkedTransferTransactionId = outId
-            )
+            val inEntity = outEntity.copy(id = 0, txnType = TxnType.CREDIT_TRANSACTION, txnSubType = TxnSubType.TRANSFER_IN, accountId = toAccountId, creditMinorUnits = amount.minorUnits, debitMinorUnits = 0, dedupeFingerprint = inFingerprint, linkedTransferTransactionId = outId)
             val inId = transactionDao.insert(inEntity)
             transactionDao.update(outEntity.copy(id = outId, linkedTransferTransactionId = inId))
             accountingService.recalculateAccounts(setOf(fromAccountId, toAccountId))
@@ -197,18 +174,8 @@ class TransactionRepository @Inject constructor(
         }.also { backupManager.scheduleAfterWrite() }
     }
 
-    private fun fingerprint(
-        epochMillis: Long,
-        accountId: Long,
-        credit: Long,
-        debit: Long,
-        merchant: String?,
-        category: String?
-    ): String {
-        val basis = listOf(
-            epochMillis.toString(), accountId.toString(), credit.toString(), debit.toString(),
-            merchant ?: "", category ?: "", System.nanoTime().toString()
-        ).joinToString("|")
+    private fun fingerprint(epochMillis: Long, accountId: Long, credit: Long, debit: Long, merchant: String?, category: String?): String {
+        val basis = listOf(epochMillis.toString(), accountId.toString(), credit.toString(), debit.toString(), merchant ?: "", category ?: "", System.nanoTime().toString()).joinToString("|")
         val digest = MessageDigest.getInstance("SHA-256").digest(basis.toByteArray(Charsets.UTF_8))
         return digest.joinToString("") { "%02x".format(it) }
     }
