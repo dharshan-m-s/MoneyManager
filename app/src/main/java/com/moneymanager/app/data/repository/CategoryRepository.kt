@@ -7,11 +7,6 @@ import com.moneymanager.app.domain.model.TxnSubType
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private val PALETTE = listOf(
-    "#E15759", "#0A8F5A", "#F2A33A", "#3AA7FF", "#8A6DCC", "#9C6B4A",
-    "#1FA79A", "#6079D4", "#E96A99", "#74B95A", "#EE8A2A", "#5D7180"
-)
-
 @Singleton
 class CategoryRepository @Inject constructor(
     private val categoryDao: CategoryDao
@@ -32,13 +27,13 @@ class CategoryRepository @Inject constructor(
         val existing = categoryDao.findByName(name)
         if (existing != null) return existing.id
 
-        val colorIndex = (name.hashCode().toLong() and 0xFFFFFFFFL % PALETTE.size).toInt()
+        val colorIndex = (name.hashCode() and Int.MAX_VALUE) % CategoryEntity.COLOR_PALETTE.size
         val entity = CategoryEntity(
             name = name,
             kind = desiredKind,
             iconKey = "generic",
             imageUri = null,
-            colorHex = PALETTE[colorIndex],
+            colorHex = CategoryEntity.COLOR_PALETTE[colorIndex],
             sortOrder = categoryDao.nextSortOrder(),
             isCustom = false,
             isImportedOnly = true,
@@ -74,14 +69,14 @@ class CategoryRepository @Inject constructor(
         val all = (incomeCats + expenseCats).distinctBy { it.first }
         for ((name, kind) in all) {
             if (categoryDao.findByName(name) == null) {
-                val colorIndex = (name.hashCode().toLong() and 0xFFFFFFFFL % PALETTE.size).toInt()
+                val colorIndex = (name.hashCode() and Int.MAX_VALUE) % CategoryEntity.COLOR_PALETTE.size
                 categoryDao.insert(
                     CategoryEntity(
                         name = name,
                         kind = kind,
                         iconKey = name.lowercase().replace(" ", "_").replace("/", "_"),
                         imageUri = null,
-                        colorHex = PALETTE[colorIndex],
+                        colorHex = CategoryEntity.COLOR_PALETTE[colorIndex],
                         sortOrder = categoryDao.nextSortOrder(),
                         isCustom = false,
                         isImportedOnly = false,

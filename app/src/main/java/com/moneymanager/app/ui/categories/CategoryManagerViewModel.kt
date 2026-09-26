@@ -7,8 +7,12 @@ import com.moneymanager.app.data.local.entity.CategoryEntity
 import com.moneymanager.app.data.local.entity.CategoryKind
 import com.moneymanager.app.data.repository.BackupManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -21,18 +25,73 @@ class CategoryManagerViewModel @Inject constructor(
     val categories: StateFlow<List<CategoryEntity>> = dao.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun add(name: String, kind: CategoryKind, imageUri: String? = null, onCreated: (Long) -> Unit = {}) {
+    private val _error = MutableStateFlow<String?>(null)
+
+    /** Single validation/message channel for the create + edit surfaces. */
+    val error: StateFlow<String?> = _error.asStateFlow()
+
+    fun reportError(message: String?) {
+        _error.value = message
+    }
+
+    private val _loaded = MutableStateFlow<CategoryEntity?>(null)
+    private val _loadFinished = MutableStateFlow(false)
+
+    /** The category currently being edited, or null when creating a new one. */
+    val loadedCategory: StateFlow<CategoryEntity?> = _loaded.asStateFlow()
+    val loadFinished: StateFlow<Boolean> = _loadFinished.asStateFlow()
+
+    private val _usage = MutableStateFlow(0)
+    private val _reassignFrom = MutableStateFlow<Long?>(null)
+
+    /** Transactions currently pointing at [_reassignFrom], shown in the delete confirmation. */
+    val usageCount: StateFlow<Int> = _usage.asStateFlow()
+
+    /** Active categories that could absorb the deleted category's transactions. */
+    val reassignTargets: StateFlow<List<CategoryEntity>> = _reassignFrom
+        .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else dao.observeReassignTargets(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun loadCategory(id: Long) {
+        if (id <= 0L) return
+        viewModelScope.launch {
+            _loaded.value = dao.findById(id)
+            _loadFinished.value = true
+        }
+    }
+
+    fun beginDelete(category: CategoryEntity) {
+        _reassignFrom.value = category.id
+        _usage.value = 0
+        viewModelScope.launch { _usage.value = dao.countTransactions(category.id) }
+    }
+
+    fun add(
+        name: String,
+        kind: CategoryKind,
+        imageUri: String? = null,
+        iconKey: String? = null,
+        colorHex: String? = null,
+        onCreated: (Long) -> Unit = {}
+    ) {
         viewModelScope.launch {
             val clean = name.trim()
-            if (clean.isBlank() || dao.findByName(clean) != null) return@launch
+            if (clean.isBlank()) {
+                _error.value = "Give your category a name"
+                return@launch
+            }
+            if (dao.findByName(clean) != null) {
+                _error.value = "\"$clean\" already exists"
+                return@launch
+            }
             val order = dao.nextSortOrder()
             val id = dao.insert(
                 CategoryEntity(
                     name = clean,
                     kind = kind,
-                    iconKey = clean.lowercase().replace(" ", "_").replace("/", "_"),
+                    iconKey = iconKey?.takeIf { it.isNotBlank() } ?: nameToIconKey(clean),
                     imageUri = imageUri,
-                    colorHex = chooseColor(clean),
+                    colorHex = colorHex?.takeIf { it.isNotBlank() } ?: chooseColor(clean),
                     sortOrder = order,
                     isCustom = true,
                     isImportedOnly = false,
@@ -44,14 +103,58 @@ class CategoryManagerViewModel @Inject constructor(
         }
     }
 
-    fun rename(category: CategoryEntity, name: String) {
+    /**
+     * Persists every editable field at once. [iconKey] is stored exactly as chosen rather than being
+     * re-derived from the name, so renaming a category never silently swaps the icon the user picked.
+     */
+    fun update(
+        category: CategoryEntity,
+        name: String,
+        kind: CategoryKind,
+        iconKey: String,
+        colorHex: String,
+        imageUri: String?,
+        active: Boolean = category.active,
+        onSaved: () -> Unit = {}
+    ) {
         viewModelScope.launch {
             val clean = name.trim()
-            if (clean.isBlank()) return@launch
-            val existing = dao.findByName(clean)
-            if (existing != null && existing.id != category.id) return@launch
-            dao.update(category.copy(name = clean, iconKey = clean.lowercase().replace(" ", "_").replace("/", "_")))
+            if (clean.isBlank()) {
+                _error.value = "Give your category a name"
+                return@launch
+            }
+            val clash = dao.findByName(clean)
+            if (clash != null && clash.id != category.id) {
+                _error.value = "\"$clean\" already exists"
+                return@launch
+            }
+            dao.update(
+                category.copy(
+                    name = clean,
+                    kind = kind,
+                    iconKey = iconKey,
+                    colorHex = colorHex,
+                    imageUri = imageUri,
+                    active = active
+                )
+            )
             backupManager.scheduleAfterWrite()
+            onSaved()
+        }
+    }
+
+    /**
+     * Deletes the category. Transactions keep their verbatim [com.moneymanager.app.data.local.entity.TransactionEntity.rawCategoryName]
+     * for audit either way; [reassignTo] additionally re-points them at a live category so spend
+     * reports do not lose the history. The SET_NULL foreign key clears anything left behind.
+     */
+    fun delete(category: CategoryEntity, reassignTo: Long?, onDeleted: () -> Unit = {}) {
+        viewModelScope.launch {
+            if (reassignTo != null) dao.reassignTransactions(category.id, reassignTo)
+            dao.delete(category)
+            backupManager.scheduleAfterWrite()
+            _reassignFrom.value = null
+            onDeleted()
         }
     }
 
@@ -90,8 +193,9 @@ class CategoryManagerViewModel @Inject constructor(
         backupManager.scheduleAfterWrite()
     }
 
-    private fun chooseColor(name: String): String {
-        val palette = listOf("#E15759", "#F2A33A", "#F0C65D", "#1FA79A", "#3AA7FF", "#8A6DCC", "#E96A99", "#6F7E8B")
-        return palette[(name.hashCode() and Int.MAX_VALUE) % palette.size]
-    }
+    private fun chooseColor(name: String): String =
+        CategoryEntity.COLOR_PALETTE[(name.hashCode() and Int.MAX_VALUE) % CategoryEntity.COLOR_PALETTE.size]
+
+    private fun nameToIconKey(name: String): String =
+        name.lowercase().replace(" ", "_").replace("/", "_")
 }

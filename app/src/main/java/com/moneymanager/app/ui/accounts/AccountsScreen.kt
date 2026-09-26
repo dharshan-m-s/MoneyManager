@@ -28,9 +28,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.RequestQuote
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
@@ -39,10 +41,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -80,11 +84,14 @@ fun AccountsScreen(
     val accounts by viewModel.accounts.collectAsState()
     var selectedTab by remember { mutableIntStateOf(AccountsTab.entries.indexOf(initialTab).coerceAtLeast(0)) }
     var editMode by remember { mutableStateOf(false) }
+    var showInactive by rememberSaveable { mutableStateOf(false) }
     val tab = AccountsTab.entries[selectedTab]
     val filtered = accounts.filter { it.accountType in tab.types && !it.deleted }
     val visible = filtered.filter { !it.hide }
-    val total = visible
-        .filter { it.active }
+    // Inactive does NOT mean deleted: these stay persisted with their history, shown separately.
+    val activeAccounts = visible.filter { it.active }
+    val inactiveAccounts = visible.filter { !it.active }
+    val total = activeAccounts
         .sumOf { account ->
             if (account.accountType == AccountType.CREDIT_CARD) {
                 account.outstandingMinorUnits ?: 0L
@@ -109,7 +116,7 @@ fun AccountsScreen(
             AccountsHeader(
                 tabLabel = tab.label,
                 isCreditCard = tab == AccountsTab.CREDIT_CARDS,
-                count = visible.size,
+                count = activeAccounts.size,
                 total = Money(total),
                 editMode = editMode,
                 onBack = onBack,
@@ -134,7 +141,8 @@ fun AccountsScreen(
                 )
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 112.dp)) {
-                    items(visible, key = { it.id }) { account ->
+                    // Active accounts first.
+                    items(activeAccounts, key = { it.id }) { account ->
                         AccountCard(
                             account = account,
                             isCreditCard = account.accountType == AccountType.CREDIT_CARD,
@@ -145,6 +153,31 @@ fun AccountsScreen(
                                 else onEditAccount(account.id)
                             }
                         )
+                    }
+                    // Then a collapsible inactive section. Inactive accounts stay persisted with
+                    // their full history and open their real detail/edit screens from here.
+                    if (inactiveAccounts.isNotEmpty()) {
+                        item(key = "inactive-header") {
+                            InactiveAccountsHeader(
+                                count = inactiveAccounts.size,
+                                expanded = showInactive,
+                                onToggle = { showInactive = !showInactive }
+                            )
+                        }
+                        if (showInactive) {
+                            items(inactiveAccounts, key = { it.id }) { account ->
+                                AccountCard(
+                                    account = account,
+                                    isCreditCard = account.accountType == AccountType.CREDIT_CARD,
+                                    editMode = editMode,
+                                    onClick = { onAccountClick(account.id) },
+                                    onEdit = {
+                                        if (account.accountType == AccountType.CREDIT_CARD) onEditCreditCard(account.id)
+                                        else onEditAccount(account.id)
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -327,6 +360,47 @@ private fun AccountCard(
             } else if (isCreditCard) {
                 MmPill("Credit card", tint = MmColors.accent, filled = true)
             }
+        }
+    }
+}
+
+@Composable
+private fun InactiveAccountsHeader(
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit
+) {
+    MmCard(
+        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+        onClick = onToggle
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            MmIconBadge(icon = Icons.Filled.Archive, tint = MmColors.textTertiary, size = 44.dp)
+            Spacer(Modifier.width(MmSpacing.md))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Inactive",
+                    style = MmType.body,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MmColors.textPrimary,
+                    maxLines = 1
+                )
+                Text(
+                    "$count ${if (count == 1) "account" else "accounts"} · history kept, hidden from totals",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Icon(
+                Icons.Filled.KeyboardArrowDown,
+                contentDescription = if (expanded) "Collapse inactive accounts" else "Expand inactive accounts",
+                tint = MmColors.textTertiary,
+                modifier = Modifier
+                    .graphicsLayer { rotationZ = if (expanded) 180f else 0f }
+                    .padding(MmSpacing.sm)
+            )
         }
     }
 }

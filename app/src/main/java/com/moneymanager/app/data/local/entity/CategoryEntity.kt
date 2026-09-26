@@ -59,4 +59,15 @@ data class CategoryEntity(
     val isImportedOnly: Boolean = false,
 
     val active: Boolean = true
-)
+) {
+    companion object {
+        /**
+         * The single source of truth for category colours, shared by the importer, the automatic
+         * name-based picker and the user-facing colour swatches so every entry point agrees.
+         */
+        val COLOR_PALETTE = listOf(
+            "#E15759", "#0A8F5A", "#F2A33A", "#3AA7FF", "#8A6DCC", "#9C6B4A",
+            "#1FA79A", "#6079D4", "#E96A99", "#74B95A", "#EE8A2A", "#5D7180"
+        )
+    }
+}

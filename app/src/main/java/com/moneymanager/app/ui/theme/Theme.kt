@@ -92,11 +92,11 @@ object MmSpacing {
     /** Minimum touch target (accessibility). */
     val touchTarget = 48.dp
 
-    /** Standard corner radii. */
-    val radiusCard = 20.dp
+    /** Standard corner radii (One UI 9: generous, confident rounding). */
+    val radiusCard = 22.dp
     val radiusRow = 16.dp
     val radiusField = 16.dp
-    val radiusSheet = 28.dp
+    val radiusSheet = 30.dp
 }
 
 /**
@@ -130,14 +130,19 @@ object MmColors {
 
 /** Semantic text styles used across redesigned screens (financial hierarchy in one place). */
 object MmType {
-    val screenTitle: TextStyle @Composable get() = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
+    // "tnum" gives financial digits equal widths, so amounts stay perfectly aligned and stop
+    // jittering as values change — a signature of polished money UIs.
+    private const val TABULAR_NUMS = "tnum"
+
+    val screenTitle: TextStyle @Composable get() = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp)
     val sectionTitle: TextStyle @Composable get() = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
     val body: TextStyle @Composable get() = TextStyle(fontSize = 15.sp, lineHeight = 21.sp)
     val label: TextStyle @Composable get() = TextStyle(fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
     val caption: TextStyle @Composable get() = TextStyle(fontSize = 12.sp, lineHeight = 16.sp)
-    val amountHero: TextStyle @Composable get() = TextStyle(fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp)
-    val amountLarge: TextStyle @Composable get() = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold)
-    val amountRow: TextStyle @Composable get() = TextStyle(fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
+    val amountHero: TextStyle @Composable get() = TextStyle(fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.8).sp, fontFeatureSettings = TABULAR_NUMS)
+    val amountLarge: TextStyle @Composable get() = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp, fontFeatureSettings = TABULAR_NUMS)
+    val amountRow: TextStyle @Composable get() = TextStyle(fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, fontFeatureSettings = TABULAR_NUMS)
+    val amountTile: TextStyle @Composable get() = TextStyle(fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, fontFeatureSettings = TABULAR_NUMS)
 }
 
 @Composable

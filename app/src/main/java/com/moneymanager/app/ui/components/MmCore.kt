@@ -62,9 +62,11 @@ fun MmCard(
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(MmSpacing.radiusCard),
-        elevation = 0.dp,
+        // One UI 9 surfaces: flat but not harsh — a whisper of ambient elevation plus a soft
+        // tonal edge instead of a visible 1px line, so cards feel layered, not outlined.
+        elevation = 1.dp,
         backgroundColor = MmColors.surface,
-        border = BorderStroke(1.dp, MmColors.outline)
+        border = BorderStroke(0.5.dp, MmColors.divider)
     ) {
         Column(
             Modifier
@@ -138,11 +140,12 @@ fun MmIconBadge(
     modifier: Modifier = Modifier,
     size: androidx.compose.ui.unit.Dp = 44.dp
 ) {
+    // One UI 9 identity: rounded-square (squircle-feel) icon containers, slightly deeper tint.
     Box(
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(size / 2.9f))
-            .background(tint.copy(alpha = 0.13f)),
+            .clip(RoundedCornerShape(size / 2.45f))
+            .background(tint.copy(alpha = 0.14f)),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.48f))

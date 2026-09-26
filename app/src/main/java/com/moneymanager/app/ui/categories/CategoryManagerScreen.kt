@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.AlertDialog
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.DropdownMenu
 import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.FloatingActionButton
@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
@@ -39,7 +40,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -48,7 +48,6 @@ import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmSearchField
-import com.moneymanager.app.ui.components.MmTextField
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -60,11 +59,14 @@ fun CategoryManagerScreen(
     onCategorySelected: ((Long) -> Unit)? = null,
     onTransferSelected: (() -> Unit)? = null,
     onCreateCategory: () -> Unit = {},
+    onEditCategory: (Long) -> Unit = { },
     viewModel: CategoryManagerViewModel = hiltViewModel()
 ) {
     val categories by viewModel.categories.collectAsState()
+    val usageCount by viewModel.usageCount.collectAsState()
+    val reassignTargets by viewModel.reassignTargets.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
-    var editing by remember { mutableStateOf<CategoryEntity?>(null) }
+    var deleting by remember { mutableStateOf<CategoryEntity?>(null) }
     var showHidden by rememberSaveable { mutableStateOf(false) }
 
     val selectionMode = onCategorySelected != null
@@ -111,7 +113,7 @@ fun CategoryManagerScreen(
                     icon = Icons.Filled.Search,
                     title = if (query.isBlank()) "No categories yet" else "No match for \"$query\"",
                     message = if (query.isBlank()) "Create your first category to classify transactions."
-                    else "Try a shorter search, or create a new category.",
+                    else "Try a shorter search, or create a new one.",
                     actionLabel = if (query.isBlank()) "Create category" else "Clear search",
                     onAction = if (query.isBlank()) onCreateCategory else ({ query = "" })
                 )
@@ -137,8 +139,12 @@ fun CategoryManagerScreen(
                             },
                             onUp = { viewModel.moveUp(category.id) },
                             onDown = { viewModel.moveDown(category.id) },
-                            onEdit = { editing = category },
-                            onToggle = { viewModel.toggleActive(category, !category.active) }
+                            onEdit = { onEditCategory(category.id) },
+                            onToggle = { viewModel.toggleActive(category, !category.active) },
+                            onDelete = {
+                                viewModel.beginDelete(category)
+                                deleting = category
+                            }
                         )
                     }
                 }
@@ -149,6 +155,7 @@ fun CategoryManagerScreen(
             onClick = onCreateCategory,
             backgroundColor = MmColors.accent,
             contentColor = MmColors.onAccent,
+            shape = RoundedCornerShape(22.dp),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
@@ -158,11 +165,16 @@ fun CategoryManagerScreen(
         }
     }
 
-    editing?.let { category ->
-        RenameCategoryDialog(
+    deleting?.let { category ->
+        DeleteCategoryDialog(
             category = category,
-            onDismiss = { editing = null },
-            onSave = { name -> editing = null; viewModel.rename(category, name) }
+            usageCount = usageCount,
+            targets = reassignTargets,
+            onDismiss = { deleting = null },
+            onConfirm = { target ->
+                deleting = null
+                viewModel.delete(category, target)
+            }
         )
     }
 }
@@ -175,11 +187,12 @@ private fun CategoryRow(
     onUp: () -> Unit,
     onDown: () -> Unit,
     onEdit: () -> Unit,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    onDelete: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     MmCard(
-        onClick = if (selectionMode && category.active) onSelect else null,
+        onClick = if (selectionMode && category.active) onSelect else onEdit,
         contentPadding = PaddingValues(horizontal = MmSpacing.md, vertical = MmSpacing.sm)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -211,7 +224,7 @@ private fun CategoryRow(
                     Icon(Icons.Filled.ArrowDownward, contentDescription = "Move down", tint = MmColors.textSecondary)
                 }
                 IconButton(onClick = onEdit) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Rename category", tint = MmColors.accent)
+                    Icon(Icons.Filled.Edit, contentDescription = "Edit ${category.name}", tint = MmColors.accent)
                 }
                 Box {
                     IconButton(onClick = { menu = true }) {
@@ -221,35 +234,12 @@ private fun CategoryRow(
                         DropdownMenuItem(onClick = { menu = false; onToggle() }) {
                             Text(if (category.active) "Hide category" else "Show category")
                         }
+                        DropdownMenuItem(onClick = { menu = false; onDelete() }) {
+                            Text("Delete category", color = MmColors.expense)
+                        }
                     }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun RenameCategoryDialog(
-    category: CategoryEntity,
-    onDismiss: () -> Unit,
-    onSave: (String) -> Unit
-) {
-    var name by remember { mutableStateOf(category.name) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Rename category") },
-        text = {
-            MmTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = "Category name"
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(name.trim()) }, enabled = name.isNotBlank()) {
-                Text("Save", color = MmColors.accent)
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
 }

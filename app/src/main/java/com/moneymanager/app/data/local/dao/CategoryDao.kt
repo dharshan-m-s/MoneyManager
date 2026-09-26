@@ -1,6 +1,7 @@
 package com.moneymanager.app.data.local.dao
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -15,6 +16,23 @@ interface CategoryDao {
 
     @Update
     suspend fun update(category: CategoryEntity)
+
+    @Delete
+    suspend fun delete(category: CategoryEntity)
+
+    /** How many transactions currently point at this category, so the UI can warn before a
+     *  destructive delete instead of silently orphaning history. */
+    @Query("SELECT COUNT(*) FROM transactions WHERE categoryId = :categoryId")
+    suspend fun countTransactions(categoryId: Long): Int
+
+    /** Moves every transaction off [oldCategoryId] before it is deleted. Passing null leaves them
+     *  uncategorised; either way the SET_NULL foreign key guarantees no dangling reference. */
+    @Query("UPDATE transactions SET categoryId = :newCategoryId WHERE categoryId = :oldCategoryId")
+    suspend fun reassignTransactions(oldCategoryId: Long, newCategoryId: Long?)
+
+    /** Candidates offered when re-homing transactions that used the deleted category. */
+    @Query("SELECT * FROM categories WHERE id != :excludedId AND active = 1 ORDER BY sortOrder ASC, name COLLATE NOCASE ASC")
+    fun observeReassignTargets(excludedId: Long): Flow<List<CategoryEntity>>
 
     @Query("SELECT * FROM categories WHERE name = :name COLLATE NOCASE LIMIT 1")
     suspend fun findByName(name: String): CategoryEntity?

@@ -57,7 +57,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-internal val mmFieldShape = RoundedCornerShape(MmSpacing.radiusField)
+val mmFieldShape = RoundedCornerShape(MmSpacing.radiusField)
 internal val mmZone: ZoneId = ZoneId.of("Asia/Kolkata")
 
 private val shortDate = DateTimeFormatter.ofPattern("dd MMM yyyy")

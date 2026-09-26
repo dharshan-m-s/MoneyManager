@@ -28,7 +28,13 @@ sealed class Destination(val route: String, val label: String, val icon: ImageVe
     data object SpendSummary : Destination("spend_summary", "Spend Summary", Icons.Filled.PieChart)
     data object Categories : Destination("categories", "Categories", Icons.Filled.PieChart)
     data object CategoryPicker : Destination("category_picker", "Choose Category", Icons.Filled.PieChart)
-    data object CreateCategory : Destination("create_category", "Create Category", Icons.Filled.PieChart)
+    data object CategoryEditor : Destination(
+        "category_editor?categoryId={categoryId}",
+        "Edit Category",
+        Icons.Filled.PieChart
+    ) {
+        fun route(categoryId: Long? = null) = "category_editor?categoryId=${categoryId ?: -1L}"
+    }
     data object CategoryTransactions : Destination("category_transactions/{categoryId}", "Category Transactions", Icons.Filled.Description) { fun route(categoryId: Long) = "category_transactions/$categoryId" }
     data object Reimbursements : Destination("reimbursements", "Reimbursements", Icons.Filled.SwapHoriz)
     data object Settings : Destination("settings", "Settings", Icons.Filled.Settings)

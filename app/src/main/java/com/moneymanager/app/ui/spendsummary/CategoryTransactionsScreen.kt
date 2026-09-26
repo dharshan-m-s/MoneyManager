@@ -39,8 +39,8 @@ import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 
 /**
- * Every transaction ever recorded in one category, always newest first. Uses the same canonical
- * transaction row as the rest of the app, so tapping anything here opens the one shared
+ * Transactions for one category within the SELECTED Spend Areas month (never all-time). Uses the
+ * same canonical transaction row as the rest of the app, so tapping anything opens the one shared
  * transaction detail screen.
  */
 @Composable
@@ -54,13 +54,14 @@ fun CategoryTransactionsScreen(
     val rows by rowsFlow.collectAsState()
     var title by remember { mutableStateOf("Category") }
     LaunchedEffect(categoryId) { title = viewModel.categoryName(categoryId) }
+    val monthLabel = remember { viewModel.monthLabel() }
 
     val spent = rows.sumOf { it.debitMinorUnits - it.creditMinorUnits }
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
             title = title,
-            subtitle = "${rows.size} ${if (rows.size == 1) "transaction" else "transactions"} • all history",
+            subtitle = "${rows.size} ${if (rows.size == 1) "transaction" else "transactions"} • $monthLabel",
             onBack = onBack
         )
 
@@ -97,7 +98,7 @@ fun CategoryTransactionsScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        MmPill("All time", tint = MmColors.accent, filled = true)
+                        MmPill(monthLabel, tint = MmColors.accent, filled = true)
                     }
                 }
                 Spacer(Modifier.height(MmSpacing.sm))

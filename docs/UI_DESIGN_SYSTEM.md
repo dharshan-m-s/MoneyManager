@@ -37,13 +37,15 @@ bar (`MMGreenDark` + `MMWhite`), the chart/category hues (`MMGreen`, `MMBlue`, `
 
 `MmSpacing` is the only spacing scale: `xxs` 2, `xs` 4, `sm` 8, `md` 12, `lg` 16, `xl` 24,
 `xxl` 32, plus `screen` (20dp minimum horizontal margin), `card` (16dp internal padding) and
-`touchTarget` (48dp minimum). Radii: `radiusCard` 20, `radiusRow` 16, `radiusField` 16,
-`radiusSheet` 28.
+`touchTarget` (48dp minimum). Radii: `radiusCard` 22, `radiusRow` 16, `radiusField` 16,
+`radiusSheet` 30.
 
 ### Type
 
 `MmType`: `screenTitle`, `sectionTitle`, `body`, `label`, `caption`, and the amount hierarchy
-`amountHero` > `amountLarge` > `amountRow`. Amounts are always the most prominent element in
+`amountHero` > `amountLarge` > `amountRow`/`amountTile`. Financial styles use tabular numerals
+(`fontFeatureSettings = "tnum"`) so digits align in columns and never jitter as values change.
+Amounts are always the most prominent element in
 their group.
 
 ## Components (`ui/components/`)

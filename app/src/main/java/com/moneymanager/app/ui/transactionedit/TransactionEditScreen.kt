@@ -71,6 +71,7 @@ fun TransactionEditScreen(
     val state by viewModel.ui.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
+    val originalInactiveAccountName by viewModel.originalAccountName.collectAsState()
     val attachments by remember(transactionId) { viewModel.attachmentsFor(transactionId) }
         .collectAsState(initial = emptyList())
     val snackbarState = remember { SnackbarHostState() }
@@ -198,6 +199,9 @@ fun TransactionEditScreen(
                                 label = "Account",
                                 value = accounts.firstOrNull { it.id == state.accountId }
                                     ?.let { it.nickname.ifBlank { it.institutionName } }
+                                    // Editing an old transaction on an inactive account shows the real
+                                    // account, clearly marked, instead of an empty field.
+                                    ?: originalInactiveAccountName?.takeIf { state.accountId > 0 }
                                     .orEmpty(),
                                 placeholder = "Choose an account",
                                 onClick = { accountSheet = true }

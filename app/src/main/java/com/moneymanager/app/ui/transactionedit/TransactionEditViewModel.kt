@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
@@ -82,6 +83,20 @@ class TransactionEditViewModel @Inject constructor(
     val accounts: StateFlow<List<AccountEntity>> = accountDao.observeActive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /**
+     * The account a transaction already belongs to, even when inactive. Historical edits must
+     * show the real account (clearly marked) instead of a blank field that invites recreating it.
+     */
+    private val originalAccount = MutableStateFlow<AccountEntity?>(null)
+    val originalAccountName: StateFlow<String?> = originalAccount
+        .map { account ->
+            account?.takeIf { !it.active }?.let { acc ->
+                val name = acc.nickname.ifBlank { acc.institutionName }
+                "$name (inactive account)"
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     fun attachmentsFor(id: Long): Flow<List<TransactionAttachmentEntity>> =
         attachmentRepository.observeForTransaction(id)
 
@@ -90,6 +105,7 @@ class TransactionEditViewModel @Inject constructor(
             val txn = transactionDao.findById(id) ?: return@launch
             val isTransfer = txn.txnSubType == TxnSubType.TRANSFER_IN || txn.txnSubType == TxnSubType.TRANSFER_OUT
             val isIncome = txn.creditMinorUnits != 0L && txn.debitMinorUnits == 0L
+            originalAccount.value = accountDao.findById(txn.accountId)
             _ui.value = TransactionEditUiState(
                 transactionId = txn.id,
                 amount = Money(if (isIncome) txn.creditMinorUnits else txn.debitMinorUnits)

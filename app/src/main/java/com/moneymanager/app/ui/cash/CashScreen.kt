@@ -231,7 +231,8 @@ fun CashScreen(
             }
             FloatingActionButton(
                 onClick = { addExpanded = !addExpanded },
-                backgroundColor = MmColors.accent
+                backgroundColor = MmColors.accent,
+                shape = RoundedCornerShape(22.dp)
             ) {
                 Icon(
                     if (addExpanded) Icons.Filled.Close else Icons.Filled.Add,

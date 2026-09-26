@@ -162,6 +162,7 @@ fun MoneyManagerRoot() {
                         onClick = { fabExpanded = !fabExpanded },
                         backgroundColor = MmColors.accent,
                         contentColor = MmColors.onAccent,
+                        shape = RoundedCornerShape(18.dp),
                         text = {
                             Text(
                                 if (fabExpanded) "Close" else "Add",

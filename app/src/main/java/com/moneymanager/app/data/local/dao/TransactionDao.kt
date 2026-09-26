@@ -159,6 +159,15 @@ interface TransactionDao {
     )
     fun observeByCategory(categoryId: Long?): Flow<List<TransactionEntity>>
 
+    /** Month-bounded variant used by the Spend Areas drill-down (selected month only). */
+    @Query(
+        "SELECT * FROM transactions WHERE ((:categoryId IS NULL AND categoryId IS NULL) OR categoryId = :categoryId) " +
+            "AND txnSubType = 'EXPENSE' AND includeInStatistics = 1 " +
+            "AND occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive " +
+            "ORDER BY occurredAtEpochMillis DESC"
+    )
+    fun observeByCategoryInRange(categoryId: Long?, startInclusive: Long, endExclusive: Long): Flow<List<TransactionEntity>>
+
 
     @Query(
         "SELECT * FROM transactions WHERE reimbursable = 1 AND reimbursed = 0 ORDER BY occurredAtEpochMillis DESC"

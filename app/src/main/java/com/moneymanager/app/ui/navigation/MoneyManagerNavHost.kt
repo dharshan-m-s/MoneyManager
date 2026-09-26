@@ -35,8 +35,8 @@ import com.moneymanager.app.ui.settings.SettingsScreen
 import com.moneymanager.app.updater.presentation.AppUpdatesScreen
 import com.moneymanager.app.ui.spendsummary.SpendSummaryScreen
 import com.moneymanager.app.ui.spendsummary.CategoryTransactionsScreen
+import com.moneymanager.app.ui.categories.CategoryEditorScreen
 import com.moneymanager.app.ui.categories.CategoryManagerScreen
-import com.moneymanager.app.ui.categories.CreateCategoryScreen
 import com.moneymanager.app.ui.transfer.TransferScreen
 import com.moneymanager.app.ui.transactions.TransactionsScreen
 import com.moneymanager.app.ui.transactiondetail.TransactionDetailScreen
@@ -200,7 +200,8 @@ fun MoneyManagerNavHost(
         composable(Destination.Categories.route) {
             CategoryManagerScreen(
                 onBack = { safeBack() },
-                onCreateCategory = { navController.navigate(Destination.CreateCategory.route) }
+                onCreateCategory = { navController.navigate(Destination.CategoryEditor.route()) },
+                onEditCategory = { id -> navController.navigate(Destination.CategoryEditor.route(id)) }
             )
         }
         composable(Destination.CategoryPicker.route) {
@@ -214,11 +215,21 @@ fun MoneyManagerNavHost(
                     safeBack()
                     navController.navigate(Destination.Transfer.route)
                 },
-                onCreateCategory = { navController.navigate(Destination.CreateCategory.route) }
+                onCreateCategory = { navController.navigate(Destination.CategoryEditor.route()) }
             )
         }
-        composable(Destination.CreateCategory.route) {
-            CreateCategoryScreen(
+        composable(
+            Destination.CategoryEditor.route,
+            arguments = listOf(
+                navArgument("categoryId") {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                }
+            )
+        ) { entry ->
+            val id = entry.arguments?.getLong("categoryId") ?: -1L
+            CategoryEditorScreen(
+                categoryId = id.takeIf { it > 0L },
                 onBack = { safeBack() },
                 onSaved = { safeBack() }
             )

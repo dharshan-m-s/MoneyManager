@@ -1,5 +1,6 @@
 package com.moneymanager.app.ui.components
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
 import androidx.compose.material.icons.Icons
@@ -7,7 +8,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.moneymanager.app.ui.theme.MMGreenDark
+
+/** One UI 9 FAB shape: rounded square with generous, confident rounding. */
+private val MmFabShape = RoundedCornerShape(22.dp)
 
 /**
  * FAB for the Cash screen. Opens the Add Transaction screen with the cash entry point.
@@ -21,6 +26,7 @@ fun CashFab(
     FloatingActionButton(
         onClick = onAddCashTransaction,
         backgroundColor = MMGreenDark,
+        shape = MmFabShape,
         modifier = modifier
     ) {
         Icon(
@@ -44,6 +50,7 @@ fun AddBillerFab(
     FloatingActionButton(
         onClick = onAddBiller,
         backgroundColor = MMGreenDark,
+        shape = MmFabShape,
         modifier = modifier
     ) {
         Icon(
@@ -65,6 +72,7 @@ fun AccountsFab(
     FloatingActionButton(
         onClick = onAddAccount,
         backgroundColor = MMGreenDark,
+        shape = MmFabShape,
         modifier = modifier
     ) {
         Icon(

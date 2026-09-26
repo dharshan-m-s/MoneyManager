@@ -163,6 +163,10 @@ private fun calculateInSampleSize(width: Int, height: Int, reqWidth: Int, reqHei
 }
 
 fun categoryIcon(name: String, key: String = ""): androidx.compose.ui.graphics.vector.ImageVector {
+    // An icon the user explicitly picked wins over name matching, so the editor can offer a real
+    // icon choice without a rename changing it. Keys are drawn from the same vocabulary the
+    // heuristic below understands, so seeded/imported categories resolve identically either way.
+    CategoryIconOptions.firstOrNull { it.key == key.trim() }?.let { return it.icon }
     val n = "$name $key".lowercase()
     return when {
         "air ticket" in n || "flight" in n -> Icons.Filled.Flight

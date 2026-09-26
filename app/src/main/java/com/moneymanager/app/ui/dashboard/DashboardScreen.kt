@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.automirrored.filled.CallReceived
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.FilterList
@@ -161,7 +162,7 @@ fun DashboardScreen(
                     onAddExpense = onAddAccountSpend,
                     onAddIncome = onAddAccountIncome,
                     onCash = onOpenCash,
-                    onImport = onImportPrompt
+                    onBills = onSeeAllBills
                 )
             }
 
@@ -454,8 +455,7 @@ private fun SummaryTile(label: String, amount: Money, tint: androidx.compose.ui.
         Spacer(Modifier.height(4.dp))
         Text(
             MoneyFormat.rupeesNoDecimals(amount),
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
+            style = MmType.amountTile,
             color = MmColors.textPrimary,
             maxLines = 1,
             softWrap = false,
@@ -550,7 +550,7 @@ private fun QuickActions(
     onAddExpense: () -> Unit,
     onAddIncome: () -> Unit,
     onCash: () -> Unit,
-    onImport: () -> Unit
+    onBills: () -> Unit
 ) {
     Row(
         Modifier
@@ -561,7 +561,8 @@ private fun QuickActions(
         MmQuickAction(Icons.AutoMirrored.Filled.CallMade, "Add expense", MmColors.expense, onAddExpense, Modifier.weight(1f))
         MmQuickAction(Icons.AutoMirrored.Filled.CallReceived, "Add income", MmColors.income, onAddIncome, Modifier.weight(1f))
         MmQuickAction(Icons.Filled.AccountBalanceWallet, "Cash", MmColors.accent, onCash, Modifier.weight(1f))
-        MmQuickAction(Icons.Filled.Upload, "Import", MmColors.warning, onImport, Modifier.weight(1f))
+        // Recurring destination. The one-time CSV import lives in Settings → Data.
+        MmQuickAction(Icons.Filled.Description, "Bills", MmColors.warning, onBills, Modifier.weight(1f))
     }
 }
 

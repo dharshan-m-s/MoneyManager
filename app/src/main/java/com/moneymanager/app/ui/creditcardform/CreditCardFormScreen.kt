@@ -3,9 +3,10 @@ package com.moneymanager.app.ui.creditcardform
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -54,6 +55,7 @@ import com.moneymanager.app.ui.components.MmSegmentedControl
 import com.moneymanager.app.ui.components.MmStepper
 import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MmTextField
+import com.moneymanager.app.ui.components.mmFieldShape
 import com.moneymanager.app.ui.theme.MMGreenDark
 import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
@@ -181,48 +183,62 @@ fun CreditCardFormScreen(
                 )
             }
 
-            // --- Financial information: two columns only when the width genuinely allows it ---
+            // --- Financial information: always vertical stack for consistent layout ---
             MmCard {
                 Text("Financial information", style = MmType.label, color = MmColors.textSecondary)
                 Spacer(Modifier.height(MmSpacing.md))
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    val sideBySide = maxWidth >= 340.dp
-                    if (sideBySide) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
-                            Box(Modifier.weight(1f)) {
-                                MmAmountField(
-                                    value = state.outstanding,
-                                    onValueChange = viewModel::onOutstandingChange,
-                                    label = "Amount outstanding",
-                                    isError = state.outstandingError != null,
-                                    supportingText = state.outstandingError
-                                )
-                            }
-                            Box(Modifier.weight(1f)) {
-                                MmAmountField(
-                                    value = state.creditLimit,
-                                    onValueChange = viewModel::onCreditLimitChange,
-                                    label = "Credit limit",
-                                    isError = state.creditLimitError != null,
-                                    supportingText = state.creditLimitError
-                                )
-                            }
-                        }
-                    } else {
-                        MmAmountField(
-                            value = state.outstanding,
-                            onValueChange = viewModel::onOutstandingChange,
-                            label = "Amount outstanding",
-                            isError = state.outstandingError != null,
-                            supportingText = state.outstandingError
-                        )
-                        Spacer(Modifier.height(MmSpacing.md))
-                        MmAmountField(
-                            value = state.creditLimit,
-                            onValueChange = viewModel::onCreditLimitChange,
-                            label = "Credit limit",
-                            isError = state.creditLimitError != null,
-                            supportingText = state.creditLimitError
+                MmAmountField(
+                    value = state.outstanding,
+                    onValueChange = viewModel::onOutstandingChange,
+                    label = "Current outstanding",
+                    isError = state.outstandingError != null,
+                    supportingText = state.outstandingError
+                )
+                Spacer(Modifier.height(MmSpacing.md))
+                MmAmountField(
+                    value = state.creditLimit,
+                    onValueChange = viewModel::onCreditLimitChange,
+                    label = "Credit limit",
+                    isError = state.creditLimitError != null,
+                    supportingText = state.creditLimitError
+                )
+                Spacer(Modifier.height(MmSpacing.md))
+                // Available limit is derived (creditLimit - outstanding), shown as read-only
+                val outstandingValue = remember(state.outstanding) {
+                    runCatching {
+                        com.moneymanager.app.domain.model.Money.fromRupees(
+                            java.math.BigDecimal(state.outstanding.trim().ifEmpty { "0" })
+                        ).minorUnits
+                    }.getOrNull() ?: 0L
+                }
+                val limitValue = remember(state.creditLimit) {
+                    runCatching {
+                        com.moneymanager.app.domain.model.Money.fromRupees(
+                            java.math.BigDecimal(state.creditLimit.trim().ifEmpty { "0" })
+                        ).minorUnits
+                    }.getOrNull()
+                }
+                val availableLimit = limitValue?.let { it - outstandingValue }
+                val availableLimitText = availableLimit?.let { com.moneymanager.app.domain.model.Money(it).toBigDecimal().stripTrailingZeros().toPlainString() } ?: ""
+                Column(Modifier.fillMaxWidth()) {
+                    Text("Available limit (calculated)", style = MmType.label, color = MmColors.textSecondary, modifier = Modifier.padding(start = 3.dp, bottom = 5.dp))
+                    androidx.compose.foundation.layout.Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(mmFieldShape)
+                            .background(MmColors.surfaceMuted)
+                            .padding(horizontal = MmSpacing.md, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("₹", fontWeight = FontWeight.SemiBold, color = MmColors.textSecondary)
+                        Spacer(Modifier.width(MmSpacing.md))
+                        Text(
+                            if (availableLimitText.isBlank()) "0.00" else availableLimitText,
+                            style = MmType.amountRow,
+                            color = if (availableLimit != null && availableLimit < 0) MmColors.expense else MmColors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
