@@ -65,7 +65,6 @@ import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.formatFullDate
-import com.moneymanager.app.ui.theme.MMBlue
 import com.moneymanager.app.ui.theme.MMGreenDark
 import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
@@ -406,12 +405,15 @@ private fun AccountHeader(
                     Modifier.padding(horizontal = MmSpacing.screen),
                     horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {
-                    if (!account.active) MmPill("Inactive", tint = MMWhite)
-                    if (account.manualBalanceOverrideMinorUnits != null) MmPill("Manual balance", tint = MMWhite)
+                    if (!account.active) MmPill("Inactive", tint = MMWhite, filled = true)
+                    if (account.manualBalanceOverrideMinorUnits != null) {
+                        MmPill("Manual balance", tint = MMWhite, filled = true)
+                    }
                     if (account.lastReportedAtEpochMillis != null) {
                         MmPill(
                             "Reported ${formatFullDate(account.lastReportedAtEpochMillis)}",
-                            tint = MMWhite
+                            tint = MMWhite,
+                            filled = true
                         )
                     }
                 }

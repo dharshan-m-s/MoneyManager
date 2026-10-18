@@ -13,9 +13,14 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.ui.components.MmEmptyState
@@ -39,6 +44,7 @@ fun SearchScreen(
 ) {
     val query by viewModel.query.collectAsState()
     val results by viewModel.results.collectAsState()
+    val focusRequester = remember { FocusRequester() }
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(title = "Search", onBack = onBack)
@@ -47,8 +53,10 @@ fun SearchScreen(
             MmSearchField(
                 value = query,
                 onValueChange = viewModel::onQueryChange,
-                hint = "Merchant, category, account or note"
+                hint = "Merchant, category, account or note",
+                modifier = Modifier.focusRequester(focusRequester)
             )
+            LaunchedEffect(Unit) { focusRequester.requestFocus() }
             if (query.isNotBlank() && results.isNotEmpty()) {
                 Text(
                     "${results.size} ${if (results.size == 1) "match" else "matches"}",

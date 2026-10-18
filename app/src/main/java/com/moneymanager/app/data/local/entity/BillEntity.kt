@@ -6,7 +6,14 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.moneymanager.app.domain.model.BusinessPersonal
 
-enum class BillingCycle { MONTHLY, QUARTERLY, YEARLY, WEEKLY, CUSTOM }
+/**
+ * Recurrence rule for a bill template.
+ *
+ * BIMONTHLY means ONE occurrence every two calendar months (not twice a month). A
+ * twice-monthly rule would be a separate, explicitly named rule with two occurrence days per
+ * month and is intentionally not represented here.
+ */
+enum class BillingCycle { WEEKLY, MONTHLY, BIMONTHLY, QUARTERLY, YEARLY, CUSTOM }
 
 enum class BillerType {
     ELECTRICITY, GAS, WATER, MOBILE, BROADBAND_WIFI, DTH, INSURANCE,
@@ -54,6 +61,13 @@ data class BillEntity(
     val billingCycle: BillingCycle,
     val nextDueDateEpochMillis: Long,
 
+    /** Intended day-of-month anchor for the recurrence (1..31), independent of the first due
+     *  date. Without this, a bill anchored on the 31st that lands in February would start
+     *  drifting to the 28th forever. The anchor is clamped only for the destination month and
+     *  restored in longer months. Null on legacy rows: the day of [nextDueDateEpochMillis] is
+     *  used until the bill is edited. */
+    val scheduleAnchorDay: Int? = null,
+
     /** Current estimated bill amount - PDF explicitly labels this as based on the previous
      *  month's bill until reconciled by an actual payment. */
     val estimatedAmountMinorUnits: Long,
@@ -93,7 +107,14 @@ data class BillEntity(
             onDelete = ForeignKey.SET_NULL
         )
     ],
-    indices = [Index("billId"), Index("dueDateEpochMillis"), Index("paymentTransactionId")]
+    indices = [
+        Index("billId"),
+        Index("dueDateEpochMillis"),
+        Index("paymentTransactionId"),
+        // Idempotency: a template can own at most one occurrence per scheduled due date.
+        // Generation uses INSERT OR IGNORE, so re-running reconciliation is always safe.
+        Index(value = ["billId", "dueDateEpochMillis"], unique = true)
+    ]
 )
 data class BillInstanceEntity(
     @PrimaryKey(autoGenerate = true)

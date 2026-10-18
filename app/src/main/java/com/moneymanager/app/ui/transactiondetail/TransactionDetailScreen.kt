@@ -303,7 +303,11 @@ private fun DetailHero(
     Column(
         Modifier
             .fillMaxWidth()
-            .background(MmColors.surface)
+            .background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    listOf(MmColors.surface, MmColors.background)
+                )
+            )
             .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

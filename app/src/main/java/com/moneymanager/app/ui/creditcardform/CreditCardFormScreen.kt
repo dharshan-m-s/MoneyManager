@@ -75,12 +75,9 @@ fun CreditCardFormScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(editingAccountId) { editingAccountId?.let { viewModel.loadForEdit(it) } }
-    LaunchedEffect(state.saved) {
-        if (state.saved) {
-            snackbarState.showSnackbar("Credit card saved")
-            onSaved()
-        }
-    }
+    // Navigate back to the actual caller immediately. Showing (and waiting for) a snackbar
+    // here delayed the pop and could race with a manual Back, producing a double pop.
+    LaunchedEffect(state.saved) { if (state.saved) onSaved() }
     LaunchedEffect(state.deleted) { if (state.deleted) onDeleted() }
     LaunchedEffect(state.error) {
         state.error?.let { snackbarState.showSnackbar(it) }
@@ -258,7 +255,7 @@ fun CreditCardFormScreen(
                 MmDateField(
                     label = "Next due date",
                     epochMillis = state.dueDateEpochMillis,
-                    onChange = { picked -> viewModel.onField { copy(dueDateEpochMillis = picked) } }
+                    onChange = viewModel::onDueDateChange
                 )
                 Spacer(Modifier.height(MmSpacing.md))
                 MmAmountField(

@@ -194,8 +194,12 @@ class TransactionRepository @Inject constructor(
             transactionDao.deleteById(transactionId)
 
             // Delete the paired transfer leg too, keeping the linkedTransferTransactionId
-            // columns consistent on both sides.
+            // columns consistent on both sides. A bill may be linked to either leg (a
+            // card-side payment is the usual case), so unlink the peer as well.
             peerIdForAttachments?.let { peerId ->
+                billDao.findByPaymentTransactionId(peerId)?.let { instance ->
+                    billDao.updateInstance(instance.copy(paid = false, paidAtEpochMillis = null, paymentTransactionId = null))
+                }
                 transactionDao.findById(peerId)?.let { peer ->
                     val moreAffected = linkedAccountIdsFor(peer)
                     transactionDao.deleteById(peerId)

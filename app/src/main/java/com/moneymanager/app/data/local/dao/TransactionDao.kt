@@ -119,25 +119,45 @@ interface TransactionDao {
 
     // --- Analytics-support queries (Step 12 will build on these) ---
 
+    // Canonical spend/income definitions, matching FinancialSummary exactly: the same
+    // active/visible account filter, refund/reversal handling, and Count-in-statistics flag.
+    // Credit-card purchases are ordinary spending; card bill payments are transfers and are
+    // therefore excluded. These queries back the dashboard, budget, and Spend Areas screens so
+    // every view of "spent" reconciles.
+    private companion object {
+        const val INCLUDED_ACCOUNT =
+            "a.active = 1 AND a.deleted = 0 AND a.hide = 0 AND a.hideAccountTxns = 0 " +
+                "AND a.parentAccountId IS NULL"
+    }
+
     @Query(
-        "SELECT COALESCE(SUM(debitMinorUnits - creditMinorUnits), 0) FROM transactions " +
-            "WHERE txnSubType = 'EXPENSE' AND includeInStatistics = 1 " +
-            "AND occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive"
+        "SELECT COALESCE(SUM(t.debitMinorUnits - t.creditMinorUnits), 0) " +
+            "FROM transactions t INNER JOIN accounts a ON a.id = t.accountId " +
+            "WHERE (t.txnSubType = 'EXPENSE' OR t.txnKind = 'REFUND_REVERSAL') " +
+            "AND t.includeInStatistics = 1 " +
+            "AND $INCLUDED_ACCOUNT " +
+            "AND t.occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive"
     )
     fun observeTotalSpendInRange(startInclusive: Long, endExclusive: Long): Flow<Long>
 
     @Query(
-        "SELECT COALESCE(SUM(creditMinorUnits - debitMinorUnits), 0) FROM transactions " +
-            "WHERE txnSubType = 'INCOME' AND includeInStatistics = 1 " +
-            "AND occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive"
+        "SELECT COALESCE(SUM(t.creditMinorUnits - t.debitMinorUnits), 0) " +
+            "FROM transactions t INNER JOIN accounts a ON a.id = t.accountId " +
+            "WHERE t.txnSubType = 'INCOME' AND t.txnKind != 'REFUND_REVERSAL' " +
+            "AND t.includeInStatistics = 1 " +
+            "AND $INCLUDED_ACCOUNT " +
+            "AND t.occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive"
     )
     fun observeTotalIncomeInRange(startInclusive: Long, endExclusive: Long): Flow<Long>
 
     @Query(
-        "SELECT categoryId, COALESCE(SUM(debitMinorUnits - creditMinorUnits), 0) as total FROM transactions " +
-            "WHERE txnSubType = 'EXPENSE' AND includeInStatistics = 1 " +
-            "AND occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive " +
-            "GROUP BY categoryId ORDER BY total DESC"
+        "SELECT t.categoryId as categoryId, COALESCE(SUM(t.debitMinorUnits - t.creditMinorUnits), 0) as total " +
+            "FROM transactions t INNER JOIN accounts a ON a.id = t.accountId " +
+            "WHERE (t.txnSubType = 'EXPENSE' OR t.txnKind = 'REFUND_REVERSAL') " +
+            "AND t.includeInStatistics = 1 " +
+            "AND $INCLUDED_ACCOUNT " +
+            "AND t.occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive " +
+            "GROUP BY t.categoryId ORDER BY total DESC"
     )
     fun observeCategoryTotalsInRange(startInclusive: Long, endExclusive: Long): Flow<List<CategoryTotal>>
 
@@ -161,10 +181,13 @@ interface TransactionDao {
 
     /** Month-bounded variant used by the Spend Areas drill-down (selected month only). */
     @Query(
-        "SELECT * FROM transactions WHERE ((:categoryId IS NULL AND categoryId IS NULL) OR categoryId = :categoryId) " +
-            "AND txnSubType = 'EXPENSE' AND includeInStatistics = 1 " +
-            "AND occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive " +
-            "ORDER BY occurredAtEpochMillis DESC"
+        "SELECT t.* FROM transactions t INNER JOIN accounts a ON a.id = t.accountId " +
+            "WHERE ((:categoryId IS NULL AND t.categoryId IS NULL) OR t.categoryId = :categoryId) " +
+            "AND (t.txnSubType = 'EXPENSE' OR t.txnKind = 'REFUND_REVERSAL') " +
+            "AND t.includeInStatistics = 1 " +
+            "AND $INCLUDED_ACCOUNT " +
+            "AND t.occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive " +
+            "ORDER BY t.occurredAtEpochMillis DESC"
     )
     fun observeByCategoryInRange(categoryId: Long?, startInclusive: Long, endExclusive: Long): Flow<List<TransactionEntity>>
 

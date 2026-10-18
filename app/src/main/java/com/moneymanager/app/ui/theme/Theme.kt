@@ -15,60 +15,69 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 
-// One UI-inspired Money Manager palette: calm green brand, warm neutral surfaces and restrained
-// semantic accents.
-//
-// IMPORTANT: the values below are FIXED colours. Only three groups may be used directly in
-// screens:
-//   1. [MMGreenDark] / [MMWhite] - the brand top bar, which stays brand-green in both themes.
-//   2. the chart/category hues ([MMGreen], [MMBlue], [MMBrown], [MMPurple], [MMCyan], [MMAmberDue]).
-//   3. [MMIconShadow] for the category icon elevation.
-// Everything else - backgrounds, surfaces, dividers, outlines, body text and the semantic
-// income/expense/warning colours - MUST come from the theme-resolved [MmColors] roles, because
-// these literals are light-mode values and would break dark mode.
+/**
+ * Semantic colour tokens for the Money Manager light and dark palettes.
+ *
+ * Colour dynamics in this app:
+ *  - One brand family: green. The chrome (top bars, launcher) uses [MMGreenDark]; primary
+ *    actions (buttons, FAB, chips, links) use the same green family so the app reads as one
+ *    product in both modes.
+ *  - Two semantic money colours that never drift: income (green) and expense (red). Warning /
+ *    due / overdue are amber → red steps. These are lifted in dark mode so they stay legible
+ *    on dark surfaces without vibrating.
+ *  - A three-step surface stack (background → surface → surfaceMuted) gives depth without
+ *    shadows: cards are surface, inset rows/tiles are surfaceMuted, the window is background.
+ *  - All Compose colour literals MUST be 8-digit ARGB. `Color(0xRRGGBB)` silently produces a
+ *    fully transparent colour (alpha 0x00) — that bug previously blanked the whole dark theme.
+ *
+ * Screens must use the MmColors accessors (below) instead of the fixed palette constants.
+ */
+
+/** Brand chrome colour — the dark green top bars and the app identity. */
 val MMGreenDark = Color(0xFF006B45)
-val MMGreen = Color(0xFF0A8F5A)
 val MMWhite = Color(0xFFFFFFFF)
-val MMBlack = Color(0xFF151917)
-val MMGrayText = Color(0xFF64706A)
-val MMGrayDivider = Color(0xFFE1E8E3)
-val MMBackground = Color(0xFFF6F8F7)
-val MMSurfaceElevated = Color(0xFFFFFFFF)
-val MMBlue = Color(0xFF3B82F6)
-val MMRedExpense = Color(0xFFD94B4B)
-val MMGreenIncome = Color(0xFF078455)
-val MMAmberDue = Color(0xFFB66A08)
-val MMMaroonOverdue = Color(0xFF9A312E)
-val MMCyan = Color(0xFF0B8CA5)
-val MMPurple = Color(0xFF7A63C9)
-val MMBrown = Color(0xFF987057)
-val MMIconShadow = Color(0x22000000)
 
-private val LightMoneyManagerColors: Colors = lightColors(
-    primary = MMGreen,
-    primaryVariant = MMGreenDark,
-    secondary = MMBlue,
-    background = MMBackground,
-    surface = MMSurfaceElevated,
-    onPrimary = MMWhite,
-    onSecondary = MMWhite,
-    onBackground = MMBlack,
-    onSurface = MMBlack,
-    error = MMRedExpense
-)
+/** Light-mode palette — crisp neutral surfaces, deep green primary. */
+val MmPaletteLightBackground = Color(0xFFF6F8F7)
+val MmPaletteLightSurface = Color(0xFFFFFFFF)
+val MmPaletteLightSurfaceMuted = Color(0xFFF0F4F2)
+val MmPaletteLightDivider = Color(0xFFE1E8E3)
+val MmPaletteLightOutline = Color(0xFFCBD5E1)
+val MmPaletteLightTextPrimary = Color(0xFF151917)
+val MmPaletteLightTextSecondary = Color(0xFF64706A)
+val MmPaletteLightTextTertiary = Color(0xFF94A3B8)
+val MmPaletteLightAccent = Color(0xFF0A8F5A)
+val MmPaletteLightOnAccent = Color(0xFFFFFFFF)
+val MmPaletteLightIncome = Color(0xFF059669)
+val MmPaletteLightExpense = Color(0xFFDC2626)
+val MmPaletteLightWarning = Color(0xFFD97706)
+val MmPaletteLightAmberDue = Color(0xFFB45309)
+val MmPaletteLightMaroonOverdue = Color(0xFF9F1239)
+val MmPaletteLightCyan = Color(0xFF0891B2)
+val MmPaletteLightPurple = Color(0xFF7C3AED)
+val MmPaletteLightBrown = Color(0xFF92400E)
+val MmPaletteLightIconShadow = Color(0x1A000000)
 
-private val DarkMoneyManagerColors: Colors = darkColors(
-    primary = Color(0xFF74D9A7),
-    primaryVariant = Color(0xFF4FC58D),
-    secondary = Color(0xFF9ABEFF),
-    background = Color(0xFF0C120F),
-    surface = Color(0xFF151C18),
-    onPrimary = Color(0xFF062116),
-    onSecondary = Color(0xFF081522),
-    onBackground = Color(0xFFF1F6F3),
-    onSurface = Color(0xFFE8EEEA),
-    error = Color(0xFFFF9690)
-)
+/** Dark-mode palette — deep navy-slate stack with lifted semantic colours. */
+val MmPaletteDarkBackground = Color(0xFF0B1220)
+val MmPaletteDarkSurface = Color(0xFF131C2E)
+val MmPaletteDarkSurfaceMuted = Color(0xFF1C2740)
+val MmPaletteDarkDivider = Color(0xFF2A3752)
+val MmPaletteDarkOutline = Color(0xFF475569)
+val MmPaletteDarkTextPrimary = Color(0xFFF1F5F9)
+val MmPaletteDarkTextSecondary = Color(0xFF94A3B8)
+val MmPaletteDarkTextTertiary = Color(0xFF64748B)
+val MmPaletteDarkAccent = Color(0xFF34D399)
+val MmPaletteDarkOnAccent = Color(0xFF052E22)
+val MmPaletteDarkIncome = Color(0xFF34D399)
+val MmPaletteDarkExpense = Color(0xFFF87171)
+val MmPaletteDarkWarning = Color(0xFFFBBF24)
+val MmPaletteDarkAmberDue = Color(0xFFF59E0B)
+val MmPaletteDarkMaroonOverdue = Color(0xFFFB7185)
+val MmPaletteDarkCyan = Color(0xFF22D3EE)
+val MmPaletteDarkPurple = Color(0xFFA78BFA)
+val MmPaletteDarkBrown = Color(0xFFFBBF24)
+val MmPaletteDarkIconShadow = Color(0x32000000)
 
 /**
  * One consistent spacing scale for the whole app. Every redesigned screen pulls its padding and
@@ -92,7 +101,7 @@ object MmSpacing {
     /** Minimum touch target (accessibility). */
     val touchTarget = 48.dp
 
-    /** Standard corner radii (One UI 9: generous, confident rounding). */
+    /** Standard corner radii (generous, confident rounding). */
     val radiusCard = 22.dp
     val radiusRow = 16.dp
     val radiusField = 16.dp
@@ -105,27 +114,31 @@ object MmSpacing {
  * contrast rather than inverted light values.
  */
 object MmColors {
+    private val isLight: Boolean @Composable get() = MaterialTheme.colors.isLight
+
     val background: Color @Composable get() = MaterialTheme.colors.background
     val surface: Color @Composable get() = MaterialTheme.colors.surface
-    val surfaceMuted: Color @Composable get() = MaterialTheme.colors.onSurface.copy(alpha = if (MaterialTheme.colors.isLight) 0.05f else 0.08f)
-    val divider: Color @Composable get() = MaterialTheme.colors.onSurface.copy(alpha = if (MaterialTheme.colors.isLight) 0.12f else 0.16f)
-    val outline: Color @Composable get() = MaterialTheme.colors.onSurface.copy(alpha = if (MaterialTheme.colors.isLight) 0.14f else 0.22f)
+    val surfaceMuted: Color @Composable get() = if (isLight) MmPaletteLightSurfaceMuted else MmPaletteDarkSurfaceMuted
+    val divider: Color @Composable get() = if (isLight) MmPaletteLightDivider else MmPaletteDarkDivider
+    val outline: Color @Composable get() = if (isLight) MmPaletteLightOutline else MmPaletteDarkOutline
     val textPrimary: Color @Composable get() = MaterialTheme.colors.onSurface
-    val textSecondary: Color @Composable get() = MaterialTheme.colors.onSurface.copy(alpha = 0.64f)
-    val textTertiary: Color @Composable get() = MaterialTheme.colors.onSurface.copy(alpha = 0.48f)
+    val textSecondary: Color @Composable get() = if (isLight) MmPaletteLightTextSecondary else MmPaletteDarkTextSecondary
+    val textTertiary: Color @Composable get() = if (isLight) MmPaletteLightTextTertiary else MmPaletteDarkTextTertiary
 
-    /** Brand/positive accent that stays readable on both light and dark surfaces. */
+    /** Brand/primary accent that stays readable on both light and dark surfaces. */
     val accent: Color @Composable get() = MaterialTheme.colors.primary
 
     /**
      * Foreground for content sitting ON [accent] (filled buttons, brand headers).
-     * Hard-coding White here is a dark-mode bug: the dark-theme accent is a light green, so
-     * white-on-accent becomes unreadable.
+     * Uses MaterialTheme.colors.onPrimary which automatically adapts to light/dark.
      */
     val onAccent: Color @Composable get() = MaterialTheme.colors.onPrimary
-    val income: Color @Composable get() = if (MaterialTheme.colors.isLight) MMGreenIncome else Color(0xFF5ED9A0)
-    val expense: Color @Composable get() = if (MaterialTheme.colors.isLight) MMRedExpense else Color(0xFFFF9690)
-    val warning: Color @Composable get() = if (MaterialTheme.colors.isLight) MMAmberDue else Color(0xFFF0B35E)
+    /** Income — resolves to correct light/dark value. */
+    val income: Color @Composable get() = if (isLight) MmPaletteLightIncome else MmPaletteDarkIncome
+    /** Expense — resolves to correct light/dark value. */
+    val expense: Color @Composable get() = if (isLight) MmPaletteLightExpense else MmPaletteDarkExpense
+    /** Warning — resolves to correct light/dark value. */
+    val warning: Color @Composable get() = if (isLight) MmPaletteLightWarning else MmPaletteDarkWarning
 }
 
 /** Semantic text styles used across redesigned screens (financial hierarchy in one place). */
@@ -171,3 +184,31 @@ fun MoneyManagerTheme(
         content = content
     )
 }
+
+/** Light-mode Colors object — built from semantic tokens above. */
+private val LightMoneyManagerColors: Colors = lightColors(
+    primary = MmPaletteLightAccent,
+    primaryVariant = Color(0xFF07704A),
+    secondary = MmPaletteLightCyan,
+    background = MmPaletteLightBackground,
+    surface = MmPaletteLightSurface,
+    onPrimary = MmPaletteLightOnAccent,
+    onSecondary = MmPaletteLightTextPrimary,
+    onBackground = MmPaletteLightTextPrimary,
+    onSurface = MmPaletteLightTextPrimary,
+    error = MmPaletteLightExpense
+)
+
+/** Dark-mode Colors object — built from semantic tokens above. */
+private val DarkMoneyManagerColors: Colors = darkColors(
+    primary = MmPaletteDarkAccent,
+    primaryVariant = Color(0xFF059669),
+    secondary = MmPaletteDarkCyan,
+    background = MmPaletteDarkBackground,
+    surface = MmPaletteDarkSurface,
+    onPrimary = MmPaletteDarkOnAccent,
+    onSecondary = MmPaletteDarkTextPrimary,
+    onBackground = MmPaletteDarkTextPrimary,
+    onSurface = MmPaletteDarkTextPrimary,
+    error = MmPaletteDarkExpense
+)

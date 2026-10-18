@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.CircularProgressIndicator
@@ -42,9 +43,11 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MonetizationOn
+import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SystemUpdate
@@ -69,6 +72,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.data.repository.BackupManager
 import com.moneymanager.app.security.AppLock
+import com.moneymanager.app.security.LockMethod
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPill
@@ -76,6 +80,7 @@ import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.home.HomePreferences
 import com.moneymanager.app.ui.security.PinSetupDialog
+import com.moneymanager.app.ui.security.SystemLockPrompt
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -144,7 +149,8 @@ private fun SettingsSwitchRow(
     subtitle: String?,
     icon: ImageVector,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    badge: (@Composable () -> Unit)? = null
 ) {
     MmCard(
         modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
@@ -158,7 +164,8 @@ private fun SettingsSwitchRow(
                     title = title,
                     subtitle = subtitle,
                     checked = checked,
-                    onCheckedChange = onCheckedChange
+                    onCheckedChange = onCheckedChange,
+                    badge = badge
                 )
             }
         }
@@ -198,7 +205,20 @@ fun SettingsScreen(
     var darkMode by remember { mutableStateOf(homePreferences.isDarkMode()) }
     var autoBackup by remember { mutableStateOf(backupManager.autoBackupEnabled()) }
     var lockEnabled by remember { mutableStateOf(appLock.isEnabled()) }
+    var lockMethod by remember { mutableStateOf(appLock.method()) }
+    var systemLockAvailable by remember { mutableStateOf(appLock.canUseSystemLock()) }
     var showPinDialog by remember { mutableStateOf(false) }
+    var showMethodPicker by remember { mutableStateOf(false) }
+    // Set while the system screen-lock prompt is deciding whether the system method may be used.
+    var pendingSystemVerify by remember { mutableStateOf(false) }
+    // Non-null when the open PIN dialog is part of switching to the in-app PIN method, rather
+    // than just changing or adding the recovery code.
+    var pendingPinMethod by remember { mutableStateOf<LockMethod?>(null) }
+    // True while the "turn app lock off?" confirmation is up, so the switch stays visually on
+    // until the user confirms.
+    var switchArmed by remember { mutableStateOf(false) }
+    // Non-null while the "change how you unlock?" confirmation is up.
+    var confirmSwitchTo by remember { mutableStateOf<LockMethod?>(null) }
 
     fun message(text: String) {
         scope.launch { snackbarState.showSnackbar(text) }
@@ -281,27 +301,67 @@ fun SettingsScreen(
 
                 SettingsSectionHeader("Security")
                 SettingsSwitchRow(
-                    title = "PIN lock",
-                    subtitle = if (lockEnabled)
-                        "Ask for your PIN whenever the app returns from the background"
-                    else
-                        "Protect the app with a 4-8 digit PIN you choose",
+                    title = "App lock",
+                    subtitle = if (lockEnabled) {
+                        when (lockMethod) {
+                            LockMethod.IN_APP_PIN ->
+                                "On · unlock with your in-app PIN after 30s in the background"
+                            LockMethod.SYSTEM_BIOMETRIC ->
+                                "On · unlock with your fingerprint, face or device PIN"
+                        }
+                    } else "Protect the app with a PIN or your device screen lock",
                     icon = Icons.Filled.Lock,
-                    checked = lockEnabled,
+                    checked = lockEnabled || switchArmed,
+                    badge = if (lockEnabled) {
+                        {
+                            MmPill(
+                                text = if (lockMethod == LockMethod.IN_APP_PIN) "PIN" else "System",
+                                tint = MmColors.income,
+                                filled = true
+                            )
+                        }
+                    } else null,
                     onCheckedChange = { enabled ->
-                        if (enabled) {
-                            showPinDialog = true
-                        } else {
-                            lockEnabled = false
-                            appLock.disable()
-                            message("PIN lock turned off")
+                        when {
+                            enabled -> {
+                                // The method choice always comes first: the PIN dialog only follows
+                                // when the in-app PIN method is picked, and the system method
+                                // verifies through Android's own screen-lock prompt instead.
+                                showMethodPicker = true
+                            }
+                            // Turning the lock off is confirmed so a stray tap can't strip
+                            // protection from the whole app.
+                            lockEnabled -> switchArmed = true
+                            else -> Unit
                         }
                     }
                 )
                 if (lockEnabled) {
+                    // Same row language as every other Settings panel: one MmCard row with a
+                    // 40dp badge, title + subtitle, no radio buttons or standout cards.
                     SettingsRow(
-                        title = "Change PIN",
-                        subtitle = "Set a new PIN for this device",
+                        title = "Unlock with",
+                        subtitle = when (lockMethod) {
+                            LockMethod.IN_APP_PIN -> "In-app PIN"
+                            LockMethod.SYSTEM_BIOMETRIC ->
+                                if (systemLockAvailable) "System screen lock (biometrics or device PIN)"
+                                else "System screen lock (needs a device screen lock)"
+                        },
+                        icon = when (lockMethod) {
+                            LockMethod.IN_APP_PIN -> Icons.Filled.Password
+                            LockMethod.SYSTEM_BIOMETRIC -> Icons.Filled.Fingerprint
+                        },
+                        onClick = { showMethodPicker = true }
+                    )
+                    SettingsRow(
+                        title = if (appLock.hasPin()) "Change PIN" else "Add recovery PIN",
+                        subtitle = when {
+                            lockMethod == LockMethod.SYSTEM_BIOMETRIC && !appLock.hasPin() ->
+                                "Backup code in case biometrics fail or the screen lock is unavailable"
+                            lockMethod == LockMethod.SYSTEM_BIOMETRIC ->
+                                "Backup code in case the screen lock is unavailable"
+                            else -> "Set a new PIN for this device"
+                        },
                         icon = Icons.Filled.Security,
                         onClick = { showPinDialog = true }
                     )
@@ -452,15 +512,147 @@ fun SettingsScreen(
         )
     }
 
+    // The method chooser reuses the app's standard bottom sheet, exactly like the account and
+    // category pickers, instead of a standout block of radio cards.
+    if (showMethodPicker) {
+        LockMethodSheet(
+            // Nothing counts as selected until the lock is actually enabled.
+            selected = if (lockEnabled) lockMethod else null,
+            systemLockAvailable = systemLockAvailable,
+            onSelect = { method ->
+                showMethodPicker = false
+                when {
+                    method == LockMethod.SYSTEM_BIOMETRIC && !appLock.canUseSystemLock() -> {
+                        systemLockAvailable = false
+                        message("Set a screen lock on this device first")
+                    }
+                    // Switching methods while the lock is live is confirmed, so the protection
+                    // never changes on a stray tap.
+                    lockEnabled && method != lockMethod -> confirmSwitchTo = method
+                    method == LockMethod.SYSTEM_BIOMETRIC -> pendingSystemVerify = true
+                    else -> {
+                        pendingPinMethod = LockMethod.IN_APP_PIN
+                        showPinDialog = true
+                    }
+                }
+            },
+            onDismiss = { showMethodPicker = false }
+        )
+    }
+
+    // Switching methods while the lock is on is confirmed first; the active method keeps
+    // protecting the app until the user finishes the new one's setup.
+    confirmSwitchTo?.let { target ->
+        AlertDialog(
+            onDismissRequest = { confirmSwitchTo = null },
+            title = { Text("Change how you unlock?") },
+            text = {
+                Text(
+                    if (target == LockMethod.SYSTEM_BIOMETRIC)
+                        "App lock will verify with this device's screen lock. Your in-app PIN " +
+                            "stays saved as a recovery code."
+                    else
+                        "App lock will verify with a 4-8 digit code that only works in this app. " +
+                            "The device screen lock stops being used.",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmSwitchTo = null
+                    if (target == LockMethod.SYSTEM_BIOMETRIC) {
+                        pendingSystemVerify = true
+                    } else {
+                        pendingPinMethod = LockMethod.IN_APP_PIN
+                        showPinDialog = true
+                    }
+                }) { Text("Continue") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmSwitchTo = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Turning the lock off is destructive (the saved code is forgotten), so it is confirmed.
+    if (switchArmed) {
+        AlertDialog(
+            onDismissRequest = { switchArmed = false },
+            title = { Text("Turn off app lock?") },
+            text = {
+                Text(
+                    "Your ledger will open without asking for verification, and the saved " +
+                        "recovery code is forgotten. You can turn the lock back on at any time.",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    switchArmed = false
+                    lockEnabled = false
+                    lockMethod = LockMethod.IN_APP_PIN
+                    appLock.disable()
+                    message("App lock turned off")
+                }) { Text("Turn off", color = MmColors.expense) }
+            },
+            dismissButton = {
+                TextButton(onClick = { switchArmed = false }) { Text("Keep it on") }
+            }
+        )
+    }
+
+    // The system method has no app-side secret to set up: the platform screen-lock prompt is the
+    // verification. Success enables the lock directly; dismissing or failing keeps the lock off.
+    if (pendingSystemVerify) {
+        SystemLockPrompt(
+            title = "Confirm to turn on app lock",
+            subtitle = "Money Manager will use this device's screen lock",
+            negativeButtonText = "Cancel",
+            onUnlocked = {
+                pendingSystemVerify = false
+                appLock.enable(LockMethod.SYSTEM_BIOMETRIC)
+                lockMethod = LockMethod.SYSTEM_BIOMETRIC
+                lockEnabled = true
+                systemLockAvailable = true
+                message(
+                    if (appLock.hasPin()) "App lock is on · unlock with your screen lock"
+                    else "App lock is on · set a recovery PIN as a backup for biometric failures"
+                )
+            },
+            onUnavailable = {
+                pendingSystemVerify = false
+                if (!lockEnabled) {
+                    message("App lock stays off - the screen lock was not confirmed")
+                } else {
+                    message("Could not verify - still using the previous method")
+                }
+            }
+        )
+    }
+
     if (showPinDialog) {
         PinSetupDialog(
-            isChange = lockEnabled,
-            onDismiss = { showPinDialog = false },
+            isChange = pendingPinMethod == null && appLock.hasPin(),
+            onDismiss = {
+                showPinDialog = false
+                pendingPinMethod = null
+            },
             onSubmit = { pin ->
                 if (appLock.setPin(pin)) {
+                    pendingPinMethod?.let { method ->
+                        appLock.setMethod(method)
+                        pendingPinMethod = null
+                    }
+                    lockMethod = appLock.method()
                     lockEnabled = appLock.isEnabled()
                     showPinDialog = false
-                    message("PIN lock is on")
+                    message(
+                        if (lockMethod == LockMethod.SYSTEM_BIOMETRIC)
+                            "Recovery PIN saved · app lock stays on your screen lock"
+                        else "App lock is on with your PIN"
+                    )
                 } else {
                     message("Choose 4 to 8 digits")
                 }

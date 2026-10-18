@@ -34,6 +34,9 @@ data class AddTransactionUiState(
      *  income/spend type is fixed by which FAB opened the screen. */
     val includeInStatistics: Boolean = true,
     val amountText: String = "",
+    /** The actual occurrence date/time the user chose. Defaults to now, but is never silently
+     *  replaced at save time. */
+    val occurredAtEpochMillis: Long = System.currentTimeMillis(),
     val merchant: String = "",
     val selectedCategoryId: Long? = null,
     val selectedAccountId: Long? = null,
@@ -43,6 +46,7 @@ data class AddTransactionUiState(
     val categories: List<CategoryEntity> = emptyList(),
     val accounts: List<AccountEntity> = emptyList(),
     val saved: Boolean = false,
+    val saving: Boolean = false,
     val error: String? = null
 )
 
@@ -56,11 +60,19 @@ class AddTransactionViewModel @Inject constructor(
     private val _ui = MutableStateFlow(AddTransactionUiState())
     val ui: StateFlow<AddTransactionUiState> = _ui
 
+    /** The entry key already initialized. Re-composition after visiting the category picker
+     *  must not reset a date/time (or any other field) the user already chose. */
+    private var initializedFor: Pair<AddTransactionEntryPoint, Long?>? = null
+
     fun initialize(entryPoint: AddTransactionEntryPoint, preselectedAccountId: Long?) {
+        val key = entryPoint to preselectedAccountId
+        if (initializedFor == key) return
+        initializedFor = key
         val isIncome = entryPoint == AddTransactionEntryPoint.ACCOUNT_INCOME || entryPoint == AddTransactionEntryPoint.CASH_INCOME
         val isCash = entryPoint == AddTransactionEntryPoint.CASH_INCOME || entryPoint == AddTransactionEntryPoint.CASH_SPEND
         _ui.value = _ui.value.copy(
             isIncome = isIncome,
+            occurredAtEpochMillis = System.currentTimeMillis(),
             selectedAccountId = preselectedAccountId,
             error = null,
             saved = false
@@ -85,8 +97,14 @@ class AddTransactionViewModel @Inject constructor(
     }
 
     fun onAmountChange(text: String) { _ui.value = _ui.value.copy(amountText = text) }
+    fun onOccurredAtChange(epochMillis: Long) {
+        if (epochMillis > 0L) _ui.value = _ui.value.copy(occurredAtEpochMillis = epochMillis)
+    }
     fun onMerchantChange(text: String) { _ui.value = _ui.value.copy(merchant = text) }
     fun onCategorySelected(id: Long) { _ui.value = _ui.value.copy(selectedCategoryId = id) }
+
+    /** Lets the user change the paying/receiving account without leaving the form. */
+    fun onAccountSelected(id: Long) { _ui.value = _ui.value.copy(selectedAccountId = id) }
     fun onIncludeInStatisticsToggle(v: Boolean) { _ui.value = _ui.value.copy(includeInStatistics = v) }
     fun onBusinessPersonalToggle(bp: BusinessPersonal) { _ui.value = _ui.value.copy(businessPersonal = bp) }
     fun onReimbursableToggle(v: Boolean) { _ui.value = _ui.value.copy(reimbursable = v) }
@@ -94,6 +112,7 @@ class AddTransactionViewModel @Inject constructor(
 
     fun save(entryPoint: AddTransactionEntryPoint) {
         val s = _ui.value
+        if (s.saving || s.saved) return
         val amount = runCatching { BigDecimal(s.amountText.trim()) }.getOrNull()
         if (amount == null || amount.signum() <= 0) {
             _ui.value = s.copy(error = "Enter a valid amount")
@@ -106,11 +125,17 @@ class AddTransactionViewModel @Inject constructor(
         }
         val isCash = entryPoint == AddTransactionEntryPoint.CASH_INCOME || entryPoint == AddTransactionEntryPoint.CASH_SPEND
         val selectedCategory = s.categories.firstOrNull { it.id == s.selectedCategoryId }
+        if (s.occurredAtEpochMillis <= 0L) {
+            _ui.value = s.copy(error = "Choose a valid transaction date")
+            return
+        }
 
+        _ui.value = s.copy(saving = true, error = null)
         viewModelScope.launch {
+            runCatching {
             transactionRepository.addTransaction(
                 NewTransactionInput(
-                    occurredAtEpochMillis = System.currentTimeMillis(),
+                    occurredAtEpochMillis = s.occurredAtEpochMillis,
                     accountId = accountId,
                     categoryId = s.selectedCategoryId,
                     rawCategoryName = selectedCategory?.name,
@@ -124,7 +149,14 @@ class AddTransactionViewModel @Inject constructor(
                     includeInStatistics = s.includeInStatistics
                 )
             )
-            _ui.value = _ui.value.copy(saved = true)
+            }.onSuccess {
+                _ui.value = _ui.value.copy(saved = true, saving = false)
+            }.onFailure { error ->
+                _ui.value = _ui.value.copy(
+                    saving = false,
+                    error = error.message ?: "Could not save the transaction"
+                )
+            }
         }
     }
 }

@@ -45,7 +45,6 @@ import com.moneymanager.app.ui.components.MmProgressBar
 import com.moneymanager.app.ui.components.MmSectionHeader
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
-import com.moneymanager.app.ui.theme.MMGreen
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -302,5 +301,5 @@ private fun MonthBarGraph(
 private fun parseColor(hex: String): Color = try {
     Color(android.graphics.Color.parseColor(hex))
 } catch (e: Exception) {
-    MMGreen
+    Color(0xFFE2E8F0)
 }

@@ -136,10 +136,20 @@ fun AccountEditScreen(
                         )
                         Spacer(Modifier.height(MmSpacing.sm))
                         Text(
-                            "This creates a live checkpoint. Historical transactions are untouched.",
+                            "This is your current effective balance, including transactions after the " +
+                                "last checkpoint. Editing it creates a new reconciliation checkpoint; " +
+                                "imported history is untouched.",
                             style = MmType.caption,
                             color = MmColors.textSecondary
                         )
+                        if (state.balanceDirty) {
+                            Spacer(Modifier.height(MmSpacing.xs))
+                            Text(
+                                "You changed this balance. Saving will apply it as a checkpoint now.",
+                                style = MmType.caption,
+                                color = MmColors.accent
+                            )
+                        }
                     } else {
                         Text(
                             "Your balance is calculated from your transactions.",
@@ -204,7 +214,7 @@ fun AccountEditScreen(
                 )
                 MmSwitchRow(
                     title = "Show its transactions",
-                    subtitle = "Turn off to exclude them from combined transaction views",
+                    subtitle = "Turn off to exclude its transactions and balance from combined totals",
                     checked = !state.hideTransactions,
                     onCheckedChange = { viewModel.hideTransactions(!it) }
                 )
@@ -216,11 +226,12 @@ fun AccountEditScreen(
 
             Button(
                 onClick = viewModel::save,
+                enabled = !state.saving,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(MmSpacing.radiusRow),
                 colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
             ) {
-                Text("Save changes", color = MmColors.onAccent, style = MmType.label)
+                Text(if (state.saving) "Saving…" else "Save changes", color = MmColors.onAccent, style = MmType.label)
             }
         }
     }

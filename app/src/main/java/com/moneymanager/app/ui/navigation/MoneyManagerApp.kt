@@ -1,5 +1,6 @@
 package com.moneymanager.app.ui.navigation
 
+import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,12 +26,16 @@ import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,20 +46,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.moneymanager.app.BuildConfig
+import com.moneymanager.app.security.LockMethod
 import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.mmBrandWash
 import com.moneymanager.app.ui.security.PinUnlockScreen
+import com.moneymanager.app.ui.security.SystemLockPrompt
 import com.moneymanager.app.ui.settings.SettingsEntryPoint
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 /**
  * Root shell: navigation host + drawer + the dashboard FAB speed dial, wrapped in the real
@@ -72,6 +83,8 @@ fun MoneyManagerRoot() {
     }
     var locked by remember { mutableStateOf(appLock.isEnabled()) }
     var backgroundedAt by remember { mutableLongStateOf(0L) }
+    // Bumped when the configured method changes so a method switch re-runs the right gate.
+    var lockSession by remember { mutableIntStateOf(0) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, appLock) {
@@ -84,6 +97,7 @@ fun MoneyManagerRoot() {
                         System.currentTimeMillis() - since > appLock.relockAfterMillis()
                     ) {
                         locked = true
+                        lockSession += 1
                     }
                 }
                 else -> Unit
@@ -94,13 +108,73 @@ fun MoneyManagerRoot() {
     }
 
     if (locked) {
-        PinUnlockScreen(
-            onUnlock = { pin ->
-                val ok = appLock.verify(pin)
-                if (ok) locked = false
-                ok
+        var pinFallback by remember(lockSession) { mutableStateOf(false) }
+        var systemUnavailable by remember(lockSession) { mutableStateOf(false) }
+        // Re-arms the platform prompt after a failed attempt ("Try again").
+        var promptAttempt by remember(lockSession) { mutableIntStateOf(0) }
+        when {
+            appLock.method() == LockMethod.SYSTEM_BIOMETRIC && !pinFallback -> {
+                // key() re-runs the prompt's LaunchedEffect after "Try again".
+                key(promptAttempt) {
+                    SystemLockPrompt(
+                        title = "Unlock Money Manager",
+                        subtitle = "Confirm it's you to open your ledger",
+                        onUnlocked = { locked = false },
+                        onCancelled = {
+                            // A deliberate dismissal only falls back when a recovery PIN exists;
+                            // otherwise the user would hit a PIN screen that can never let them in.
+                            if (appLock.hasPin()) pinFallback = true
+                        },
+                        onUnavailable = {
+                            systemUnavailable = true
+                            if (appLock.hasPin()) pinFallback = true
+                        }
+                    )
+                }
+                if (systemUnavailable && !appLock.hasPin()) {
+                    // No screen lock usable and no recovery PIN: retrying is the only way in.
+                    SystemLockRetry(onRetry = {
+                        systemUnavailable = false
+                        promptAttempt += 1
+                    })
+                } else {
+                    // Branded surface while the system prompt is showing.
+                    Box(Modifier.fillMaxSize().mmBrandWash())
+                }
             }
-        )
+            else -> PinUnlockScreen(
+                // With the system method this verifies the optional recovery PIN.
+                subtitle = if (appLock.method() == LockMethod.SYSTEM_BIOMETRIC)
+                    "Enter your recovery PIN to continue"
+                else "Enter your PIN to continue",
+                expectedLength = appLock.pinLength(),
+                onUnlock = { pin ->
+                    // Measured stage: PBKDF2 verification. This runs on Dispatchers.Default (see
+                    // PinUnlockScreen), never on the main thread. The Trace section shows up in
+                    // Perfetto; the debug log makes the figure readable without a profiler.
+                    val startedAt = SystemClock.elapsedRealtime()
+                    android.os.Trace.beginSection("AppLock.verify")
+                    val ok = appLock.verify(pin)
+                    android.os.Trace.endSection()
+                    if (BuildConfig.DEBUG) {
+                        Timber.d(
+                            "PIN verification took %d ms (accepted=%s)",
+                            SystemClock.elapsedRealtime() - startedAt,
+                            ok
+                        )
+                    }
+                    if (ok) {
+                        // Authenticated state is available: drop the gate immediately. The
+                        // authenticated screen composes its own loading states; nothing here
+                        // waits for nonessential dashboard work.
+                        android.os.Trace.beginSection("AppLock.unlockNavigate")
+                        locked = false
+                        android.os.Trace.endSection()
+                    }
+                    ok
+                }
+            )
+        }
         return
     }
 
@@ -121,15 +195,24 @@ fun MoneyManagerRoot() {
         }
     }
 
+    // System Back closes an open drawer first instead of popping the screen underneath it.
+    if (drawerState.isOpen) {
+        androidx.activity.compose.BackHandler {
+            scope.launch { drawerState.close() }
+        }
+    }
+
     ModalDrawer(
         drawerState = drawerState,
         drawerContent = {
             DrawerContent(currentRoute = currentRoute) { dest ->
                 scope.launch { drawerState.close() }
+                // NAVIGATION_TEST_MATRIX: drawer navigation resets to Dashboard + the selected
+                // section. It must never restore a nested editor stack from saved state, so no
+                // saveState/restoreState round-trip here - each section opens at its own root.
                 navController.navigate(dest.route) {
-                    popUpTo(Destination.Dashboard.route) { saveState = true }
+                    popUpTo(Destination.Dashboard.route)
                     launchSingleTop = true
-                    restoreState = true
                 }
             }
         }
@@ -181,6 +264,51 @@ fun MoneyManagerRoot() {
                 }
             }
         }
+    }
+}
+
+/**
+ * Shown when the system screen lock cannot be used and no recovery PIN exists: retrying the
+ * platform prompt is the only way in, so that is the single action offered.
+ */
+@Composable
+private fun SystemLockRetry(onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .mmBrandWash()
+            .navigationBarsPadding()
+            .padding(MmSpacing.xl),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        MmIconBadge(icon = Icons.Filled.Lock, tint = MmColors.accent, size = 64.dp)
+        Spacer(Modifier.height(MmSpacing.lg))
+        Text(
+            "Screen lock unavailable",
+            style = MmType.screenTitle,
+            color = MmColors.textPrimary
+        )
+        Spacer(Modifier.height(MmSpacing.xs))
+        Text(
+            "No screen lock is enrolled on this device and no recovery PIN was set. Add a " +
+                "screen lock in this device's settings, then come back to unlock. Setting a " +
+                "recovery PIN beforehand avoids this.",
+            style = MmType.caption,
+            color = MmColors.textSecondary,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(MmSpacing.xl))
+        ExtendedFloatingActionButton(
+            onClick = onRetry,
+            backgroundColor = MmColors.accent,
+            contentColor = MmColors.onAccent,
+            shape = RoundedCornerShape(MmSpacing.touchTarget / 2),
+            text = { Text("Try again", style = MmType.label, color = MmColors.onAccent) },
+            icon = {
+                Icon(Icons.Filled.Fingerprint, contentDescription = null, tint = MmColors.onAccent)
+            }
+        )
     }
 }
 

@@ -66,6 +66,20 @@ data class AccountEntity(
     val manualBalanceOverrideMinorUnits: Long? = null,
     val manualBalanceOverrideAtEpochMillis: Long? = null,
 
+    /** Durable reconciliation offset for the manual balance checkpoint.
+     *
+     * `effective balance = engine-derived balance + manualBalanceAdjustmentMinorUnits`.
+     *
+     * This is deliberately NOT a timestamp filter. A backdated transaction (or an edit to an
+     * old transaction) must still move the displayed balance even though its occurrence date
+     * predates the checkpoint. The adjustment is fixed at the moment the user enters a new
+     * balance and every later ledger change is applied on top of it exactly once, regardless of
+     * when the change was entered or which date it carries.
+     *
+     * Null means "not initialised yet" - existing databases are migrated on first
+     * recalculation by deriving the offset from the value the user already saw. */
+    val manualBalanceAdjustmentMinorUnits: Long? = null,
+
     // --- Canonical accounting engine fields (computed by AccountingService.recalculate*)
     //     from the deterministic walks in AccountingEngine - see the field-level docs there.
     //     Each Moneyview balance concept is kept as its own column; none are merged. ---
@@ -131,6 +145,18 @@ data class AccountEntity(
     val creditLimitMinorUnits: Long? = null,
     val availableLimitMinorUnits: Long? = null,
     val outstandingMinorUnits: Long? = null,
+
+    /** Durable user reconciliation of the current card outstanding, mirroring the manual
+     *  balance checkpoint above. The engine-derived outstanding is always the base; the
+     *  persisted adjustment records the difference the user observed at save time:
+     *
+     *      effective outstanding = derived outstanding + outstandingAdjustmentMinorUnits
+     *
+     *  A recalculation therefore can never erase a user-entered outstanding, while future
+     *  purchases/payments still move it. Null means no user checkpoint has been applied. */
+    val outstandingCheckpointMinorUnits: Long? = null,
+    val outstandingCheckpointAtEpochMillis: Long? = null,
+    val outstandingAdjustmentMinorUnits: Long? = null,
 
     /** Credit card billing fields (spec section 8). Null for non-credit-card accounts.
      *  billingCycleStartDay and dueDate are DISTINCT fields in the PDF's "Credit Card

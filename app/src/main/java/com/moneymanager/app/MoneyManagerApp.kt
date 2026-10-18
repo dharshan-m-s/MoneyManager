@@ -3,13 +3,24 @@ package com.moneymanager.app
 import android.app.Application
 import android.util.Log
 import com.moneymanager.app.BuildConfig
+import com.moneymanager.app.data.repository.BillRecurrenceWorker
+import com.moneymanager.app.domain.billing.BillRecurrenceService
 import com.moneymanager.app.updater.domain.UpdateScheduler
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.File
+import javax.inject.Inject
 
 @HiltAndroidApp
 class MoneyManagerApp : Application() {
+
+    @Inject lateinit var billRecurrenceService: BillRecurrenceService
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
@@ -17,6 +28,16 @@ class MoneyManagerApp : Application() {
         val prefs = getSharedPreferences("moneymanager_updates", MODE_PRIVATE)
         UpdateScheduler.setEnabled(this, prefs.getBoolean("auto_update", false))
         cleanStaleDownloads()
+
+        // Safety net for process restarts: catch up any bill occurrences that entered their
+        // lead window while the app/worker was not running, then keep a periodic worker for
+        // when the app is closed. WorkManager timing is best-effort; foreground reconciliation
+        // in MainActivity covers delayed executions.
+        appScope.launch {
+            runCatching { billRecurrenceService.reconcileAll() }
+                .onFailure { Timber.e(it, "Initial bill reconciliation failed") }
+        }
+        BillRecurrenceWorker.schedule(this)
     }
 
     private fun cleanStaleDownloads() {

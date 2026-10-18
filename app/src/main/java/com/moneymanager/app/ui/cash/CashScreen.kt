@@ -168,6 +168,13 @@ fun CashScreen(
                     tint = MmColors.expense,
                     modifier = Modifier.weight(1f)
                 )
+                CashMetric(
+                    icon = Icons.Filled.Wallet,
+                    amount = MoneyFormat.rupeesNoDecimals(state.cashInHand),
+                    label = "Balance",
+                    tint = MmColors.accent,
+                    modifier = Modifier.weight(1f)
+                )
             }
 
             LazyColumn(

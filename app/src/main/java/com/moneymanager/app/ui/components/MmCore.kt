@@ -45,6 +45,10 @@ import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 
+/** True when the active theme is light, so chrome can branch on light/dark appearance. */
+private val MmIsLight: Boolean
+    @Composable get() = MaterialTheme.colors.isLight
+
 /**
  * A surface card with the app's single card language: rounded corners, hairline outline,
  * no heavy elevation. Cards are used only where they group related information.
@@ -57,16 +61,18 @@ fun MmCard(
         androidx.compose.foundation.layout.PaddingValues(MmSpacing.card),
     content: @Composable ColumnScope.() -> Unit
 ) {
+    // One UI 9 surfaces: flat but not harsh. In light mode a whisper of elevation plus a soft
+    // tonal edge; in dark mode shadows vanish against a dark background, so the definition comes
+    // from a slightly stronger hairline + a marginally lifted surface instead.
     Card(
         modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(MmSpacing.radiusCard),
-        // One UI 9 surfaces: flat but not harsh — a whisper of ambient elevation plus a soft
-        // tonal edge instead of a visible 1px line, so cards feel layered, not outlined.
-        elevation = 1.dp,
+        elevation = if (MmIsLight) 1.dp else 0.dp,
         backgroundColor = MmColors.surface,
-        border = BorderStroke(0.5.dp, MmColors.divider)
+        border = if (MmIsLight) BorderStroke(0.5.dp, MmColors.divider)
+        else BorderStroke(1.dp, MmColors.divider)
     ) {
         Column(
             Modifier
@@ -245,7 +251,8 @@ fun MmSwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    subtitle: String? = null
+    subtitle: String? = null,
+    badge: (@Composable () -> Unit)? = null
 ) {
     Row(
         modifier = modifier
@@ -259,6 +266,10 @@ fun MmSwitchRow(
             subtitle?.takeIf { it.isNotBlank() }?.let {
                 Text(it, style = MmType.caption, color = MmColors.textSecondary)
             }
+        }
+        badge?.invoke()
+        if (badge != null) {
+            Spacer(Modifier.width(MmSpacing.md))
         }
         androidx.compose.material.Switch(
             checked = checked,
@@ -495,3 +506,18 @@ fun MmBottomSheet(
 /** Immutable option model shared by the pickers. */
 @Immutable
 data class MmOption(val id: Long, val label: String, val subtitle: String? = null)
+
+/**
+ * Window background for full-screen gate/bootstrap surfaces (PIN lock, biometric interstitial,
+ * retry screens): a brand-green wash fading into the theme background. White status-bar icons
+ * always have contrast on the green band, and the surface reads as part of the app instead of
+ * a blank page.
+ */
+@Composable
+fun Modifier.mmBrandWash(): Modifier = background(
+    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+        0f to com.moneymanager.app.ui.theme.MMGreenDark,
+        0.22f to MmColors.background,
+        1f to MmColors.background
+    )
+)

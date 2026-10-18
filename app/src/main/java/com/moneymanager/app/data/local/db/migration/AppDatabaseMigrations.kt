@@ -68,10 +68,16 @@ object AppDatabaseMigrations {
     }
 
 
-    /** Migration 4 -> 5: add an explicit user-entered current-balance checkpoint. */
+    /** Migration 4 -> 5: add an explicit user-entered current-balance checkpoint.
+     *  The column must carry the entity's declared `DEFAULT 0` (otherwise Room schema
+     *  validation rejects the upgraded database at first open). The ALTER logically backfills
+     *  that 0 into every pre-existing row, and no v4 row can hold a real checkpoint - the
+     *  feature did not exist yet - so every row is reset to NULL immediately. That keeps the
+     *  schema clause for validation while preserving the "no checkpoint set" semantics. */
     val MIGRATION_4_5 = object : Migration(4, 5) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL("ALTER TABLE `accounts` ADD COLUMN `manualBalanceOverrideMinorUnits` INTEGER")
+            db.execSQL("ALTER TABLE `accounts` ADD COLUMN `manualBalanceOverrideMinorUnits` INTEGER DEFAULT 0")
+            db.execSQL("UPDATE `accounts` SET `manualBalanceOverrideMinorUnits` = NULL")
             db.execSQL("ALTER TABLE `accounts` ADD COLUMN `manualBalanceOverrideAtEpochMillis` INTEGER")
         }
     }
@@ -129,6 +135,56 @@ object AppDatabaseMigrations {
     }
 
     /**
+     * Migration 9 -> 10:
+     *  - durable manual-balance reconciliation offset (backdated-movement safe),
+     *  - durable credit-card outstanding checkpoint + offset,
+     *  - explicit recurrence anchor day for bills (so a 31st anchor does not drift after
+     *    February),
+     *  - unique (billId, dueDateEpochMillis) index for idempotent bill generation.
+     *
+     * Existing bill-instance duplicates are consolidated before the index is created. The
+     * keeper is the oldest row; any paid state / payment link from a duplicate is copied onto
+     * it first, so no payment history is silently lost. Journal transactions are never touched.
+     */
+    val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `accounts` ADD COLUMN `manualBalanceAdjustmentMinorUnits` INTEGER")
+            db.execSQL("ALTER TABLE `accounts` ADD COLUMN `outstandingCheckpointMinorUnits` INTEGER")
+            db.execSQL("ALTER TABLE `accounts` ADD COLUMN `outstandingCheckpointAtEpochMillis` INTEGER")
+            db.execSQL("ALTER TABLE `accounts` ADD COLUMN `outstandingAdjustmentMinorUnits` INTEGER")
+            db.execSQL("ALTER TABLE `bills` ADD COLUMN `scheduleAnchorDay` INTEGER")
+
+            // Copy the strongest duplicate's paid state onto the surviving (lowest-id) row.
+            db.execSQL(
+                "UPDATE `bill_instances` SET " +
+                    "`paid` = 1, " +
+                    "`paidAtEpochMillis` = COALESCE(`paidAtEpochMillis`, " +
+                    "    (SELECT MAX(x.`paidAtEpochMillis`) FROM `bill_instances` x " +
+                    "     WHERE x.`billId` = `bill_instances`.`billId` " +
+                    "       AND x.`dueDateEpochMillis` = `bill_instances`.`dueDateEpochMillis`)), " +
+                    "`paymentTransactionId` = COALESCE(`paymentTransactionId`, " +
+                    "    (SELECT x.`paymentTransactionId` FROM `bill_instances` x " +
+                    "     WHERE x.`billId` = `bill_instances`.`billId` " +
+                    "       AND x.`dueDateEpochMillis` = `bill_instances`.`dueDateEpochMillis` " +
+                    "       AND x.`paymentTransactionId` IS NOT NULL LIMIT 1)) " +
+                    "WHERE `id` IN (SELECT MIN(`id`) FROM `bill_instances` GROUP BY `billId`, `dueDateEpochMillis`) " +
+                    "AND EXISTS (SELECT 1 FROM `bill_instances` x " +
+                    "            WHERE x.`billId` = `bill_instances`.`billId` " +
+                    "              AND x.`dueDateEpochMillis` = `bill_instances`.`dueDateEpochMillis` " +
+                    "              AND x.`paid` = 1)"
+            )
+            db.execSQL(
+                "DELETE FROM `bill_instances` WHERE `id` NOT IN " +
+                    "(SELECT MIN(`id`) FROM `bill_instances` GROUP BY `billId`, `dueDateEpochMillis`)"
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_bill_instances_billId_dueDateEpochMillis` " +
+                    "ON `bill_instances` (`billId`, `dueDateEpochMillis`)"
+            )
+        }
+    }
+
+    /**
      * Add new migrations above this line. Each migration must:
      * 1. Be backward-safe (can't drop columns used by older code)
      * 2. Preserve all existing data
@@ -143,12 +199,13 @@ object AppDatabaseMigrations {
         MIGRATION_5_6,
         MIGRATION_6_7,
         MIGRATION_7_8,
-        MIGRATION_8_9
+        MIGRATION_8_9,
+        MIGRATION_9_10
     )
 
     /**
      * Returns the latest database version. Used by DatabaseModule to set the version
      * parameter dynamically so it stays in sync with migrations.
      */
-    fun latestVersion(): Int = 9
+    fun latestVersion(): Int = 10
 }

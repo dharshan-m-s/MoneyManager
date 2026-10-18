@@ -46,9 +46,10 @@ import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmSegmentedControl
 import com.moneymanager.app.ui.components.MmTextField
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
-import com.moneymanager.app.ui.theme.MMGreen
-import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmPaletteLightIncome
+import com.moneymanager.app.ui.theme.MmPaletteDarkIncome
+import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 
@@ -316,7 +317,8 @@ fun CategoryEditorScreen(
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(MmSpacing.radiusRow),
                 colors = ButtonDefaults.buttonColors(
-                    backgroundColor = if (saving) MmColors.textTertiary else MmColors.accent
+                    backgroundColor = if (saving) MmColors.surfaceMuted else MmColors.accent,
+                    contentColor = if (saving) MmColors.textTertiary else MmColors.onAccent
                 )
             ) {
                 Text(
@@ -325,7 +327,6 @@ fun CategoryEditorScreen(
                         isEdit -> "Save changes"
                         else -> "Create category"
                     },
-                    color = MmColors.onAccent,
                     style = MmType.label
                 )
             }
@@ -368,4 +369,4 @@ fun CategoryEditorScreen(
 }
 
 private fun categorySwatch(hex: String): Color =
-    runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(MMGreen)
+    runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(MmPaletteLightIncome)

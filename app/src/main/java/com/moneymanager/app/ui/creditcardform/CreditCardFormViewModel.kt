@@ -9,8 +9,11 @@ import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.BillEntity
 import com.moneymanager.app.data.local.entity.BillerType
 import com.moneymanager.app.data.local.entity.BillingCycle
+import com.moneymanager.app.data.repository.AccountingService
 import com.moneymanager.app.data.repository.BackupManager
 import com.moneymanager.app.data.repository.TransactionRepository
+import com.moneymanager.app.domain.billing.BillRecurrenceService
+import com.moneymanager.app.domain.billing.BillSchedule
 import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.BusinessPersonal
 import com.moneymanager.app.domain.model.Money
@@ -31,10 +34,16 @@ data class CreditCardFormState(
     val cardNumber: String = "",
     val nickname: String = "",
     val outstanding: String = "",
+    /** True only after the user deliberately edits the outstanding field. Reopening and saving
+     *  the card for another reason must not reset the durable outstanding checkpoint. */
+    val outstandingEdited: Boolean = false,
     val creditLimit: String = "",
     val billingCycleStartDay: Int = 1,
     val billingCycleSet: Boolean = true,
     val dueDateEpochMillis: Long? = null,
+    /** True only when the user picks a new due date; preserves a 31st anchor when the loaded
+     *  occurrence happens to be clamped to 28 February. */
+    val dueDateEdited: Boolean = false,
     val billAmount: String = "",
     val autoPay: Boolean = false,
     val inactive: Boolean = false,
@@ -71,6 +80,8 @@ class CreditCardFormViewModel @Inject constructor(
     private val accountDao: AccountDao,
     private val billDao: BillDao,
     private val transactionRepository: TransactionRepository,
+    private val accountingService: AccountingService,
+    private val billRecurrenceService: BillRecurrenceService,
     private val backupManager: BackupManager
 ) : ViewModel() {
 
@@ -80,18 +91,22 @@ class CreditCardFormViewModel @Inject constructor(
     fun loadForEdit(accountId: Long) {
         viewModelScope.launch {
             val account = accountDao.findById(accountId) ?: return@launch
+            val linkedBill = billDao.findByLinkedAccountId(account.id)
             _ui.value = CreditCardFormState(
                 editingAccountId = account.id,
                 billerName = account.institutionName,
                 cardNumber = account.sourceAccountId,
                 nickname = account.nickname,
                 outstanding = account.outstandingMinorUnits?.let { plain(Money(it)) }.orEmpty(),
+                outstandingEdited = false,
                 creditLimit = account.creditLimitMinorUnits?.let { plain(Money(it)) }.orEmpty(),
                 billingCycleStartDay = account.billingCycleStartDay ?: 1,
                 billingCycleSet = account.billingCycleStartDay != null,
-                dueDateEpochMillis = account.dueDate,
-                billAmount = account.billAmountMinorUnits?.let { plain(Money(it)) }.orEmpty(),
+                dueDateEpochMillis = linkedBill?.nextDueDateEpochMillis ?: account.dueDate,
+                dueDateEdited = false,
+                billAmount = (linkedBill?.estimatedAmountMinorUnits ?: account.billAmountMinorUnits)?.let { plain(Money(it)) }.orEmpty(),
                 autoPay = account.autoPay,
+                autoGenerateBills = linkedBill?.autoGenerateBills ?: true,
                 inactive = !account.active,
                 hideAccount = account.hide,
                 isBusiness = account.businessPersonal == BusinessPersonal.BUSINESS
@@ -112,8 +127,13 @@ class CreditCardFormViewModel @Inject constructor(
         )
     }
 
+    fun onDueDateChange(epochMillis: Long) {
+        onField { copy(dueDateEpochMillis = epochMillis, dueDateEdited = true) }
+    }
+
     fun onBillAmountChange(raw: String) = onField { copy(billAmount = sanitiseAmount(raw)) }
-    fun onOutstandingChange(raw: String) = onField { copy(outstanding = sanitiseAmount(raw)) }
+    fun onOutstandingChange(raw: String) =
+        onField { copy(outstanding = sanitiseAmount(raw), outstandingEdited = true) }
     fun onCreditLimitChange(raw: String) = onField { copy(creditLimit = sanitiseAmount(raw)) }
 
     private fun sanitiseAmount(raw: String): String {
@@ -165,17 +185,32 @@ class CreditCardFormViewModel @Inject constructor(
                 if (s.editingAccountId != null) {
                     val existing = accountDao.findById(s.editingAccountId) ?: return@launch
                     cardId = existing.id
+                    val derivedOutstanding = accountingService
+                        .derivedBalancesFor(existing).baseOutstandingMinorUnits
+                    val effectiveOutstanding = if (s.outstandingEdited) outstanding
+                        else existing.outstandingMinorUnits ?: derivedOutstanding
+                    val adjustment = if (s.outstandingEdited) {
+                        com.moneymanager.app.domain.accounting.AccountingEngine
+                            .checkpointAdjustment(outstanding, derivedOutstanding)
+                    } else existing.outstandingAdjustmentMinorUnits
                     accountDao.update(
                         existing.copy(
                             institutionName = s.billerName.trim(),
                             sourceAccountId = s.cardNumber.trim(),
                             nickname = s.nickname.ifBlank { s.billerName.trim() },
-                            outstandingMinorUnits = outstanding,
+                            outstandingMinorUnits = effectiveOutstanding,
+                            // Durable user reconciliation: survives any later full
+                            // recalculation/restart while purchases and payments still move it.
+                            outstandingCheckpointMinorUnits = if (s.outstandingEdited) outstanding
+                                else existing.outstandingCheckpointMinorUnits,
+                            outstandingCheckpointAtEpochMillis = if (s.outstandingEdited) now
+                                else existing.outstandingCheckpointAtEpochMillis,
+                            outstandingAdjustmentMinorUnits = adjustment,
                             creditLimitMinorUnits = limit,
-                            availableLimitMinorUnits = available,
+                            availableLimitMinorUnits = limit?.let { it - effectiveOutstanding } ?: available,
                             billingCycleStartDay = s.billingCycleStartDay,
-                            dueDate = s.dueDateEpochMillis,
-                            billAmountMinorUnits = billAmount,
+                            dueDate = s.dueDateEpochMillis ?: existing.dueDate,
+                            billAmountMinorUnits = billAmount ?: existing.billAmountMinorUnits,
                             autoPay = s.autoPay,
                             active = active,
                             hide = s.hideAccount,
@@ -202,6 +237,11 @@ class CreditCardFormViewModel @Inject constructor(
                             openingBalanceMinorUnits = 0,
                             currentBalanceMinorUnits = 0,
                             outstandingMinorUnits = outstanding,
+                            outstandingCheckpointMinorUnits = outstanding,
+                            outstandingCheckpointAtEpochMillis = now,
+                            // The card starts with no ledger; the entered value is the full
+                            // base and future movements apply on top of it.
+                            outstandingAdjustmentMinorUnits = outstanding,
                             creditLimitMinorUnits = limit,
                             availableLimitMinorUnits = available,
                             billingCycleStartDay = s.billingCycleStartDay,
@@ -216,12 +256,17 @@ class CreditCardFormViewModel @Inject constructor(
                     )
                 }
 
-                upsertLinkedBill(
+                // Recompute from the canonical engine so the durable checkpoint and the
+                // available limit are consistent with any ledger rows that already exist.
+                accountingService.recalculateAccounts(setOf(cardId))
+
+                val billId = upsertLinkedBill(
                     cardId = cardId,
                     billerName = s.billerName.trim(),
                     cardNumber = s.cardNumber.trim(),
                     nickname = s.nickname.ifBlank { s.billerName.trim() },
                     dueEpoch = s.dueDateEpochMillis,
+                    dueDateWasEdited = s.dueDateEdited,
                     billAmount = billAmount,
                     autoPay = s.autoPay,
                     business = business,
@@ -229,6 +274,8 @@ class CreditCardFormViewModel @Inject constructor(
                     autoGenerateBills = s.autoGenerateBills,
                     now = now
                 )
+                // Materialize the first occurrence and any occurrence inside the lead window.
+                billId?.let { billRecurrenceService.reconcileAfterEdit(it, now) }
 
                 _ui.value = _ui.value.copy(saving = false, saved = true)
                 backupManager.scheduleAfterWrite()
@@ -242,26 +289,34 @@ class CreditCardFormViewModel @Inject constructor(
         }
     }
 
-    /** Keeps exactly one linked credit-card biller in sync with this card (never duplicates). */
+    /**
+     * Keeps exactly one linked credit-card biller in sync with this card.
+     *
+     * Never fabricates a due date: when the user has not supplied one there is no correct
+     * payment date to invent, so no new bill/occurrence is created. Editing an existing card
+     * preserves its paid history; only future unpaid occurrences are reconciled.
+     */
     private suspend fun upsertLinkedBill(
         cardId: Long,
         billerName: String,
         cardNumber: String,
         nickname: String,
         dueEpoch: Long?,
+        dueDateWasEdited: Boolean,
         billAmount: Long?,
         autoPay: Boolean,
         business: BusinessPersonal,
         active: Boolean,
         autoGenerateBills: Boolean,
         now: Long
-    ) {
+    ): Long? {
         val existing = billDao.findByLinkedAccountId(cardId)
-        val nextDue = dueEpoch ?: existing?.nextDueDateEpochMillis
-        val amount = billAmount ?: existing?.estimatedAmountMinorUnits ?: 0L
-        if (nextDue == null && amount == 0L && !autoGenerateBills) return
+        if (existing == null && dueEpoch == null) return null
+
         if (existing == null) {
-            billDao.insert(
+            val due = dueEpoch ?: return null
+            val amount = billAmount ?: 0L
+            return billDao.insert(
                 BillEntity(
                     billerName = billerName,
                     billerType = BillerType.CREDIT_CARD,
@@ -269,7 +324,8 @@ class CreditCardFormViewModel @Inject constructor(
                     nickname = nickname,
                     linkedAccountId = cardId,
                     billingCycle = BillingCycle.MONTHLY,
-                    nextDueDateEpochMillis = nextDue ?: (now + 30L * 24 * 60 * 60 * 1000),
+                    nextDueDateEpochMillis = due,
+                    scheduleAnchorDay = BillSchedule.anchorDay(due, null),
                     estimatedAmountMinorUnits = amount,
                     autoPay = autoPay,
                     businessPersonal = business,
@@ -279,22 +335,32 @@ class CreditCardFormViewModel @Inject constructor(
                     updatedAtEpochMillis = now
                 )
             )
-        } else {
-            billDao.update(
-                existing.copy(
-                    billerName = billerName,
-                    accountReferenceId = cardNumber,
-                    nickname = nickname,
-                    nextDueDateEpochMillis = nextDue ?: existing.nextDueDateEpochMillis,
-                    estimatedAmountMinorUnits = amount,
-                    autoPay = autoPay,
-                    businessPersonal = business,
-                    active = active,
-                    autoGenerateBills = autoGenerateBills,
-                    updatedAtEpochMillis = now
-                )
-            )
         }
+
+        val nextDue = dueEpoch ?: existing.nextDueDateEpochMillis
+        // Keep the existing anchor when the date was merely loaded (a 31st bill can be
+        // materialized on 28 Feb). Only a deliberate date change resets the anchor.
+        val anchor = if (dueDateWasEdited) {
+            BillSchedule.anchorDay(nextDue, null)
+        } else {
+            existing.scheduleAnchorDay ?: BillSchedule.anchorDay(nextDue, null)
+        }
+        billDao.update(
+            existing.copy(
+                billerName = billerName,
+                accountReferenceId = cardNumber,
+                nickname = nickname,
+                nextDueDateEpochMillis = nextDue,
+                scheduleAnchorDay = anchor,
+                estimatedAmountMinorUnits = billAmount ?: existing.estimatedAmountMinorUnits,
+                autoPay = autoPay,
+                businessPersonal = business,
+                active = active,
+                autoGenerateBills = autoGenerateBills,
+                updatedAtEpochMillis = now
+            )
+        )
+        return existing.id
     }
 
     fun delete() {

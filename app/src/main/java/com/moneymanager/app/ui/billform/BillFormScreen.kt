@@ -158,7 +158,7 @@ fun BillFormScreen(
             MmCard {
                 MmPickerField(
                     label = "Billing cycle",
-                    value = pretty(state.billingCycle.name),
+                    value = com.moneymanager.app.domain.billing.BillSchedule.label(state.billingCycle),
                     onClick = { showBillingCycleSheet = true }
                 )
                 Spacer(Modifier.height(MmSpacing.md))
@@ -298,7 +298,12 @@ fun BillFormScreen(
     if (showBillingCycleSheet) {
         MmPickerSheet(
             title = "Billing cycle",
-            options = BillingCycle.entries.map { MmOption(id = it.ordinal.toLong(), label = pretty(it.name)) },
+            options = BillingCycle.entries.map {
+                MmOption(
+                    id = it.ordinal.toLong(),
+                    label = com.moneymanager.app.domain.billing.BillSchedule.label(it)
+                )
+            },
             selectedId = state.billingCycle.ordinal.toLong(),
             onSelect = {
                 viewModel.onField { copy(billingCycle = BillingCycle.entries[it.id.toInt()]) }

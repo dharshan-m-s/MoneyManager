@@ -36,26 +36,40 @@ import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.model.TxnSubType
 import com.moneymanager.app.ui.categories.categoryIcon
-import com.moneymanager.app.ui.theme.MMAmberDue
-import com.moneymanager.app.ui.theme.MMBlue
-import com.moneymanager.app.ui.theme.MMBrown
-import com.moneymanager.app.ui.theme.MMCyan
-import com.moneymanager.app.ui.theme.MMGreen
-import com.moneymanager.app.ui.theme.MMPurple
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.theme.MmPaletteLightAccent
+import com.moneymanager.app.ui.theme.MmPaletteDarkAccent
+import com.moneymanager.app.ui.theme.MmPaletteLightCyan
+import com.moneymanager.app.ui.theme.MmPaletteLightPurple
+import com.moneymanager.app.ui.theme.MmPaletteLightBrown
+import com.moneymanager.app.ui.theme.MmPaletteLightWarning
+import com.moneymanager.app.ui.theme.MmPaletteLightAmberDue
+import com.moneymanager.app.ui.theme.MmPaletteDarkCyan
+import com.moneymanager.app.ui.theme.MmPaletteDarkPurple
+import com.moneymanager.app.ui.theme.MmPaletteDarkBrown
+import com.moneymanager.app.ui.theme.MmPaletteDarkWarning
+import com.moneymanager.app.ui.theme.MmPaletteDarkAmberDue
 
-private val categoryPaletteLight = listOf(MMGreen, MMBlue, MMBrown, MMPurple, MMCyan, MMAmberDue)
+/** Light-mode category tints — indigo accent with neutral variants. */
+private val MmCategoryPaletteLight = listOf(
+    MmPaletteLightCyan,
+    MmPaletteLightPurple,
+    MmPaletteLightBrown,
+    MmPaletteLightAccent,
+    MmPaletteLightWarning,
+    MmPaletteLightAmberDue
+)
 
-/** Same hues, lifted for dark surfaces so category tinting never goes muddy in dark mode. */
-private val categoryPaletteDark = listOf(
-    Color(0xFF4FC58D),
-    Color(0xFF7FB1FF),
-    Color(0xFFD8A98A),
-    Color(0xFFB6A5F0),
-    Color(0xFF63C9DE),
-    Color(0xFFF0B35E)
+/** Dark-mode category tints — lifted for dark surfaces so colors never go muddy. */
+private val MmCategoryPaletteDark = listOf(
+    MmPaletteDarkCyan,
+    MmPaletteDarkPurple,
+    MmPaletteDarkBrown,
+    MmPaletteDarkAccent,
+    MmPaletteDarkWarning,
+    MmPaletteDarkAmberDue
 )
 
 /**
@@ -64,7 +78,7 @@ private val categoryPaletteDark = listOf(
  */
 @Composable
 fun mmCategoryTint(seed: String?): Color {
-    val palette = if (MaterialTheme.colors.isLight) categoryPaletteLight else categoryPaletteDark
+    val palette = if (MaterialTheme.colors.isLight) MmCategoryPaletteLight else MmCategoryPaletteDark
     val key = seed.orEmpty().ifBlank { "transaction" }
     val index = (key.lowercase().hashCode().let { if (it < 0) -it else it }) % palette.size
     return palette[index]
@@ -100,7 +114,8 @@ fun MmTransactionRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     category: CategoryEntity? = null,
-    showDivider: Boolean = true
+    showDivider: Boolean = true,
+    hideAmounts: Boolean = false
 ) {
     val amount = mmSignedAmount(txn)
     val isTransfer = txn.txnSubType == TxnSubType.TRANSFER_IN || txn.txnSubType == TxnSubType.TRANSFER_OUT
@@ -114,13 +129,13 @@ fun MmTransactionRow(
         title = title,
         subtitle = subtitleFor(txn),
         leading = { MmIconBadge(icon = icon, tint = tint, size = 42.dp) },
-        amountText = MoneyFormat.rupeesNoDecimals(amount.abs()),
+        amountText = if (hideAmounts) "••••" else MoneyFormat.rupeesNoDecimals(amount.abs()),
         amountColor = when {
             isTransfer -> MmColors.textPrimary
             amount.isNegative -> MmColors.expense
             else -> MmColors.income
         },
-        signed = !isTransfer,
+        signed = !isTransfer && !hideAmounts,
         isIncome = !amount.isNegative,
         onClick = onClick,
         modifier = modifier,

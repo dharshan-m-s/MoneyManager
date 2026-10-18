@@ -73,7 +73,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.moneymanager.app.data.local.entity.CategoryEntity
-import com.moneymanager.app.ui.theme.MMGreen
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmPaletteLightIncome
+import com.moneymanager.app.ui.theme.MmPaletteDarkIncome
 
 @Composable
 fun CategoryVisual(
@@ -85,7 +87,7 @@ fun CategoryVisual(
     Box(
         modifier = modifier
             .size(size)
-            .shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = com.moneymanager.app.ui.theme.MMIconShadow, spotColor = com.moneymanager.app.ui.theme.MMIconShadow)
+            .shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = MmColors.surfaceMuted, spotColor = MmColors.surfaceMuted)
             .clip(RoundedCornerShape(18.dp))
             .background(
                 Brush.linearGradient(
@@ -214,4 +216,4 @@ fun categoryIcon(name: String, key: String = ""): androidx.compose.ui.graphics.v
 }
 
 private fun parseColor(value: String): Color = runCatching { Color(android.graphics.Color.parseColor(value)) }
-    .getOrDefault(MMGreen.copy(alpha = .85f))
+    .getOrDefault(MmPaletteLightIncome.copy(alpha = 0.85f))

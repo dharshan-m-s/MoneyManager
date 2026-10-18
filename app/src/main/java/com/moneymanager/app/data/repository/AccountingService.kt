@@ -83,47 +83,74 @@ class AccountingService @Inject constructor(
 
     private suspend fun persist(account: AccountEntity, state: AccountBalanceState) {
         val now = System.currentTimeMillis()
+        val isCard = account.accountType == AccountType.CREDIT_CARD
+        val ledger = if (isCard) ledgerRowsFor(account) else emptyList()
 
-        // Credit-card position state: ONLY overwrite when the ledger can actually derive it
-        // (i.e. the account has reported Outstanding history to anchor the walk). A manually
-        // created/edited card with no ledger keeps its entered outstanding/limit untouched.
-        val derivedOutstanding = state.outstandingMinorUnits
-        val derivedLimit = if (derivedOutstanding != null && state.creditLimitMinorUnits != null) {
-            state.creditLimitMinorUnits
-        } else {
-            account.creditLimitMinorUnits
-        }
-        val derivedAvailable = if (derivedOutstanding != null && derivedLimit != null) {
-            derivedLimit - derivedOutstanding
-        } else {
-            account.availableLimitMinorUnits
-        }
-        val outstanding = derivedOutstanding ?: account.outstandingMinorUnits
-
-        // A user-entered balance is an explicit live checkpoint. It is deliberately separate
-        // from openingBalance: historical transactions remain untouched, while transactions
-        // entered/imported after the checkpoint move the balance normally. This is the safe way
-        // to reconcile a bank account against the original Moneyview app without inventing a
-        // historical transaction or changing the imported ledger.
-        val manualOverride = account.manualBalanceOverrideMinorUnits
-        val manualAt = account.manualBalanceOverrideAtEpochMillis
-        val postOverrideMovement = if (manualOverride != null && manualAt != null &&
-            account.accountType != AccountType.CREDIT_CARD
-        ) {
-            ledgerRowsFor(account).asSequence()
-                .filter { it.occurredAtEpochMillis > manualAt }
-                .sumOf { it.movement.ledgerDeltaMinorUnits }
-        } else 0L
-
-        // What the UI displays as "current balance" follows the account's balance source unless
-        // the user has explicitly supplied a live checkpoint. The explicit checkpoint wins.
-        val displayedBalance = manualOverride?.let { it + postOverrideMovement } ?: when (account.balanceSource) {
+        // ----------------------------------------------------------------
+        // Balance (non-card accounts)
+        // ----------------------------------------------------------------
+        // Auto balance is what the account would show with no user checkpoint. It is the same
+        // formula every screen uses; the checkpoint is an offset on top of it, never a
+        // replacement history.
+        val autoBalance = when (account.balanceSource) {
             AccountBalanceSource.ESTIMATED -> if (state.lastReportedBalanceMinorUnits != null) {
                 state.lastReportedBalanceMinorUnits + state.adjustedCreditMinorUnits - state.adjustedDebitMinorUnits
             } else {
                 state.calculatedBalanceMinorUnits
             }
             AccountBalanceSource.REPORTED -> account.lastReportedBalanceMinorUnits ?: state.calculatedBalanceMinorUnits
+        }
+
+        // Legacy upgrade path: older builds stored only an absolute override plus the already
+        // displayed current balance. Capture the equivalent durable offset once, so the value
+        // the user was seeing is preserved and later (including backdated) movements apply.
+        var balanceAdjustment = account.manualBalanceAdjustmentMinorUnits
+        if (!isCard && account.manualBalanceOverrideMinorUnits != null && balanceAdjustment == null) {
+            balanceAdjustment = AccountingEngine.checkpointAdjustment(
+                enteredBalanceMinorUnits = account.currentBalanceMinorUnits,
+                derivedBalanceMinorUnits = autoBalance
+            )
+        }
+        val displayedBalance = if (!isCard && account.manualBalanceOverrideMinorUnits != null) {
+            AccountingEngine.effectiveBalanceWithCheckpoint(autoBalance, balanceAdjustment)
+        } else {
+            autoBalance
+        }
+
+        // ----------------------------------------------------------------
+        // Credit-card outstanding
+        // ----------------------------------------------------------------
+        // The engine's outstanding walk is authoritative when the card has reported statement
+        // snapshots. Cards created in-app have no snapshot history, so the same walk from zero
+        // is used. The user checkpoint is applied as an offset on top of that base, which is
+        // what makes an edited outstanding survive every recalculation while future purchases
+        // and payments still move it.
+        val baseOutstanding = if (isCard) {
+            state.outstandingMinorUnits
+                ?: ledger.sumOf { it.movement.cardOutstandingDeltaMinorUnits }
+        } else 0L
+        var checkoutAdjustment = account.outstandingAdjustmentMinorUnits
+        var checkpointAmount = account.outstandingCheckpointMinorUnits
+        var checkpointAt = account.outstandingCheckpointAtEpochMillis
+        if (isCard && checkoutAdjustment == null && account.outstandingMinorUnits != null) {
+            // One-time capture of the value an existing user already sees.
+            checkoutAdjustment = AccountingEngine.checkpointAdjustment(
+                enteredBalanceMinorUnits = account.outstandingMinorUnits,
+                derivedBalanceMinorUnits = baseOutstanding
+            )
+            checkpointAmount = account.outstandingMinorUnits
+            checkpointAt = account.updatedAtEpochMillis
+        }
+        val effectiveOutstanding = if (isCard) {
+            AccountingEngine.effectiveBalanceWithCheckpoint(baseOutstanding, checkoutAdjustment)
+        } else {
+            account.outstandingMinorUnits
+        }
+        val creditLimit = if (isCard) state.creditLimitMinorUnits ?: account.creditLimitMinorUnits else account.creditLimitMinorUnits
+        val availableLimit = if (isCard && creditLimit != null && effectiveOutstanding != null) {
+            creditLimit - effectiveOutstanding
+        } else {
+            account.availableLimitMinorUnits
         }
 
         val updated = account.copy(
@@ -141,13 +168,39 @@ class AccountingService @Inject constructor(
                 ?: account.lastReportedBalanceMinorUnits,
             lastReportedAtEpochMillis = state.lastReportedAtEpochMillis
                 ?: account.lastReportedAtEpochMillis,
-            outstandingMinorUnits = outstanding,
-            availableLimitMinorUnits = derivedAvailable,
-            creditLimitMinorUnits = derivedLimit,
+            manualBalanceAdjustmentMinorUnits = if (isCard) account.manualBalanceAdjustmentMinorUnits else balanceAdjustment,
+            outstandingCheckpointMinorUnits = checkpointAmount,
+            outstandingCheckpointAtEpochMillis = checkpointAt,
+            outstandingAdjustmentMinorUnits = checkoutAdjustment,
+            outstandingMinorUnits = effectiveOutstanding,
+            availableLimitMinorUnits = availableLimit,
+            creditLimitMinorUnits = creditLimit,
             updatedAtEpochMillis = now
         )
         accountDao.update(updated)
     }
+
+    /** The engine-derived balance/outstanding BEFORE any user checkpoint. Screens that save a
+     *  new checkpoint use this as the offset baseline. */
+    suspend fun derivedBalancesFor(account: AccountEntity): DerivedAccountBalances {
+        val state = balanceStateFor(account)
+        val autoBalance = when (account.balanceSource) {
+            AccountBalanceSource.ESTIMATED -> if (state.lastReportedBalanceMinorUnits != null) {
+                state.lastReportedBalanceMinorUnits + state.adjustedCreditMinorUnits - state.adjustedDebitMinorUnits
+            } else {
+                state.calculatedBalanceMinorUnits
+            }
+            AccountBalanceSource.REPORTED -> account.lastReportedBalanceMinorUnits ?: state.calculatedBalanceMinorUnits
+        }
+        val baseOutstanding = state.outstandingMinorUnits
+            ?: ledgerRowsFor(account).sumOf { it.movement.cardOutstandingDeltaMinorUnits }
+        return DerivedAccountBalances(autoBalance, baseOutstanding)
+    }
+
+    data class DerivedAccountBalances(
+        val autoBalanceMinorUnits: Long,
+        val baseOutstandingMinorUnits: Long
+    )
 
     /** Full reconciliation across every account - the Data-Integrity report source. */
     suspend fun fullReconciliation(): List<AccountingEngine.AccountReconciliation> {

@@ -33,7 +33,7 @@ import com.moneymanager.app.data.local.entity.TransactionEntity
         ImportRowResultEntity::class,
         TransactionAttachmentEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

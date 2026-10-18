@@ -266,7 +266,7 @@ private fun DayHeader(date: LocalDate) {
             .background(MmColors.background)
             .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
     ) {
-        Text(label, style = MmType.label, fontWeight = FontWeight.SemiBold, color = MmColors.textPrimary)
+        Text(label, style = MmType.label, fontWeight = FontWeight.SemiBold, color = MmColors.textSecondary)
     }
 }
 

@@ -3,6 +3,7 @@ package com.moneymanager.app.ui.bills
 import com.moneymanager.app.ui.theme.MmColors
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.window.Dialog
@@ -29,6 +32,8 @@ import androidx.compose.material.Card
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Scaffold
+import androidx.compose.material.SnackbarHost
+import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.RadioButton
@@ -51,6 +56,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,7 +73,11 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.AddBillerFab
+import com.moneymanager.app.ui.components.MmAmountField
 import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmDateField
+import com.moneymanager.app.ui.components.MmOption
+import com.moneymanager.app.ui.components.MmPickerSheet
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPill
@@ -96,8 +106,17 @@ fun BillsScreen(
 ) {
     val bills by viewModel.bills.collectAsState()
     val paymentSearch by viewModel.paymentSearch.collectAsState()
+    val snackbarState = remember { SnackbarHostState() }
+
+    LaunchedEffect(paymentSearch.message) {
+        paymentSearch.message?.let {
+            snackbarState.showSnackbar(it)
+            viewModel.consumeMessage()
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarState) },
         floatingActionButton = {
             AddBillerFab(onAddBiller = onAddBiller, modifier = Modifier.padding(bottom = 8.dp))
         }
@@ -137,16 +156,23 @@ fun BillsScreen(
         BillPaymentDialog(
             billName = pendingRow.bill.billerName,
             amount = Money(pendingRow.nextInstance?.amountDueMinorUnits ?: pendingRow.bill.estimatedAmountMinorUnits),
+            isCreditCard = pendingRow.bill.billerType == com.moneymanager.app.data.local.entity.BillerType.CREDIT_CARD ||
+                pendingRow.bill.linkedAccountId != null,
             state = paymentSearch,
             onSelectTransaction = viewModel::selectPaymentTransaction,
-            onPaidByCash = { if (!paymentSearch.loading) viewModel.markAsPaid(pendingRow.nextInstance!!, null) },
+            onPaidByCash = { if (!paymentSearch.loading && !paymentSearch.saving) viewModel.markAsPaid(pendingRow.nextInstance!!, null) },
             onConfirm = {
                 val transactionId = paymentSearch.selectedTransactionId
                 val instance = pendingRow.nextInstance
-                if (instance != null && transactionId != null && !paymentSearch.loading) {
+                if (instance != null && transactionId != null && !paymentSearch.loading && !paymentSearch.saving) {
                     viewModel.markAsPaid(instance, transactionId)
                 }
             },
+            onRecordSource = viewModel::setRecordSourceAccount,
+            onRecordAmount = viewModel::setRecordAmount,
+            onRecordDate = viewModel::setRecordDate,
+            onRecordNotes = viewModel::setRecordNotes,
+            onRecordPayment = viewModel::recordPayment,
             onDismiss = viewModel::clearPaymentSearch
         )
     }
@@ -156,14 +182,24 @@ fun BillsScreen(
 private fun BillPaymentDialog(
     billName: String,
     amount: Money,
+    isCreditCard: Boolean,
     state: BillPaymentSearchState,
     onSelectTransaction: (Long?) -> Unit,
     onPaidByCash: () -> Unit,
     onConfirm: () -> Unit,
+    onRecordSource: (Long) -> Unit,
+    onRecordAmount: (String) -> Unit,
+    onRecordDate: (Long) -> Unit,
+    onRecordNotes: (String) -> Unit,
+    onRecordPayment: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var showRecent by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
     var recentQuery by remember(state.billRow?.bill?.id) { mutableStateOf("") }
+    var showRecordPayment by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
+    var showAccountPicker by remember { mutableStateOf(false) }
+    val selectedSource = state.accounts.firstOrNull { it.id == state.recordSourceAccountId }
+    val paymentFormScroll = rememberScrollState()
     val dateFormat = DateTimeFormatter.ofPattern("dd MMM yyyy")
     val zone = ZoneId.of("Asia/Kolkata")
 
@@ -208,7 +244,14 @@ private fun BillPaymentDialog(
             elevation = 14.dp,
             color = androidx.compose.material.MaterialTheme.colors.surface
         ) {
-            Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (showRecordPayment) Modifier.verticalScroll(paymentFormScroll)
+                        else Modifier
+                    )
+            ) {
                 Row(
                     Modifier.fillMaxWidth().padding(start = 20.dp, end = 10.dp, top = 16.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -247,6 +290,7 @@ private fun BillPaymentDialog(
                     }
                 }
 
+                if (!showRecordPayment) {
                 if (state.loading) {
                     Column(
                         Modifier.weight(1f).fillMaxWidth(),
@@ -314,11 +358,73 @@ private fun BillPaymentDialog(
                     }
                 }
 
+                }
+
+                if (isCreditCard && showRecordPayment) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)) {
+                        Text("Record a new payment", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(
+                            "Creates a transfer from the source account and reduces the card " +
+                                "outstanding. It is not counted as ordinary spending.",
+                            fontSize = 11.sp,
+                            color = MmColors.textSecondary,
+                            modifier = Modifier.padding(top = 2.dp, bottom = MmSpacing.sm)
+                        )
+                        MmCard(onClick = { showAccountPicker = true }) {
+                            Text("Paid from", style = MmType.caption, color = MmColors.textSecondary)
+                            Text(
+                                selectedSource?.nickname?.ifBlank { selectedSource.institutionName }
+                                    ?: "Choose an account",
+                                style = MmType.body,
+                                color = if (selectedSource != null) MmColors.textPrimary else MmColors.expense
+                            )
+                        }
+                        Spacer(Modifier.height(MmSpacing.sm))
+                        MmAmountField(
+                            value = state.recordAmount,
+                            onValueChange = onRecordAmount,
+                            label = "Payment amount"
+                        )
+                        Spacer(Modifier.height(MmSpacing.sm))
+                        MmDateField(
+                            label = "Payment date",
+                            epochMillis = state.recordDateEpochMillis,
+                            onChange = onRecordDate,
+                            includeTime = true
+                        )
+                        Spacer(Modifier.height(MmSpacing.sm))
+                        Button(
+                            onClick = onRecordPayment,
+                            enabled = !state.saving && state.recordSourceAccountId != null,
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent, contentColor = MmColors.onAccent)
+                        ) {
+                            Text(if (state.saving) "Recording…" else "Record payment", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
                 state.error?.let {
                     Text(it, color = MmColors.expense, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                 }
 
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    if (isCreditCard) {
+                        Button(
+                            onClick = { showRecordPayment = !showRecordPayment },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent, contentColor = MmColors.onAccent)
+                        ) {
+                            Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(19.dp))
+                            Text(
+                                if (showRecordPayment) "Hide payment form" else "Record a new payment",
+                                modifier = Modifier.padding(start = 8.dp),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                     if (!showRecent) {
                         Button(
                             onClick = { showRecent = true },
@@ -339,17 +445,22 @@ private fun BillPaymentDialog(
 
                     Button(
                         onClick = onPaidByCash,
+                        enabled = !state.saving,
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent, contentColor = MmColors.onAccent)
+                        colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.surface, contentColor = MmColors.accent)
                     ) {
                         Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(19.dp))
-                        Text("Paid by Cash", modifier = Modifier.padding(start = 8.dp), fontWeight = FontWeight.Bold)
+                        Text(
+                            if (isCreditCard) "Already recorded — just mark as paid" else "Paid by Cash",
+                            modifier = Modifier.padding(start = 8.dp),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
                     Button(
                         onClick = onConfirm,
-                        enabled = !state.loading && state.selectedTransactionId != null,
+                        enabled = !state.loading && !state.saving && state.selectedTransactionId != null,
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.surface, contentColor = MmColors.accent),
@@ -361,6 +472,25 @@ private fun BillPaymentDialog(
                 }
             }
         }
+    }
+
+    if (showAccountPicker) {
+        MmPickerSheet(
+            title = "Paid from",
+            options = state.accounts.map { account ->
+                MmOption(
+                    id = account.id,
+                    label = account.nickname.ifBlank { account.institutionName },
+                    subtitle = account.institutionName.takeIf { it.isNotBlank() && it != account.nickname }
+                )
+            },
+            selectedId = state.recordSourceAccountId,
+            onSelect = { option ->
+                onRecordSource(option.id)
+                showAccountPicker = false
+            },
+            onDismiss = { showAccountPicker = false }
+        )
     }
 }
 
@@ -464,7 +594,15 @@ private fun BillCard(
     }
 
     MmCard(
-        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+        modifier = Modifier
+            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)
+            .then(
+                if (overdue) Modifier.border(
+                    width = 1.5.dp,
+                    color = MmColors.expense.copy(alpha = 0.45f),
+                    shape = RoundedCornerShape(MmSpacing.radiusCard)
+                ) else Modifier
+            ),
         onClick = onClick,
         contentPadding = PaddingValues(MmSpacing.card)
     ) {
@@ -497,10 +635,12 @@ private fun BillCard(
                     }
                     Text(
                         row.bill.billerType.name.replace('_', ' ').lowercase()
-                            .replaceFirstChar { c -> c.uppercase() },
+                            .replaceFirstChar { c -> c.uppercase() } +
+                            " • " + com.moneymanager.app.domain.billing.BillSchedule.label(row.bill.billingCycle),
                         style = MmType.caption,
                         color = MmColors.textSecondary,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

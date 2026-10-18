@@ -1,9 +1,11 @@
 package com.moneymanager.app.ui.dashboard
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,26 +16,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
-import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.automirrored.filled.CallReceived
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Upload
@@ -46,29 +46,33 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.moneymanager.app.data.local.dao.CategoryTotal
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.model.TxnSubType
+import com.moneymanager.app.ui.components.MmBottomSheet
+import com.moneymanager.app.ui.components.MmQuickAction
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmChip
 import com.moneymanager.app.ui.components.MmDateField
 import com.moneymanager.app.ui.components.MmEmptyState
-import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmLegendDot
+import com.moneymanager.app.ui.components.MmLoadingState
 import com.moneymanager.app.ui.components.MmProgressBar
-import com.moneymanager.app.ui.components.MmQuickAction
 import com.moneymanager.app.ui.components.MmSearchField
-import com.moneymanager.app.ui.components.MmBottomSheet
 import com.moneymanager.app.ui.components.MmSectionHeader
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.mmCategoryTint
+import com.moneymanager.app.ui.home.HomePreferences
 import com.moneymanager.app.ui.theme.MMGreenDark
 import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
@@ -80,6 +84,16 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val dashboardZone: ZoneId = ZoneId.of("Asia/Kolkata")
+
+/** Lifted green for the far end of the hero gradient — same family as the chrome green. */
+private val HeroGreenLift = Color(0xFF0A8F5A)
+
+/** Deeper green for the top of the hero gradient in dark mode (less glare on dark surfaces). */
+private val HeroGreenDeepDark = Color(0xFF04432C)
+
+/** True when the active theme is light. Lets pure draw/layout code branch without a @Composable. */
+private val MmIsLight: Boolean
+    @Composable get() = androidx.compose.material.MaterialTheme.colors.isLight
 
 private enum class RecentTypeFilter(val label: String) {
     ALL("All"),
@@ -103,9 +117,29 @@ fun DashboardScreen(
     onAddCashSpend: () -> Unit = {},
     onOpenCash: () -> Unit = {},
     onTransactionClick: (Long) -> Unit = {},
+    onOpenBreakdown: (DashboardBreakdownKind) -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
+    // Render the hero + a lightweight loader until the first real snapshot arrives, so a
+    // returning user never sees a frame of the "start here" empty state (or ₹0 balances) right
+    // after unlocking. Once loaded, the state streams in without a second flash.
+    val state = uiState
+    if (state == null) {
+        Column(Modifier.fillMaxSize().background(MmColors.background)) {
+            DashboardHero(onOpenDrawer = onOpenDrawer, onOpenSearch = onOpenSearch, onOpenFilter = {}, filterActive = false, state = null, hideAmounts = false)
+            MmLoadingState(text = "Opening your ledger…", modifier = Modifier.fillMaxSize())
+        }
+        return
+    }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val homePreferences = remember {
+        dagger.hilt.android.EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            com.moneymanager.app.ui.settings.SettingsEntryPoint::class.java
+        ).homePreferences()
+    }
+    val hideAmounts by homePreferences.hideAmounts.collectAsState()
     var filterOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var typeFilter by rememberSaveable { mutableStateOf(RecentTypeFilter.ALL.name) }
@@ -139,24 +173,20 @@ fun DashboardScreen(
     val anyFilterActive = query.isNotBlank() || activeType != RecentTypeFilter.ALL || fromEpoch != null || toEpoch != null
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
-        DashboardTopBar(
+        DashboardHero(
             onOpenDrawer = onOpenDrawer,
             onOpenSearch = onOpenSearch,
             onOpenFilter = { filterOpen = true },
-            filterActive = anyFilterActive
+            filterActive = anyFilterActive,
+            state = state,
+            hideAmounts = hideAmounts,
+            onOpenBreakdown = onOpenBreakdown
         )
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 128.dp)
         ) {
-            item {
-                MonthSummaryCard(
-                    state = state,
-                    onOpenBudget = onOpenBudget
-                )
-            }
-
             item {
                 QuickActions(
                     onAddExpense = onAddAccountSpend,
@@ -175,6 +205,34 @@ fun DashboardScreen(
                             message = "Import a statement or add your first transaction to see real numbers.",
                             actionLabel = "Import statement",
                             onAction = onImportPrompt
+                        )
+                    }
+                }
+            }
+
+            item {
+                BudgetCard(state = state, onOpenBudget = onOpenBudget, hideAmounts = hideAmounts)
+            }
+
+            item {
+                SectionBlock(
+                    title = "Spending breakdown",
+                    subtitle = if (state.monthSpend.minorUnits != 0L)
+                        "This month · ${MoneyFormat.rupeesNoDecimals(state.monthSpend)}" else null,
+                    actionLabel = "See all",
+                    onAction = onSeeAllSpendAreas
+                ) {
+                    if (state.topCategoryTotals.isEmpty()) {
+                        MmEmptyState(
+                            icon = Icons.Filled.PieChart,
+                            title = "No spending this month",
+                            message = "Your category breakdown appears here once you spend."
+                        )
+                    } else {
+                        SpendingBreakdown(
+                            rows = state.topCategoryTotals,
+                            categoryNames = state.categoryNames,
+                            monthSpend = state.monthSpend
                         )
                     }
                 }
@@ -208,30 +266,10 @@ fun DashboardScreen(
                             MmTransactionRow(
                                 txn = txn,
                                 onClick = { onTransactionClick(txn.id) },
-                                showDivider = index != filteredRecent.lastIndex
+                                showDivider = index != filteredRecent.lastIndex,
+                                hideAmounts = hideAmounts
                             )
                         }
-                    }
-                }
-            }
-
-            item {
-                SectionBlock(
-                    title = "Top spend areas",
-                    actionLabel = "See all",
-                    onAction = onSeeAllSpendAreas
-                ) {
-                    if (state.topCategoryTotals.isEmpty()) {
-                        MmEmptyState(
-                            icon = Icons.Filled.PieChart,
-                            title = "No spending this month",
-                            message = "Your category breakdown appears here once you spend."
-                        )
-                    } else {
-                        SpendBreakdown(
-                            rows = state.topCategoryTotals.map { it.categoryId to it.total },
-                            monthSpend = state.monthSpend
-                        )
                     }
                 }
             }
@@ -249,21 +287,28 @@ fun DashboardScreen(
                             message = "Add a biller to get reminded before the due date."
                         )
                     } else {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            MmIconBadge(icon = Icons.AutoMirrored.Filled.ReceiptLong, tint = MmColors.warning, size = 44.dp)
-                            Spacer(Modifier.width(MmSpacing.md))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(MmSpacing.radiusRow))
+                                .background(MmColors.surfaceMuted)
+                                .clickable { onOpenBreakdown(DashboardBreakdownKind.BILLS) }
+                                .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md)
+                        ) {
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     "${state.upcomingBillsCount} bill${if (state.upcomingBillsCount == 1) "" else "s"} coming up",
                                     style = MmType.body,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = MmColors.textPrimary
                                 )
-                                Text("Tap to review or pay", style = MmType.caption, color = MmColors.textSecondary)
+                                Text("Tap for the included occurrences", style = MmType.caption, color = MmColors.textSecondary)
                             }
                             Text(
                                 MoneyFormat.rupeesNoDecimals(state.upcomingBillsTotal),
                                 style = MmType.amountRow,
-                                color = MmColors.textPrimary
+                                color = MmColors.warning
                             )
                         }
                     }
@@ -275,6 +320,7 @@ fun DashboardScreen(
                     balance = state.cashBalance,
                     spend = state.cashSpend,
                     withdrawn = state.cashWithdrawn,
+                    hidden = hideAmounts,
                     onClick = onOpenCash
                 )
             }
@@ -326,62 +372,160 @@ fun DashboardScreen(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(MmSpacing.radiusRow),
                     colors = androidx.compose.material.ButtonDefaults.buttonColors(
-                        backgroundColor = MmColors.accent
+                        backgroundColor = MmColors.accent,
+                        contentColor = MmColors.onAccent
                     )
-                ) { Text("Show ${filteredRecent.size}", color = MmColors.onAccent) }
+                ) { Text("Show ${filteredRecent.size}") }
             }
         }
     }
 }
 
+/**
+ * The dashboard hero: brand-green gradient carrying the month, the net worth and the three
+ * headline numbers on translucent tiles. Rounded bottom corners let it sit over the scrolling
+ * content below, and white status-bar icons always have contrast on the green.
+ */
 @Composable
-private fun DashboardTopBar(
+private fun DashboardHero(
     onOpenDrawer: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenFilter: () -> Unit,
-    filterActive: Boolean
+    filterActive: Boolean,
+    state: DashboardUiState?,
+    hideAmounts: Boolean,
+    onOpenBreakdown: (DashboardBreakdownKind) -> Unit = {}
 ) {
-    Surface(color = MMGreenDark, elevation = 0.dp) {
-        Row(
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
+            .background(
+                Brush.verticalGradient(
+                    if (MmIsLight) listOf(MMGreenDark, HeroGreenLift)
+                    else listOf(HeroGreenDeepDark, MMGreenDark)
+                )
+            )
+    ) {
+        Column(
             Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = MmSpacing.sm, vertical = MmSpacing.sm),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = MmSpacing.sm, vertical = MmSpacing.sm)
         ) {
-            IconButton(onClick = onOpenDrawer) {
-                Icon(Icons.Filled.Menu, contentDescription = "Open menu", tint = MMWhite)
-            }
-            Column(Modifier.weight(1f).padding(start = MmSpacing.xs)) {
-                Text(
-                    greeting(),
-                    color = MMWhite.copy(alpha = 0.75f),
-                    style = MmType.caption
-                )
-                Text(
-                    DateTimeFormatter.ofPattern("MMMM yyyy").format(LocalDate.now()),
-                    color = MMWhite,
-                    style = MmType.screenTitle
-                )
-            }
-            IconButton(onClick = onOpenSearch) {
-                Icon(Icons.Filled.Search, contentDescription = "Search", tint = MMWhite)
-            }
-            Box {
-                IconButton(onClick = onOpenFilter) {
-                    Icon(Icons.Filled.FilterList, contentDescription = "Filter transactions", tint = MMWhite)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onOpenDrawer) {
+                    Icon(Icons.Filled.Menu, contentDescription = "Open menu", tint = MMWhite)
                 }
-                if (filterActive) {
-                    Box(
-                        Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 10.dp, end = 10.dp)
-                            .size(9.dp)
-                            .background(MmColors.warning, CircleShape)
+                Column(Modifier.weight(1f).padding(start = MmSpacing.xs)) {
+                    Text(greeting(), color = MMWhite.copy(alpha = 0.75f), style = MmType.caption)
+                    Text(
+                        DateTimeFormatter.ofPattern("MMMM yyyy").format(LocalDate.now(dashboardZone)),
+                        color = MMWhite,
+                        style = MmType.screenTitle
                     )
                 }
+                IconButton(onClick = onOpenSearch) {
+                    Icon(Icons.Filled.Search, contentDescription = "Search", tint = MMWhite)
+                }
+                Box {
+                    IconButton(onClick = onOpenFilter) {
+                        Icon(Icons.Filled.FilterList, contentDescription = "Filter transactions", tint = MMWhite)
+                    }
+                    if (filterActive) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 10.dp, end = 10.dp)
+                                .size(9.dp)
+                                .background(Color(0xFFFBBF24), CircleShape)
+                        )
+                    }
+                }
+            }
+
+            if (state != null) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenBreakdown(DashboardBreakdownKind.NET_WORTH) }
+                        .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
+                ) {
+                    Text("Net worth", color = MMWhite.copy(alpha = 0.72f), style = MmType.caption)
+                    Text(
+                        if (hideAmounts) "••••••" else MoneyFormat.rupeesNoDecimals(state.netWorth),
+                        style = MmType.amountHero,
+                        color = MMWhite,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(MmSpacing.lg))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                    ) {
+                        HeroTile("Available", state.bankBalance, hideAmounts, Modifier.weight(1f)) {
+                            onOpenBreakdown(DashboardBreakdownKind.BALANCE)
+                        }
+                        HeroTile("Spent", state.monthSpend, hideAmounts, Modifier.weight(1f)) {
+                            onOpenBreakdown(DashboardBreakdownKind.SPENT)
+                        }
+                        HeroTile("Income", state.monthIncome, hideAmounts, Modifier.weight(1f)) {
+                            onOpenBreakdown(DashboardBreakdownKind.INCOME)
+                        }
+                    }
+                    if (state.creditCardOutstanding.minorUnits != 0L) {
+                        Spacer(Modifier.height(MmSpacing.sm))
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .background(Color.White.copy(alpha = 0.14f), RoundedCornerShape(MmSpacing.radiusRow))
+                                .padding(horizontal = MmSpacing.md, vertical = MmSpacing.sm),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Credit card outstanding", style = MmType.caption, color = MMWhite.copy(alpha = 0.85f), modifier = Modifier.weight(1f))
+                            Text(
+                                if (hideAmounts) "••••" else MoneyFormat.rupeesNoDecimals(state.creditCardOutstanding),
+                                style = MmType.label,
+                                color = MMWhite
+                            )
+                        }
+                    }
+                }
+            } else {
+                Spacer(Modifier.height(MmSpacing.xl))
             }
         }
+    }
+}
+
+/** One headline number on the hero: caption + tabular amount on a translucent white tile. */
+@Composable
+private fun HeroTile(
+    label: String,
+    amount: Money,
+    hidden: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(MmSpacing.radiusRow))
+            .background(Color.White.copy(alpha = 0.14f))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = MmSpacing.md, vertical = MmSpacing.sm)
+    ) {
+        Text(label, color = MMWhite.copy(alpha = 0.72f), style = MmType.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(2.dp))
+        Text(
+            if (hidden) "••••" else MoneyFormat.rupeesNoDecimals(amount),
+            style = MmType.amountTile,
+            color = MMWhite,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -394,157 +538,7 @@ private fun greeting(): String {
     }
 }
 
-@Composable
-private fun MonthSummaryCard(state: DashboardUiState, onOpenBudget: () -> Unit) {
-    MmCard(
-        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm),
-        onClick = onOpenBudget
-    ) {
-        Text("Net worth", style = MmType.caption, color = MmColors.textSecondary)
-        Spacer(Modifier.height(2.dp))
-        Text(
-            MoneyFormat.rupeesNoDecimals(state.netWorth),
-            style = MmType.amountLarge,
-            color = if (state.netWorth.isNegative) MmColors.expense else MmColors.textPrimary,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(Modifier.height(MmSpacing.md))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
-            SummaryTile("Balance", state.bankBalance, MmColors.accent, Modifier.weight(1f))
-            SummaryTile("Spent", state.monthSpend, MmColors.expense, Modifier.weight(1f))
-            SummaryTile("Income", state.monthIncome, MmColors.income, Modifier.weight(1f))
-        }
-        if (state.creditCardOutstanding.minorUnits != 0L) {
-            Spacer(Modifier.height(MmSpacing.sm))
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(MmColors.surfaceMuted, RoundedCornerShape(MmSpacing.radiusRow))
-                    .padding(horizontal = MmSpacing.md, vertical = MmSpacing.sm),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Filled.CreditCard, contentDescription = null, tint = MmColors.textSecondary, modifier = Modifier.size(17.dp))
-                Spacer(Modifier.width(MmSpacing.sm))
-                Text("Credit card outstanding", style = MmType.caption, color = MmColors.textSecondary, modifier = Modifier.weight(1f))
-                Text(
-                    MoneyFormat.rupeesNoDecimals(state.creditCardOutstanding),
-                    style = MmType.label,
-                    color = MmColors.textPrimary
-                )
-            }
-        }
-        Spacer(Modifier.height(MmSpacing.md))
-        BudgetStrip(state = state, onOpenBudget = onOpenBudget)
-    }
-}
-
-@Composable
-private fun SummaryTile(label: String, amount: Money, tint: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
-    Column(
-        modifier
-            .background(MmColors.surfaceMuted, RoundedCornerShape(MmSpacing.radiusRow))
-            .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MmLegendDot(tint)
-            Spacer(Modifier.width(5.dp))
-            Text(label, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            MoneyFormat.rupeesNoDecimals(amount),
-            style = MmType.amountTile,
-            color = MmColors.textPrimary,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-private fun BudgetStrip(state: DashboardUiState, onOpenBudget: () -> Unit) {
-    val hasBudget = state.budget.minorUnits > 0L
-    val progress = state.budgetProgress
-    val ringColor = when {
-        !hasBudget -> MmColors.accent
-        progress < 0.75f -> MmColors.income
-        progress < 1f -> MmColors.warning
-        else -> MmColors.expense
-    }
-    val trackColor = MmColors.divider
-    if (!hasBudget) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(MmColors.surfaceMuted, RoundedCornerShape(MmSpacing.radiusRow))
-                .padding(MmSpacing.md),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            MmIconBadge(icon = Icons.Filled.MonetizationOn, tint = MmColors.accent, size = 40.dp)
-            Spacer(Modifier.width(MmSpacing.md))
-            Column(Modifier.weight(1f)) {
-                Text("Set a monthly budget", style = MmType.label, color = MmColors.textPrimary)
-                Text("Track how much is left to spend", style = MmType.caption, color = MmColors.textSecondary)
-            }
-            TextButton(onClick = onOpenBudget) { Text("Set up") }
-        }
-    } else {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(contentAlignment = Alignment.Center) {
-                Canvas(Modifier.size(76.dp)) {
-                    val stroke = 9f
-                    drawArc(
-                        color = trackColor,
-                        startAngle = 0f,
-                        sweepAngle = 360f,
-                        useCenter = false,
-                        style = Stroke(width = stroke, cap = StrokeCap.Round)
-                    )
-                    drawArc(
-                        color = ringColor,
-                        startAngle = -90f,
-                        sweepAngle = (progress.coerceAtMost(1f) * 360f),
-                        useCenter = false,
-                        style = Stroke(width = stroke, cap = StrokeCap.Round)
-                    )
-                }
-                Text(
-                    "${(progress * 100).toInt()}%",
-                    style = MmType.label,
-                    fontWeight = FontWeight.Bold,
-                    color = ringColor
-                )
-            }
-            Spacer(Modifier.width(MmSpacing.lg))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    when {
-                        progress < 0.75f -> "On track"
-                        progress < 1f -> "Nearing your budget"
-                        progress < 1.01f -> "Budget reached"
-                        else -> "Over budget"
-                    },
-                    style = MmType.label,
-                    color = ringColor
-                )
-                Spacer(Modifier.height(2.dp))
-                val remaining = state.budget.minorUnits - state.monthSpend.minorUnits
-                Text(
-                    if (remaining >= 0) "${MoneyFormat.rupeesNoDecimals(Money(remaining))} left of ${MoneyFormat.rupeesNoDecimals(state.budget)}"
-                    else "${MoneyFormat.rupeesNoDecimals(Money(-remaining))} over ${MoneyFormat.rupeesNoDecimals(state.budget)}",
-                    style = MmType.caption,
-                    color = MmColors.textSecondary
-                )
-                Spacer(Modifier.height(MmSpacing.sm))
-                MmProgressBar(fraction = progress, color = ringColor)
-            }
-        }
-    }
-}
-
+/** Four quick actions with their icon badges — the original dashboard controls. */
 @Composable
 private fun QuickActions(
     onAddExpense: () -> Unit,
@@ -563,6 +557,198 @@ private fun QuickActions(
         MmQuickAction(Icons.Filled.AccountBalanceWallet, "Cash", MmColors.accent, onCash, Modifier.weight(1f))
         // Recurring destination. The one-time CSV import lives in Settings → Data.
         MmQuickAction(Icons.Filled.Description, "Bills", MmColors.warning, onBills, Modifier.weight(1f))
+    }
+}
+
+/** Budget ring + remaining summary, or the set-up call to action when no budget exists. */
+@Composable
+private fun BudgetCard(state: DashboardUiState, onOpenBudget: () -> Unit, hideAmounts: Boolean = false) {
+    MmCard(modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
+        val hasBudget = state.budget.minorUnits > 0L
+        val progress = state.budgetProgress
+        val ringColor = when {
+            !hasBudget -> MmColors.accent
+            progress < 0.75f -> MmColors.income
+            progress < 1f -> MmColors.warning
+            else -> MmColors.expense
+        }
+        if (!hasBudget) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(MmSpacing.radiusRow))
+                    .background(MmColors.surfaceMuted)
+                    .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md)
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Set a monthly budget", style = MmType.sectionTitle, color = MmColors.textPrimary)
+                    Text("Track how much is left to spend", style = MmType.caption, color = MmColors.textSecondary)
+                }
+                TextButton(onClick = onOpenBudget) { Text("Set up", color = MmColors.accent) }
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(contentAlignment = Alignment.Center) {
+                    val animatedProgress by animateFloatAsState(
+                        targetValue = progress.coerceIn(0f, 1f),
+                        animationSpec = tween(durationMillis = 700),
+                        label = "budgetRing"
+                    )
+                    val trackColor = MmColors.divider
+                    Canvas(Modifier.size(76.dp)) {
+                        val stroke = 9f
+                        drawArc(
+                            color = trackColor,
+                            startAngle = 0f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            style = Stroke(width = stroke, cap = StrokeCap.Round)
+                        )
+                        drawArc(
+                            color = ringColor,
+                            startAngle = -90f,
+                            sweepAngle = animatedProgress * 360f,
+                            useCenter = false,
+                            style = Stroke(width = stroke, cap = StrokeCap.Round)
+                        )
+                    }
+                    Text(
+                        "${(progress * 100).toInt()}%",
+                        style = MmType.label,
+                        fontWeight = FontWeight.Bold,
+                        color = ringColor
+                    )
+                }
+                Spacer(Modifier.width(MmSpacing.lg))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        when {
+                            progress < 0.75f -> "On track"
+                            progress < 1f -> "Nearing your budget"
+                            progress < 1.01f -> "Budget reached"
+                            else -> "Over budget"
+                        },
+                        style = MmType.sectionTitle,
+                        color = MmColors.textPrimary
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    val remaining = state.budget.minorUnits - state.monthSpend.minorUnits
+                    Text(
+                        if (hideAmounts) "Amounts hidden"
+                        else if (remaining >= 0) "${MoneyFormat.rupeesNoDecimals(Money(remaining))} left of ${MoneyFormat.rupeesNoDecimals(state.budget)}"
+                        else "${MoneyFormat.rupeesNoDecimals(Money(-remaining))} over ${MoneyFormat.rupeesNoDecimals(state.budget)}",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
+                    )
+                    Spacer(Modifier.height(MmSpacing.sm))
+                    MmProgressBar(fraction = progress, color = ringColor)
+                }
+                IconButton(onClick = onOpenBudget) {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = "Open budget", tint = MmColors.textSecondary)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Donut + named legend for the month's category split. Categories keep a stable tint from their
+ * name, and the "rest" ring segment uses the muted surface so the top rows pop.
+ */
+@Composable
+private fun SpendingBreakdown(
+    rows: List<CategoryTotal>,
+    categoryNames: Map<Long, String>,
+    monthSpend: Money
+) {
+    val total = rows.sumOf { it.total }.takeIf { it > 0L } ?: 1L
+    val restTotal = (monthSpend.minorUnits - total).coerceAtLeast(0L)
+    val segments = rows.map { row ->
+        val name = categoryNames[row.categoryId] ?: "Uncategorised"
+        Triple(mmCategoryTint(name), row.total, name)
+    }
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            val restColor = MmColors.surfaceMuted
+            Canvas(Modifier.size(104.dp)) {
+                val stroke = 15f
+                val gap = 3.5f
+                var startAngle = -90f
+                val ringTotal = (total + restTotal).toFloat()
+                fun sweepOf(amount: Long): Float = (amount.toFloat() / ringTotal) * 360f
+                segments.forEach { (tint, amount, _) ->
+                    val sweep = sweepOf(amount)
+                    if (sweep > 0.5f) {
+                        drawArc(
+                            color = tint,
+                            startAngle = startAngle + gap / 2f,
+                            sweepAngle = (sweep - gap).coerceAtLeast(1f),
+                            useCenter = false,
+                            style = Stroke(width = stroke, cap = StrokeCap.Butt)
+                        )
+                    }
+                    startAngle += sweep
+                }
+                if (restTotal > 0L) {
+                    val sweep = sweepOf(restTotal)
+                    drawArc(
+                        color = restColor,
+                        startAngle = startAngle + gap / 2f,
+                        sweepAngle = (sweep - gap).coerceAtLeast(1f),
+                        useCenter = false,
+                        style = Stroke(width = stroke, cap = StrokeCap.Butt)
+                    )
+                }
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Spent", style = MmType.caption, color = MmColors.textSecondary)
+                Text(
+                    MoneyFormat.rupeesNoDecimals(monthSpend),
+                    style = MmType.label,
+                    fontWeight = FontWeight.Bold,
+                    color = MmColors.textPrimary,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+        }
+        Spacer(Modifier.width(MmSpacing.lg))
+        Column(Modifier.weight(1f)) {
+            segments.forEachIndexed { index, (tint, amount, name) ->
+                if (index > 0) Spacer(Modifier.height(MmSpacing.sm))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    MmLegendDot(tint)
+                    Spacer(Modifier.width(MmSpacing.sm))
+                    Text(
+                        name,
+                        style = MmType.body,
+                        color = MmColors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(MmSpacing.sm))
+                    Text(
+                        MoneyFormat.rupeesNoDecimals(Money(amount)),
+                        style = MmType.caption,
+                        color = MmColors.textSecondary,
+                        maxLines = 1
+                    )
+                    Spacer(Modifier.width(MmSpacing.sm))
+                    Text(
+                        "${amount * 100 / total}%",
+                        style = MmType.caption,
+                        color = MmColors.textTertiary,
+                        modifier = Modifier.width(34.dp),
+                        maxLines = 1
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -587,62 +773,27 @@ private fun SectionBlock(
 }
 
 @Composable
-private fun SpendBreakdown(rows: List<Pair<Long?, Long>>, monthSpend: Money) {
-    val total = rows.sumOf { it.second }.takeIf { it > 0L } ?: 1L
-    Column(Modifier.fillMaxWidth()) {
-        rows.forEach { (_, amount) ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                MmLegendDot(mmCategoryTint(amount.toString()))
-                Spacer(Modifier.width(MmSpacing.sm))
-                Text(
-                    MoneyFormat.rupeesNoDecimals(Money(amount)),
-                    style = MmType.body,
-                    color = MmColors.textPrimary,
-                    modifier = Modifier.width(96.dp),
-                    maxLines = 1
-                )
-                Box(Modifier.weight(1f).padding(horizontal = MmSpacing.sm)) {
-                    MmProgressBar(fraction = amount.toFloat() / total.toFloat(), color = MmColors.expense, height = 6.dp)
-                }
-                Text(
-                    "${(amount * 100 / total)}%",
-                    style = MmType.caption,
-                    color = MmColors.textSecondary
-                )
-            }
-        }
-        Spacer(Modifier.height(MmSpacing.xs))
-        Text(
-            "Total this month ${MoneyFormat.rupeesNoDecimals(monthSpend)}",
-            style = MmType.caption,
-            color = MmColors.textSecondary
-        )
-    }
-}
-
-@Composable
 private fun CashWalletCard(
     balance: Money,
     spend: Money,
     withdrawn: Money,
+    hidden: Boolean = false,
     onClick: () -> Unit
 ) {
     MmCard(
         modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm),
         onClick = onClick
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MmIconBadge(icon = Icons.Filled.AccountBalanceWallet, tint = MmColors.accent, size = 44.dp)
-            Spacer(Modifier.width(MmSpacing.md))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f)) {
                 Text("Cash wallet", style = MmType.sectionTitle, color = MmColors.textPrimary)
-                Text("Your cash on hand", style = MmType.caption, color = MmColors.textSecondary)
+                Text("Your cash on hand · tap to open", style = MmType.caption, color = MmColors.textSecondary)
             }
             Icon(Icons.Filled.ChevronRight, contentDescription = "Open cash", tint = MmColors.textSecondary)
         }
         Spacer(Modifier.height(MmSpacing.md))
         Text(
-            MoneyFormat.rupeesNoDecimals(balance),
+            if (hidden) "••••••" else MoneyFormat.rupeesNoDecimals(balance),
             style = MmType.amountLarge,
             color = MmColors.textPrimary,
             maxLines = 1,
@@ -650,9 +801,43 @@ private fun CashWalletCard(
             overflow = TextOverflow.Ellipsis
         )
         Spacer(Modifier.height(MmSpacing.sm))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
-            SummaryTile("Cash spent", spend, MmColors.expense, Modifier.weight(1f))
-            SummaryTile("Cash in", withdrawn, MmColors.income, Modifier.weight(1f))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+        ) {
+            CashStatTile("Cash spent", spend, MmColors.expense, Modifier.weight(1f), hidden)
+            CashStatTile("Cash in", withdrawn, MmColors.income, Modifier.weight(1f), hidden)
         }
+    }
+}
+
+@Composable
+private fun CashStatTile(
+    label: String,
+    amount: Money,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    hidden: Boolean = false
+) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(MmSpacing.radiusRow))
+            .background(MmColors.surfaceMuted)
+            .padding(horizontal = MmSpacing.md, vertical = MmSpacing.sm)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MmLegendDot(tint)
+            Spacer(Modifier.width(5.dp))
+            Text(label, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            if (hidden) "••••" else MoneyFormat.rupeesNoDecimals(amount),
+            style = MmType.amountTile,
+            color = MmColors.textPrimary,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }

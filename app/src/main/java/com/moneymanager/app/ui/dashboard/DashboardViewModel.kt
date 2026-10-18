@@ -6,23 +6,26 @@ import com.moneymanager.app.data.local.dao.AccountDao
 import com.moneymanager.app.data.local.dao.BillDao
 import com.moneymanager.app.data.local.dao.CategoryTotal
 import com.moneymanager.app.data.local.dao.TransactionDao
+import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.BillInstanceEntity
 import com.moneymanager.app.data.local.entity.BudgetEntity
 import com.moneymanager.app.data.local.entity.TransactionEntity
+import com.moneymanager.app.domain.accounting.TransactionClassifier
+import com.moneymanager.app.domain.accounting.TransactionSemantics
 import com.moneymanager.app.domain.model.AccountType
-import com.moneymanager.app.data.repository.AccountingService
-import com.moneymanager.app.domain.accounting.AccountingEngine
 import com.moneymanager.app.domain.model.Money
+import com.moneymanager.app.domain.reporting.FinancialSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
-import java.time.ZoneId
-import java.time.ZonedDateTime
 import javax.inject.Inject
 
 data class DashboardUiState(
+    /** Available balance: included BANK/CASH/WALLET/DEBIT_CARD/PREPAID_CARD accounts. */
     val bankBalance: Money = Money.ZERO,
     val netWorth: Money = Money.ZERO,
     val creditCardOutstanding: Money = Money.ZERO,
@@ -38,104 +41,119 @@ data class DashboardUiState(
     val cashWithdrawn: Money = Money.ZERO,
     val recentTransactions: List<TransactionEntity> = emptyList(),
     val topCategoryTotals: List<CategoryTotal> = emptyList(),
+    /** Category id → display name, so breakdowns can label rows instead of showing bare amounts. */
+    val categoryNames: Map<Long, String> = emptyMap(),
     val hasAnyData: Boolean = false
 )
 
+/**
+ * Dashboard totals are derived exclusively from [FinancialSummary]; the drill-down screens use
+ * the same functions on the same data, so the tiles and their explanations always reconcile.
+ */
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     accountDao: AccountDao,
     transactionDao: TransactionDao,
     billDao: BillDao,
     budgetDao: com.moneymanager.app.data.local.dao.BudgetDao,
-    private val accountingService: AccountingService
+    categoryDao: com.moneymanager.app.data.local.dao.CategoryDao
 ) : ViewModel() {
-    private val zone = ZoneId.of("Asia/Kolkata")
-    private val monthStart: Long
-    private val monthEndExclusive: Long
-    private val year: Int
-    private val month: Int
+    private val period = FinancialSummary.currentMonthPeriod()
+    private val monthStart = period.startInclusive
+    private val monthEndExclusive = period.endExclusive
+    private val month = com.moneymanager.app.domain.billing.BillSchedule.dateOf(monthStart)
 
-    init {
-        val now = ZonedDateTime.now(zone)
-        val start = now.toLocalDate().withDayOfMonth(1).atStartOfDay(zone)
-        val end = start.plusMonths(1)
-        monthStart = start.toInstant().toEpochMilli()
-        monthEndExclusive = end.toInstant().toEpochMilli()
-        year = start.year
-        month = start.monthValue
-    }
-
-    val uiState: StateFlow<DashboardUiState> = combine(
-        accountDao.observeTotalBalance(),
-        accountDao.observeTotalNetAssets(),
-        accountDao.observeTotalCreditCardOutstanding(),
-        accountDao.observeTotalLoanBalance(),
-        transactionDao.observeTotalSpendInRange(monthStart, monthEndExclusive),
-        transactionDao.observeTotalIncomeInRange(monthStart, monthEndExclusive),
-        billDao.observeTotalUpcomingBillAmount(),
-        billDao.observeUpcomingUnpaid(),
+    val uiState: StateFlow<DashboardUiState?> = combine(
+        accountDao.observeAll(),
+        transactionDao.observeInRange(monthStart, monthEndExclusive),
         transactionDao.observeRecent(10),
-        transactionDao.observeCategoryTotalsInRange(monthStart, monthEndExclusive),
-        budgetDao.observeForMonth(year, month),
-        accountDao.observeByType(AccountType.CASH),
-        transactionDao.observeAllCashTransactions()
+        billDao.observeUpcomingUnpaid(),
+        budgetDao.observeForMonth(month.year, month.monthValue),
+        categoryDao.observeAll()
     ) { values ->
-        val bankBalance = values[0] as Long
-        val netAssets = values[1] as Long
-        val ccOutstanding = values[2] as Long
-        val loanBalance = values[3] as Long
-        val monthSpend = values[4] as Long
-        val monthIncome = values[5] as Long
-        val upcomingBillsTotal = values[6] as Long
-        @Suppress("UNCHECKED_CAST") val upcomingBills = values[7] as List<BillInstanceEntity>
-        @Suppress("UNCHECKED_CAST") val recent = values[8] as List<TransactionEntity>
-        @Suppress("UNCHECKED_CAST") val categoryTotals = values[9] as List<CategoryTotal>
-        val budgetEntity = values[10] as BudgetEntity?
-        @Suppress("UNCHECKED_CAST") val cashAccounts = values[11] as List<com.moneymanager.app.data.local.entity.AccountEntity>
-        @Suppress("UNCHECKED_CAST") val cashTransactions = values[12] as List<TransactionEntity>
+        @Suppress("UNCHECKED_CAST") val accounts = values[0] as List<AccountEntity>
+        @Suppress("UNCHECKED_CAST") val monthTransactions = values[1] as List<TransactionEntity>
+        @Suppress("UNCHECKED_CAST") val recent = values[2] as List<TransactionEntity>
+        @Suppress("UNCHECKED_CAST") val upcomingBills = values[3] as List<BillInstanceEntity>
+        val budgetEntity = values[4] as BudgetEntity?
+        @Suppress("UNCHECKED_CAST") val categories = values[5] as List<com.moneymanager.app.data.local.entity.CategoryEntity>
+        val accountById = FinancialSummary.accountMap(accounts)
+
+        val balance = FinancialSummary.balanceMinor(accounts)
+        val netWorth = FinancialSummary.netWorthMinor(accounts)
+        val liabilities = FinancialSummary.liabilityAccounts(accounts)
+        val ccOutstanding = liabilities
+            .filter { it.accountType == AccountType.CREDIT_CARD }
+            .sumOf { it.outstandingMinorUnits ?: 0L }
+        val loanBalance = liabilities
+            .filter { it.accountType == AccountType.LOAN }
+            .sumOf { it.currentBalanceMinorUnits }
+
+        val spendRows = FinancialSummary.spendRows(monthTransactions, accountById, period)
+        val incomeRows = FinancialSummary.incomeRows(monthTransactions, accountById, period)
+        val monthSpend = spendRows.sumOf { FinancialSummary.spendAmountMinor(it) }
+        val monthIncome = incomeRows.sumOf { FinancialSummary.incomeAmountMinor(it) }
+        val upcomingTotal = upcomingBills.sumOf { it.amountDueMinorUnits }
+
         val budget = budgetEntity?.budgetAmountMinorUnits ?: 0L
-        val netWorth = netAssets - ccOutstanding - loanBalance
-        val safeToSpend = if (budget > 0L) budget - monthSpend - upcomingBillsTotal else bankBalance - monthSpend - upcomingBillsTotal
         val progress = if (budget > 0L) (monthSpend.toDouble() / budget.toDouble()).toFloat().coerceAtLeast(0f) else 0f
-        val activeCashIds = cashAccounts.filter { it.active && !it.deleted && !it.hide }.map { it.id }.toSet()
-        var cashBalanceMinor = 0L
-        cashAccounts.filter { it.active && !it.deleted && !it.hide }.forEach { account ->
-            val rows = cashTransactions.filter { it.accountId == account.id }
-            val ledger = accountingService.ledgerRowsFor(rows, AccountType.CASH)
-            val calculated = if (account.manualBalanceOverrideMinorUnits != null && account.manualBalanceOverrideAtEpochMillis != null) {
-                val post = ledger.asSequence().filter { it.occurredAtEpochMillis > account.manualBalanceOverrideAtEpochMillis }
-                    .sumOf { it.movement.ledgerDeltaMinorUnits }
-                account.manualBalanceOverrideMinorUnits + post
-            } else {
-                AccountingEngine.balanceState(ledger).calculatedBalanceMinorUnits
+        val safeToSpend = if (budget > 0L) {
+            // Remaining budget. Spending already reduced the account balance, so subtracting
+            // monthSpend again from the balance would double-count it.
+            budget - monthSpend
+        } else {
+            // Available liquid cash after the bills that are already scheduled.
+            balance - upcomingTotal
+        }
+
+        val categoryTotals = spendRows
+            .groupBy { it.categoryId }
+            .map { (categoryId, rows) -> CategoryTotal(categoryId, rows.sumOf { FinancialSummary.spendAmountMinor(it) }) }
+            .filter { it.total != 0L }
+            .sortedByDescending { it.total }
+
+        val cashIds = accounts
+            .filter { FinancialSummary.isIncluded(it) && it.accountType == AccountType.CASH }
+            .map { it.id }
+            .toSet()
+        val cashBalance = accounts
+            .filter { FinancialSummary.isIncluded(it) && it.accountType == AccountType.CASH }
+            .sumOf { it.currentBalanceMinorUnits }
+        val cashSpend = spendRows.filter { it.accountId in cashIds }
+            .sumOf { FinancialSummary.spendAmountMinor(it) }
+        val cashIn = monthTransactions
+            .filter { it.accountId in cashIds && it.includeInStatistics }
+            .filter {
+                val type = accountById[it.accountId]?.accountType ?: AccountType.CASH
+                when (TransactionClassifier.classify(it.txnSubType, it.txnKind, type)) {
+                    TransactionSemantics.INCOME,
+                    TransactionSemantics.TRANSFER_IN -> true
+                    else -> false
+                }
             }
-            cashBalanceMinor += calculated
-        }
-        val cashMonthTxns = cashTransactions.filter {
-            it.accountId in activeCashIds && it.occurredAtEpochMillis >= monthStart && it.occurredAtEpochMillis < monthEndExclusive
-        }
-        val cashSpendMinor = cashMonthTxns.filter { it.includeInStatistics && it.debitMinorUnits > it.creditMinorUnits }
-            .sumOf { it.debitMinorUnits - it.creditMinorUnits }
-        val cashWithdrawnMinor = cashMonthTxns.filter { it.includeInStatistics && it.creditMinorUnits > it.debitMinorUnits }
             .sumOf { it.creditMinorUnits - it.debitMinorUnits }
 
         DashboardUiState(
-            bankBalance = Money(bankBalance),
+            bankBalance = Money(balance),
             netWorth = Money(netWorth),
             creditCardOutstanding = Money(ccOutstanding),
             monthSpend = Money(monthSpend),
             monthIncome = Money(monthIncome),
-            upcomingBillsTotal = Money(upcomingBillsTotal),
+            upcomingBillsTotal = Money(upcomingTotal),
             upcomingBillsCount = upcomingBills.size,
             safeToSpend = Money(safeToSpend),
             budget = Money(budget),
             budgetProgress = progress,
-            cashBalance = Money(cashBalanceMinor),
-            cashSpend = Money(cashSpendMinor),
-            cashWithdrawn = Money(cashWithdrawnMinor),
+            cashBalance = Money(cashBalance),
+            cashSpend = Money(cashSpend),
+            cashWithdrawn = Money(cashIn),
             recentTransactions = recent,
-            topCategoryTotals = categoryTotals.take(6),
-            hasAnyData = recent.isNotEmpty() || bankBalance != 0L || netWorth != 0L
+            topCategoryTotals = categoryTotals.take(5),
+            categoryNames = categories.associate { it.id to it.name },
+            hasAnyData = recent.isNotEmpty() || accounts.any { FinancialSummary.isIncluded(it) } ||
+                loanBalance != 0L
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardUiState())
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 }

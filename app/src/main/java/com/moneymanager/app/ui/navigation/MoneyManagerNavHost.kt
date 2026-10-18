@@ -23,6 +23,8 @@ import com.moneymanager.app.ui.bills.BillTypeSelectionScreen
 import com.moneymanager.app.ui.budget.BudgetScreen
 import com.moneymanager.app.ui.cash.CashScreen
 import com.moneymanager.app.ui.creditcardform.CreditCardFormScreen
+import com.moneymanager.app.ui.dashboard.DashboardBreakdownKind
+import com.moneymanager.app.ui.dashboard.DashboardBreakdownScreen
 import com.moneymanager.app.ui.dashboard.DashboardScreen
 import com.moneymanager.app.ui.importer.ImportScreen
 import com.moneymanager.app.ui.income.IncomeScreen
@@ -50,13 +52,25 @@ fun MoneyManagerNavHost(
     onOpenDrawer: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // One Back action removes exactly one layer. The Dashboard fallback is used ONLY when the
+    // controller genuinely has no previous entry (e.g. deep link/process restore); it is never
+    // the normal path for a nested screen.
     fun safeBack() {
-        if (!navController.popBackStack()) {
-            navController.navigate(Destination.Dashboard.route) {
-                popUpTo(Destination.Dashboard.route) { inclusive = true }
-                launchSingleTop = true
-            }
+        val currentRoute = navController.currentDestination?.route
+        if (currentRoute == Destination.Dashboard.route) return
+        if (navController.previousBackStackEntry != null) {
+            navController.popBackStack()
+            return
         }
+        navController.navigate(Destination.Dashboard.route) {
+            popUpTo(navController.graph.id) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
+    fun go(route: String) {
+        // launchSingleTop guards against duplicate navigations from a double tap.
+        navController.navigate(route) { launchSingleTop = true }
     }
 
     NavHost(
@@ -68,26 +82,41 @@ fun MoneyManagerNavHost(
         composable(Destination.Dashboard.route) {
             DashboardScreen(
                 onOpenDrawer = onOpenDrawer,
-                onSeeAllTransactions = { navController.navigate(Destination.Transactions.route) },
-                onSeeAllSpendAreas = { navController.navigate(Destination.SpendSummary.route) },
-                onSeeAllBills = { navController.navigate(Destination.Bills.route) },
-                onImportPrompt = { navController.navigate(Destination.Import.route) },
-                onOpenBudget = { navController.navigate(Destination.Budget.route) },
-                onOpenSearch = { navController.navigate(Destination.Search.route) },
+                onSeeAllTransactions = { go(Destination.Transactions.route) },
+                onSeeAllSpendAreas = { go(Destination.SpendSummary.route) },
+                onSeeAllBills = { go(Destination.Bills.route) },
+                onImportPrompt = { go(Destination.Import.route) },
+                onOpenBudget = { go(Destination.Budget.route) },
+                onOpenSearch = { go(Destination.Search.route) },
                 onAddAccountIncome = {
-                    navController.navigate(Destination.AccountSelection.route("ACCOUNT_INCOME"))
+                    go(Destination.AccountSelection.route("ACCOUNT_INCOME"))
                 },
                 onAddAccountSpend = {
-                    navController.navigate(Destination.AccountSelection.route("ACCOUNT_SPEND"))
+                    go(Destination.AccountSelection.route("ACCOUNT_SPEND"))
                 },
                 onAddCashIncome = {
-                    navController.navigate(Destination.Cash.route)
+                    go(Destination.Cash.route)
                 },
                 onAddCashSpend = {
-                    navController.navigate(Destination.Cash.route)
+                    go(Destination.Cash.route)
                 },
-                onOpenCash = { navController.navigate(Destination.Cash.route) },
-                onTransactionClick = { id -> navController.navigate(Destination.TransactionDetail.route(id)) }
+                onOpenCash = { go(Destination.Cash.route) },
+                onTransactionClick = { id -> go(Destination.TransactionDetail.route(id)) },
+                onOpenBreakdown = { kind -> go(Destination.DashboardBreakdown.route(kind)) }
+            )
+        }
+
+        composable(
+            Destination.DashboardBreakdown.route,
+            arguments = listOf(navArgument("kind") { type = NavType.StringType })
+        ) { entry ->
+            val kind = entry.arguments?.getString("kind")?.let { raw ->
+                runCatching { DashboardBreakdownKind.valueOf(raw) }.getOrNull()
+            } ?: DashboardBreakdownKind.BALANCE
+            DashboardBreakdownScreen(
+                kind = kind,
+                onBack = { safeBack() },
+                onTransactionClick = { id -> go(Destination.TransactionDetail.route(id)) }
             )
         }
 
@@ -95,52 +124,52 @@ fun MoneyManagerNavHost(
             AccountsScreen(
                 onBack = { safeBack() },
                 initialTab = AccountsTab.LOANS,
-                onAccountClick = { id -> navController.navigate(Destination.AccountDetail.route(id)) },
-                onAddAccount = { navController.navigate(Destination.BankSelection.route) }
+                onAccountClick = { id -> go(Destination.AccountDetail.route(id)) },
+                onAddAccount = { go(Destination.BankSelection.route) }
             )
         }
         composable(Destination.Accounts.route) {
             AccountsScreen(
                 onBack = { safeBack() },
-                onAccountClick = { id -> navController.navigate(Destination.AccountDetail.route(id)) },
-                onAddCreditCard = { navController.navigate(Destination.CreditCardForm.route(null)) },
-                onAddAccount = { navController.navigate(Destination.BankSelection.route) },
-                onAccountSettings = { navController.navigate(Destination.Settings.route) },
-                onEditAccount = { id -> navController.navigate(Destination.AccountEdit.route(id)) },
-                onEditCreditCard = { id -> navController.navigate(Destination.CreditCardForm.route(id)) }
+                onAccountClick = { id -> go(Destination.AccountDetail.route(id)) },
+                onAddCreditCard = { go(Destination.CreditCardForm.route(null)) },
+                onAddAccount = { go(Destination.BankSelection.route) },
+                onAccountSettings = { go(Destination.Settings.route) },
+                onEditAccount = { id -> go(Destination.AccountEdit.route(id)) },
+                onEditCreditCard = { id -> go(Destination.CreditCardForm.route(id)) }
             )
         }
         composable(Destination.Bills.route) {
             BillsScreen(
                 onBack = { safeBack() },
                 // The "Bill & EMI Type" picker runs first so the form opens on the right template.
-                onAddBiller = { navController.navigate(Destination.BillTypeSelection.route) },
-                onEditBiller = { id -> navController.navigate(Destination.BillForm.route(id)) },
+                onAddBiller = { go(Destination.BillTypeSelection.route) },
+                onEditBiller = { id -> go(Destination.BillForm.route(id)) },
                 onAddAccountIncome = {
-                    navController.navigate(Destination.AccountSelection.route("ACCOUNT_INCOME"))
+                    go(Destination.AccountSelection.route("ACCOUNT_INCOME"))
                 },
                 onAddAccountSpend = {
-                    navController.navigate(Destination.AccountSelection.route("ACCOUNT_SPEND"))
+                    go(Destination.AccountSelection.route("ACCOUNT_SPEND"))
                 },
                 onAddCashIncome = {
-                    navController.navigate(Destination.AddTransaction.route("CASH_INCOME", null))
+                    go(Destination.AddTransaction.route("CASH_INCOME", null))
                 },
                 onAddCashSpend = {
-                    navController.navigate(Destination.AddTransaction.route("CASH_SPEND", null))
+                    go(Destination.AddTransaction.route("CASH_SPEND", null))
                 }
             )
         }
         composable(Destination.Transactions.route) {
             TransactionsScreen(
                 onBack = { safeBack() },
-                onTransactionClick = { id -> navController.navigate(Destination.TransactionDetail.route(id)) }
+                onTransactionClick = { id -> go(Destination.TransactionDetail.route(id)) }
             )
         }
 
         composable(Destination.Income.route) {
             IncomeScreen(
                 onBack = { safeBack() },
-                onTransactionClick = { id -> navController.navigate(Destination.TransactionDetail.route(id)) }
+                onTransactionClick = { id -> go(Destination.TransactionDetail.route(id)) }
             )
         }
 
@@ -152,7 +181,7 @@ fun MoneyManagerNavHost(
             TransactionDetailScreen(
                 transactionId = transactionId,
                 onBack = { safeBack() },
-                onEdit = { id -> navController.navigate(Destination.TransactionEdit.route(id)) },
+                onEdit = { id -> go(Destination.TransactionEdit.route(id)) },
                 onDeleted = { safeBack() }
             )
         }
@@ -184,24 +213,24 @@ fun MoneyManagerNavHost(
         composable(Destination.Cash.route) {
             CashScreen(
                 onBack = { safeBack() },
-                onEditCash = { id -> navController.navigate(Destination.AccountEdit.route(id)) },
-                onTransactionClick = { id -> navController.navigate(Destination.TransactionDetail.route(id)) },
+                onEditCash = { id -> go(Destination.AccountEdit.route(id)) },
+                onTransactionClick = { id -> go(Destination.TransactionDetail.route(id)) },
                 onAddCashIncome = { acctId ->
-                    navController.navigate(Destination.AddTransaction.route("CASH_INCOME", acctId))
+                    go(Destination.AddTransaction.route("CASH_INCOME", acctId))
                 },
                 onAddCashSpend = { acctId ->
-                    navController.navigate(Destination.AddTransaction.route("CASH_SPEND", acctId))
+                    go(Destination.AddTransaction.route("CASH_SPEND", acctId))
                 }
             )
         }
         composable(Destination.SpendSummary.route) {
-            SpendSummaryScreen(onBack = { safeBack() }, onCategoryClick = { id -> navController.navigate(Destination.CategoryTransactions.route(id)) })
+            SpendSummaryScreen(onBack = { safeBack() }, onCategoryClick = { id -> go(Destination.CategoryTransactions.route(id)) })
         }
         composable(Destination.Categories.route) {
             CategoryManagerScreen(
                 onBack = { safeBack() },
-                onCreateCategory = { navController.navigate(Destination.CategoryEditor.route()) },
-                onEditCategory = { id -> navController.navigate(Destination.CategoryEditor.route(id)) }
+                onCreateCategory = { go(Destination.CategoryEditor.route()) },
+                onEditCategory = { id -> go(Destination.CategoryEditor.route(id)) }
             )
         }
         composable(Destination.CategoryPicker.route) {
@@ -213,9 +242,9 @@ fun MoneyManagerNavHost(
                 },
                 onTransferSelected = {
                     safeBack()
-                    navController.navigate(Destination.Transfer.route)
+                    go(Destination.Transfer.route)
                 },
-                onCreateCategory = { navController.navigate(Destination.CategoryEditor.route()) }
+                onCreateCategory = { go(Destination.CategoryEditor.route()) }
             )
         }
         composable(
@@ -236,20 +265,20 @@ fun MoneyManagerNavHost(
         }
         composable(Destination.CategoryTransactions.route, arguments = listOf(navArgument("categoryId") { type = NavType.LongType })) { entry ->
             val id = entry.arguments?.getLong("categoryId") ?: -1L
-            CategoryTransactionsScreen(categoryId = id, onBack = { safeBack() }, onTransactionClick = { tx -> navController.navigate(Destination.TransactionDetail.route(tx)) })
+            CategoryTransactionsScreen(categoryId = id, onBack = { safeBack() }, onTransactionClick = { tx -> go(Destination.TransactionDetail.route(tx)) })
         }
         composable(Destination.Reimbursements.route) {
             ReimbursementsScreen(
                 onBack = { safeBack() },
-                onTransactionClick = { id -> navController.navigate(Destination.TransactionDetail.route(id)) }
+                onTransactionClick = { id -> go(Destination.TransactionDetail.route(id)) }
             )
         }
         composable(Destination.Settings.route) {
             SettingsScreen(
                 onBack = { safeBack() },
-                onImportStatement = { navController.navigate(Destination.Import.route) },
-                onBudget = { navController.navigate(Destination.Budget.route) },
-                onAppUpdates = { navController.navigate(Destination.AppUpdates.route) }
+                onImportStatement = { go(Destination.Import.route) },
+                onBudget = { go(Destination.Budget.route) },
+                onAppUpdates = { go(Destination.AppUpdates.route) }
             )
         }
         composable(Destination.AppUpdates.route) { AppUpdatesScreen(onBack = { safeBack() }) }
@@ -272,7 +301,7 @@ fun MoneyManagerNavHost(
         composable(Destination.Search.route) {
             SearchScreen(
                 onBack = { safeBack() },
-                onTransactionClick = { id -> navController.navigate(Destination.TransactionDetail.route(id)) }
+                onTransactionClick = { id -> go(Destination.TransactionDetail.route(id)) }
             )
         }
 
@@ -291,7 +320,7 @@ fun MoneyManagerNavHost(
             BankSelectionScreen(
                 onBack = { safeBack() },
                 onBankSelected = { bankName ->
-                    navController.navigate(Destination.BankLinking.route(bankName))
+                    go(Destination.BankLinking.route(bankName))
                 }
             )
         }
@@ -314,7 +343,7 @@ fun MoneyManagerNavHost(
             BillTypeSelectionScreen(
                 onBack = { safeBack() },
                 onBillTypeSelected = { billerType ->
-                    navController.navigate("bill_form?billId=-1&billType=${billerType.name}")
+                    go(Destination.BillForm.route(null, billerType.name))
                 }
             )
         }
@@ -327,20 +356,20 @@ fun MoneyManagerNavHost(
             AccountDetailScreen(
                 accountId = accountId,
                 onBack = { safeBack() },
-                onEditAccount = { id -> navController.navigate(Destination.AccountEdit.route(id)) },
-                onEditCreditCard = { id -> navController.navigate(Destination.CreditCardForm.route(id)) },
-                onTransactionClick = { id -> navController.navigate(Destination.TransactionDetail.route(id)) },
+                onEditAccount = { id -> go(Destination.AccountEdit.route(id)) },
+                onEditCreditCard = { id -> go(Destination.CreditCardForm.route(id)) },
+                onTransactionClick = { id -> go(Destination.TransactionDetail.route(id)) },
                 onAddAccountIncome = {
-                    navController.navigate(Destination.AddTransaction.route("ACCOUNT_INCOME", accountId))
+                    go(Destination.AddTransaction.route("ACCOUNT_INCOME", accountId))
                 },
                 onAddAccountSpend = {
-                    navController.navigate(Destination.AddTransaction.route("ACCOUNT_SPEND", accountId))
+                    go(Destination.AddTransaction.route("ACCOUNT_SPEND", accountId))
                 },
                 onAddCashIncome = {
-                    navController.navigate(Destination.AddTransaction.route("CASH_INCOME", null))
+                    go(Destination.AddTransaction.route("CASH_INCOME", null))
                 },
                 onAddCashSpend = {
-                    navController.navigate(Destination.AddTransaction.route("CASH_SPEND", null))
+                    go(Destination.AddTransaction.route("CASH_SPEND", null))
                 }
             )
         }
@@ -424,8 +453,8 @@ fun MoneyManagerNavHost(
                         safeBack()
                     }
                 },
-                onNavigateToTransfer = { navController.navigate(Destination.Transfer.route) },
-                onMoreCategories = { navController.navigate(Destination.CategoryPicker.route) },
+                onNavigateToTransfer = { go(Destination.Transfer.route) },
+                onMoreCategories = { go(Destination.CategoryPicker.route) },
                 selectedCategoryIdFromPicker = selectedCategoryId,
                 onConsumeCategorySelection = { backStackEntry.savedStateHandle["categorySelection"] = null }
             )

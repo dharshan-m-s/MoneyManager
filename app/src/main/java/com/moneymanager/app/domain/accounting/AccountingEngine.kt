@@ -391,6 +391,26 @@ object AccountingEngine {
     }
 
     // ------------------------------------------------------------------
+    // Durable user checkpoints
+    // ------------------------------------------------------------------
+
+    /**
+     * Effective balance after a user reconciliation checkpoint.
+     *
+     * `adjustment` is captured once, when the user states the balance they can see. Every
+     * subsequent ledger movement (including backdated entries and edits) is then applied on
+     * top of the engine-derived balance. This avoids the classic timestamp-filter bug where a
+     * transaction dated before the checkpoint is silently dropped, while still guaranteeing
+     * that a recalculation cannot overwrite the user's value.
+     */
+    fun effectiveBalanceWithCheckpoint(derivedBalanceMinorUnits: Long, adjustmentMinorUnits: Long?): Long =
+        derivedBalanceMinorUnits + (adjustmentMinorUnits ?: 0L)
+
+    /** Offset to persist when the user deliberately enters [enteredBalanceMinorUnits]. */
+    fun checkpointAdjustment(enteredBalanceMinorUnits: Long, derivedBalanceMinorUnits: Long): Long =
+        enteredBalanceMinorUnits - derivedBalanceMinorUnits
+
+    // ------------------------------------------------------------------
     // Reconciliation
     // ------------------------------------------------------------------
 

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.moneymanager.app.data.local.dao.AccountDao
 import com.moneymanager.app.data.repository.BackupManager
 import com.moneymanager.app.data.local.dao.BillDao
+import com.moneymanager.app.domain.billing.BillRecurrenceService
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.BillEntity
 import com.moneymanager.app.data.local.entity.BillInstanceEntity
@@ -42,6 +43,7 @@ data class BillFormState(
     val autoGenerateBills: Boolean = true,
     val creditCards: List<AccountEntity> = emptyList(),
     val saved: Boolean = false,
+    val saving: Boolean = false,
     val error: String? = null
 )
 
@@ -49,6 +51,7 @@ data class BillFormState(
 class BillFormViewModel @Inject constructor(
     private val billDao: BillDao,
     private val accountDao: AccountDao,
+    private val billRecurrenceService: BillRecurrenceService,
     private val backupManager: BackupManager
 ) : ViewModel() {
     private val _ui = MutableStateFlow(BillFormState())
@@ -65,7 +68,10 @@ class BillFormViewModel @Inject constructor(
     fun loadForEdit(billId: Long) {
         viewModelScope.launch {
             val b = billDao.findById(billId) ?: return@launch
-            val dueDay = Instant.ofEpochMilli(b.nextDueDateEpochMillis).atZone(ZoneId.of("Asia/Kolkata")).dayOfMonth
+            // Prefer the explicit recurrence anchor. A 31st bill currently clamped to 28 Feb
+            // must not be loaded as "28" and permanently drift after saving.
+            val dueDay = b.scheduleAnchorDay
+                ?: Instant.ofEpochMilli(b.nextDueDateEpochMillis).atZone(ZoneId.of("Asia/Kolkata")).dayOfMonth
             _ui.value = _ui.value.copy(
                 editingBillId = b.id,
                 billerName = b.billerName,
@@ -98,59 +104,85 @@ class BillFormViewModel @Inject constructor(
 
     fun save() {
         val s = _ui.value
+        if (s.saving || s.saved) return
         if (s.billerName.isBlank()) { _ui.value = s.copy(error = "Biller name is required"); return }
         val day = s.dueDay.toIntOrNull()
         if (day == null || day !in 1..31) { _ui.value = s.copy(error = "Due day must be between 1 and 31"); return }
         val reminderDays = s.reminderDaysBefore.toIntOrNull()
         if (reminderDays == null || reminderDays !in 0..30) { _ui.value = s.copy(error = "Reminder days must be between 0 and 30"); return }
 
+        _ui.value = s.copy(saving = true, error = null)
         viewModelScope.launch {
             try {
                 val now = System.currentTimeMillis()
                 val zone = ZoneId.of("Asia/Kolkata")
                 val today = LocalDate.now(zone)
-                val monthStart = today.withDayOfMonth(1)
-                val safeDay = day.coerceAtMost(monthStart.lengthOfMonth())
-                var dueDate = monthStart.withDayOfMonth(safeDay)
-                if (dueDate.isBefore(today)) {
-                    val nextMonth = today.plusMonths(1).withDayOfMonth(1)
-                    dueDate = nextMonth.withDayOfMonth(day.coerceAtMost(nextMonth.lengthOfMonth()))
+                val existing = s.editingBillId?.let { billDao.findById(it) }
+                // Editing the amount/name must not silently move a quarterly/yearly bill to a
+                // different month. Keep the existing occurrence when the schedule inputs did
+                // not change; only the recurrence service advances it.
+                val existingAnchor = existing?.let {
+                    it.scheduleAnchorDay
+                        ?: Instant.ofEpochMilli(it.nextDueDateEpochMillis).atZone(zone).dayOfMonth
                 }
-                val dueMillis = dueDate.atStartOfDay(zone).toInstant().toEpochMilli()
+                val scheduleUnchanged = existing != null && day == existingAnchor &&
+                    s.billingCycle == existing.billingCycle
+                val dueMillis = if (scheduleUnchanged) {
+                    existing.nextDueDateEpochMillis
+                } else {
+                    val monthStart = today.withDayOfMonth(1)
+                    val safeDay = day.coerceAtMost(monthStart.lengthOfMonth())
+                    var dueDate = monthStart.withDayOfMonth(safeDay)
+                    if (dueDate.isBefore(today)) {
+                        val nextMonth = today.plusMonths(1).withDayOfMonth(1)
+                        dueDate = nextMonth.withDayOfMonth(day.coerceAtMost(nextMonth.lengthOfMonth()))
+                    }
+                    dueDate.atStartOfDay(zone).toInstant().toEpochMilli()
+                }
                 val amount = runCatching { BigDecimal(s.estimatedAmount.trim()) }
                     .getOrNull()?.let { Money.fromRupees(it).minorUnits } ?: 0L
                 val linkedCard = if (s.billerType == BillerType.CREDIT_CARD) s.linkedAccountId else null
 
                 if (s.editingBillId != null) {
-                    val existing = billDao.findById(s.editingBillId) ?: return@launch
+                    if (existing == null) return@launch
                     billDao.update(existing.copy(
                         billerName = s.billerName.trim(), billerType = s.billerType,
                         accountReferenceId = s.accountReferenceId.ifBlank { null },
                         nickname = s.nickname.ifBlank { s.billerName.trim() }, linkedAccountId = linkedCard,
                         billingCycle = s.billingCycle, nextDueDateEpochMillis = dueMillis,
+                        scheduleAnchorDay = day,
                         estimatedAmountMinorUnits = amount, reminderEnabled = s.reminderEnabled,
                         reminderDaysBefore = reminderDays, autoPay = s.autoPay, active = !s.inactive,
                         businessPersonal = if (s.isBusiness) BusinessPersonal.BUSINESS else BusinessPersonal.PERSONAL,
                         autoGenerateBills = s.autoGenerateBills, updatedAtEpochMillis = now
                     ))
+                    // Reconcile future unpaid occurrences against the edited schedule while
+                    // preserving every paid/historical occurrence and its linked transaction.
+                    billRecurrenceService.reconcileAfterEdit(existing.id, now)
                 } else {
                     val billId = billDao.insert(BillEntity(
                         billerName = s.billerName.trim(), billerType = s.billerType,
                         accountReferenceId = s.accountReferenceId.ifBlank { null },
                         nickname = s.nickname.ifBlank { s.billerName.trim() }, linkedAccountId = linkedCard,
                         billingCycle = s.billingCycle, nextDueDateEpochMillis = dueMillis,
+                        scheduleAnchorDay = day,
                         estimatedAmountMinorUnits = amount, reminderEnabled = s.reminderEnabled,
                         reminderDaysBefore = reminderDays, autoPay = s.autoPay, active = !s.inactive,
                         businessPersonal = if (s.isBusiness) BusinessPersonal.BUSINESS else BusinessPersonal.PERSONAL,
                         autoGenerateBills = s.autoGenerateBills, createdAtEpochMillis = now, updatedAtEpochMillis = now
                     ))
-                    billDao.insertInstance(BillInstanceEntity(billId = billId, dueDateEpochMillis = dueMillis, amountDueMinorUnits = amount))
+                    // The service owns occurrence creation, so manual and generated bills use
+                    // exactly the same lifecycle (including the first occurrence).
+                    billRecurrenceService.reconcileAfterEdit(billId, now)
                 }
-                _ui.value = _ui.value.copy(saved = true, error = null)
+                _ui.value = _ui.value.copy(saved = true, saving = false, error = null)
                 backupManager.scheduleAfterWrite()
             } catch (e: Exception) {
                 Log.e("BillFormVM", "Failed to save bill", e)
-                _ui.value = _ui.value.copy(error = "Failed to save: ${e.message ?: "Unknown error"}")
+                _ui.value = _ui.value.copy(
+                    saving = false,
+                    error = "Failed to save: ${e.message ?: "Unknown error"}"
+                )
             }
         }
     }

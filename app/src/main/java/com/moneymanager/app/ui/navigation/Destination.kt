@@ -71,8 +71,13 @@ sealed class Destination(val route: String, val label: String, val icon: ImageVe
     data object CreditCardForm : Destination("credit_card_form?accountId={accountId}", "Credit Card", Icons.Filled.AccountBalance) {
         fun route(accountId: Long?) = "credit_card_form?accountId=${accountId ?: -1L}"
     }
-    data object BillForm : Destination("bill_form?billId={billId}", "Biller", Icons.Filled.Description) {
-        fun route(billId: Long?) = "bill_form?billId=${billId ?: -1L}"
+    data object BillForm : Destination(
+        "bill_form?billId={billId}&billType={billType}",
+        "Biller",
+        Icons.Filled.Description
+    ) {
+        fun route(billId: Long?, billType: String = "") =
+            "bill_form?billId=${billId ?: -1L}&billType=$billType"
     }
     data object AccountSelection : Destination("account_selection/{entryPoint}", "Choose Account", Icons.Filled.AccountBalance) {
         fun route(entryPoint: String) = "account_selection/$entryPoint"
@@ -82,6 +87,14 @@ sealed class Destination(val route: String, val label: String, val icon: ImageVe
         fun route(bankName: String) = "bank_linking?bankName=$bankName"
     }
     data object BillTypeSelection : Destination("bill_type_selection", "Select Bill Type", Icons.Filled.Description)
+    data object DashboardBreakdown : Destination(
+        "dashboard_breakdown/{kind}",
+        "Breakdown",
+        Icons.Filled.PieChart
+    ) {
+        fun route(kind: com.moneymanager.app.ui.dashboard.DashboardBreakdownKind) =
+            "dashboard_breakdown/${kind.name}"
+    }
 
     companion object {
         val drawerItems = listOf(

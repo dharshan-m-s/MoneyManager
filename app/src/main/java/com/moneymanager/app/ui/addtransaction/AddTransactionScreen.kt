@@ -36,7 +36,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -48,7 +50,10 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.ui.categories.CategoryVisual
 import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmDateField
 import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmOption
+import com.moneymanager.app.ui.components.MmPickerSheet
 import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MmTextField
 import com.moneymanager.app.ui.theme.MMGreenDark
@@ -71,6 +76,7 @@ fun AddTransactionScreen(
 ) {
     val state by viewModel.ui.collectAsState()
     val visibleCategories = remember(state.categories) { state.categories.filter { it.active }.take(16) }
+    var accountPickerOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(entryPoint, preselectedAccountId) { viewModel.initialize(entryPoint, preselectedAccountId) }
     LaunchedEffect(selectedCategoryIdFromPicker) {
@@ -174,16 +180,16 @@ fun AddTransactionScreen(
                 }
             }
 
-            MmCard {
+            MmCard(onClick = { accountPickerOpen = true }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     MmIconBadge(
-                        icon = if (isCash) Icons.Filled.AccountBalanceWallet else Icons.Filled.AccountBalanceWallet,
+                        icon = Icons.Filled.AccountBalanceWallet,
                         tint = MmColors.accent,
                         size = 42.dp
                     )
                     Spacer(Modifier.width(MmSpacing.md))
                     Column(Modifier.weight(1f)) {
-                        Text("Using account", style = MmType.caption, color = MmColors.textSecondary)
+                        Text("Using account · tap to change", style = MmType.caption, color = MmColors.textSecondary)
                         Text(
                             selectedAccount?.nickname?.ifBlank { selectedAccount.institutionName }
                                 ?: "No account selected",
@@ -206,10 +212,28 @@ fun AddTransactionScreen(
                             )
                         }
                     }
-                    if (isCash) {
-                        Text("Cash", color = MmColors.accent, style = MmType.caption, fontWeight = FontWeight.Bold)
-                    }
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = "Change account",
+                        tint = MmColors.textSecondary
+                    )
                 }
+            }
+
+            MmCard {
+                MmDateField(
+                    label = "Transaction date & time",
+                    epochMillis = state.occurredAtEpochMillis,
+                    onChange = viewModel::onOccurredAtChange,
+                    includeTime = true
+                )
+                Spacer(Modifier.height(MmSpacing.sm))
+                Text(
+                    "This is when the money actually moved. Backdated entries still update the " +
+                        "right balance and the correct monthly period.",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary
+                )
             }
 
             MmCard {
@@ -329,5 +353,24 @@ fun AddTransactionScreen(
                 )
             }
         }
+    }
+
+    if (accountPickerOpen) {
+        MmPickerSheet(
+            title = "Choose account",
+            options = state.accounts.map { acct ->
+                MmOption(
+                    id = acct.id,
+                    label = acct.nickname.ifBlank { acct.institutionName },
+                    subtitle = acct.institutionName.takeIf { it.isNotBlank() && it != acct.nickname }
+                )
+            },
+            selectedId = state.selectedAccountId,
+            onSelect = { option ->
+                viewModel.onAccountSelected(option.id)
+                accountPickerOpen = false
+            },
+            onDismiss = { accountPickerOpen = false }
+        )
     }
 }

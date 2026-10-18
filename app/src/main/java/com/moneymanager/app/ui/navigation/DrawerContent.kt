@@ -143,7 +143,12 @@ fun DrawerContent(
                 )
                 Spacer(Modifier.size(MmSpacing.sm))
                 Text(
-                    if (appLock.isEnabled()) "PIN lock is on" else "PIN lock is off",
+                    when {
+                        !appLock.isEnabled() -> "App lock is off"
+                        appLock.method() == com.moneymanager.app.security.LockMethod.SYSTEM_BIOMETRIC ->
+                            "App lock is on · screen lock"
+                        else -> "App lock is on · PIN"
+                    },
                     style = MmType.caption,
                     color = MmColors.textSecondary
                 )

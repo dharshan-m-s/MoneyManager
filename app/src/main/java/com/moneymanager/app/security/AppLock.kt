@@ -6,12 +6,28 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** How the app lock verifies the user. */
+enum class LockMethod {
+    /** The app's own 4-8 digit PIN, hashed with PBKDF2 before it is persisted. */
+    IN_APP_PIN,
+
+    /**
+     * Android's own screen lock (fingerprint, face or device PIN/pattern/password) shown through
+     * the system [androidx.biometric.BiometricPrompt] - no separate app secret to remember.
+     */
+    SYSTEM_BIOMETRIC
+}
+
 /**
- * Real PIN-based app lock backed by [PinHasher]. The share of work here is small but explicit:
- * enabling the lock requires setting a PIN, and only the hash + salt are ever persisted.
+ * Real PIN-based app lock backed by [PinHasher], with an optional system-lock method.
  *
  * The app relocks after [LOCK_AFTER_BACKGROUND_MILLIS] in the background, so briefly leaving the
  * app (for the photo picker, a share sheet, or a permission dialog) does not force a re-entry.
+ *
+ * Enabling the lock goes through the method chooser: the in-app method requires setting a PIN
+ * (only the hash + salt are ever persisted), while the system method verifies through Android's
+ * own screen-lock prompt and stores no secret. A PIN can still be set later as a recovery code
+ * for the system method - it is optional, not required, because Android owns that secret.
  */
 @Singleton
 class AppLock @Inject constructor(
@@ -21,11 +37,30 @@ class AppLock @Inject constructor(
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    fun isEnabled(): Boolean = prefs.getBoolean(KEY_ENABLED, false) && hasPin()
+    fun isEnabled(): Boolean {
+        if (!prefs.getBoolean(KEY_ENABLED, false)) return false
+        return when (method()) {
+            LockMethod.IN_APP_PIN -> hasPin()
+            // The system prompt is provided by Android itself, so the method works without any
+            // app-side secret. If the device later loses its screen lock AND no recovery PIN was
+            // set, the lock stays engaged (fail-closed, never silently unprotected): the gate
+            // shows a recovery screen explaining that re-adding a screen lock restores access.
+            LockMethod.SYSTEM_BIOMETRIC -> true
+        }
+    }
 
     fun hasPin(): Boolean =
         !prefs.getString(KEY_HASH, null).isNullOrBlank() &&
             !prefs.getString(KEY_SALT, null).isNullOrBlank()
+
+    /** The configured verification method. Only meaningful when [isEnabled] is true. */
+    fun method(): LockMethod = runCatching {
+        prefs.getString(KEY_METHOD, null)?.let(LockMethod::valueOf)
+    }.getOrNull() ?: LockMethod.IN_APP_PIN
+
+    fun setMethod(method: LockMethod) {
+        prefs.edit { putString(KEY_METHOD, method.name) }
+    }
 
     /** Stores a new PIN and enables the lock. Returns false if the PIN is not acceptable. */
     fun setPin(pin: String): Boolean {
@@ -34,15 +69,39 @@ class AppLock @Inject constructor(
         prefs.edit {
             putString(KEY_SALT, salt)
             putString(KEY_HASH, PinHasher.hash(pin, salt))
+            // The unlock screen draws one dot per digit, so it needs the real length.
+            putInt(KEY_PIN_LENGTH, pin.length)
             putBoolean(KEY_ENABLED, true)
         }
         return true
     }
 
+    /** Digit count of the configured PIN (4 by default for pins set before this was stored). */
+    fun pinLength(): Int = prefs.getInt(KEY_PIN_LENGTH, 4).coerceIn(4, 8)
+
     fun verify(pin: String): Boolean {
+        // Not method-gated on purpose: with the system method this verifies the optional
+        // recovery PIN, which is exactly how the PIN fallback screen lets the user in.
         val salt = prefs.getString(KEY_SALT, null) ?: return false
         val hash = prefs.getString(KEY_HASH, null) ?: return false
         return PinHasher.verify(pin, salt, hash)
+    }
+
+    /** True when the system prompt can be used: a device screen lock is enrolled. */
+    fun canUseSystemLock(): Boolean {
+        val manager = androidx.core.content.ContextCompat.getSystemService(
+            context,
+            android.app.KeyguardManager::class.java
+        )
+        return manager?.isKeyguardSecure == true
+    }
+
+    /** Turns the lock on with the given method, for methods that need no app-side secret. */
+    fun enable(method: LockMethod) {
+        prefs.edit {
+            putString(KEY_METHOD, method.name)
+            putBoolean(KEY_ENABLED, true)
+        }
     }
 
     /** Turns the lock off and forgets the PIN. Only call after verifying the current PIN. */
@@ -50,6 +109,8 @@ class AppLock @Inject constructor(
         prefs.edit {
             remove(KEY_SALT)
             remove(KEY_HASH)
+            remove(KEY_METHOD)
+            remove(KEY_PIN_LENGTH)
             putBoolean(KEY_ENABLED, false)
         }
     }
@@ -61,6 +122,8 @@ class AppLock @Inject constructor(
         const val KEY_ENABLED = "lock_enabled"
         const val KEY_SALT = "pin_salt"
         const val KEY_HASH = "pin_hash"
+        const val KEY_METHOD = "lock_method"
+        const val KEY_PIN_LENGTH = "pin_length"
         const val LOCK_AFTER_BACKGROUND_MILLIS = 30_000L
     }
 }
