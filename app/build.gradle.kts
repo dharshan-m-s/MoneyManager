@@ -114,7 +114,7 @@ dependencies {
     implementation("com.opencsv:opencsv:5.10")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("com.jakewharton.timber:timber:5.0.1")
-    implementation("com.google.code.gson:gson:2.11.0")
+    implementation("com.google.code.gson:gson:2.14.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.16.1")
