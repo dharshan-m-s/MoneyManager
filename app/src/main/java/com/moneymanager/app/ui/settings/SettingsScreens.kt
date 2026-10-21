@@ -30,6 +30,7 @@ import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Icon
 import androidx.compose.material.OutlinedButton
+import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.SnackbarHost
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Switch
@@ -65,11 +66,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.documentfile.provider.DocumentFile
 import com.moneymanager.app.BuildConfig
+import com.moneymanager.app.MainActivity
 import com.moneymanager.app.data.repository.BackupManager
 import com.moneymanager.app.security.AppLock
 import com.moneymanager.app.security.LockMethod
@@ -85,7 +91,9 @@ import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -197,6 +205,8 @@ fun SettingsScreen(
 
     var backupFolder by remember { mutableStateOf(backupManager.configuredTreeUri()) }
     var backupBusy by remember { mutableStateOf(false) }
+    var restoreBusy by remember { mutableStateOf(false) }
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var lastBackup by remember { mutableStateOf(backupManager.lastSuccessfulBackup.value) }
 
     val showIncome by homePreferences.showIncome.collectAsState()
@@ -219,6 +229,10 @@ fun SettingsScreen(
     var switchArmed by remember { mutableStateOf(false) }
     // Non-null while the "change how you unlock?" confirmation is up.
     var confirmSwitchTo by remember { mutableStateOf<LockMethod?>(null) }
+    // Authorization for turning the lock off: the current credential must be presented first.
+    // IN_APP_PIN re-uses the unlock keypad; SYSTEM_BIOMETRIC re-uses the platform prompt.
+    var disablePinVerify by remember { mutableStateOf(false) }
+    var disableSystemVerify by remember { mutableStateOf(false) }
 
     fun message(text: String) {
         scope.launch { snackbarState.showSnackbar(text) }
@@ -256,6 +270,56 @@ fun SettingsScreen(
                     .onSuccess { message("CSV exported successfully") }
             }
         }
+    }
+
+    val restoreLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) pendingRestoreUri = uri
+    }
+
+    if (pendingRestoreUri != null) {
+        AlertDialog(
+            onDismissRequest = { if (!restoreBusy) pendingRestoreUri = null },
+            title = { Text("Restore this backup?") },
+            text = {
+                Text(
+                    "Everything in the app - transactions, accounts, bills and budgets - will be " +
+                        "replaced by the selected file. Your current data is kept as " +
+                        "moneymanager.db.pre_restore, and the app restarts when the restore is done. " +
+                        "Receipt images are not part of backups."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !restoreBusy,
+                    onClick = {
+                        val uri = pendingRestoreUri ?: return@TextButton
+                        restoreBusy = true
+                        scope.launch {
+                            backupManager.restoreFromUri(uri)
+                                .onFailure {
+                                    message(it.message ?: "Restore failed; your data was left unchanged")
+                                    restoreBusy = false
+                                    pendingRestoreUri = null
+                                }
+                                .onSuccess { result ->
+                                    message(
+                                        "Restored ${result.accountCount} accounts and " +
+                                            "${result.transactionCount} transactions - restarting…"
+                                    )
+                                    restartApp(context)
+                                }
+                        }
+                    }
+                ) { Text(if (restoreBusy) "Restoring…" else "Restore") }
+            },
+            dismissButton = {
+                TextButton(enabled = !restoreBusy, onClick = { pendingRestoreUri = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     Box(Modifier.fillMaxSize().background(MmColors.background)) {
@@ -449,6 +513,32 @@ fun SettingsScreen(
                             style = MmType.label
                         )
                     }
+                    Spacer(Modifier.height(MmSpacing.sm))
+                    OutlinedButton(
+                        onClick = { restoreLauncher.launch(arrayOf("*/*")) },
+                        enabled = !restoreBusy && !backupBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(MmSpacing.radiusRow)
+                    ) {
+                        if (restoreBusy) {
+                            CircularProgressIndicator(
+                                color = MmColors.accent,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(MmSpacing.sm))
+                        }
+                        Text(
+                            if (restoreBusy) "Restoring…" else "Restore from a backup file",
+                            style = MmType.label
+                        )
+                    }
+                    Text(
+                        "Replaces everything with the selected backup file. " +
+                            "Receipt images are not included.",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
+                    )
                     Box(Modifier.fillMaxWidth()) {
                         MmSwitchRow(
                             title = "Automatic backup",
@@ -591,10 +681,20 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(onClick = {
                     switchArmed = false
-                    lockEnabled = false
-                    lockMethod = LockMethod.IN_APP_PIN
-                    appLock.disable()
-                    message("App lock turned off")
+                    // Turning protection off requires proving the current credential first, so a
+                    // fleeting tap on an unlocked device can't silently strip the lock.
+                    when (lockMethod) {
+                        LockMethod.SYSTEM_BIOMETRIC -> disableSystemVerify = true
+                        LockMethod.IN_APP_PIN ->
+                            if (appLock.hasPin()) disablePinVerify = true
+                            else {
+                                // Corrupt/lost PIN with a live lock: nothing to verify against.
+                                lockEnabled = false
+                                lockMethod = LockMethod.IN_APP_PIN
+                                appLock.disable()
+                                message("App lock turned off")
+                            }
+                    }
                 }) { Text("Turn off", color = MmColors.expense) }
             },
             dismissButton = {
@@ -632,6 +732,50 @@ fun SettingsScreen(
         )
     }
 
+    // Authorizing a turn-off through the system screen lock: success is the only path that clears
+    // the lock. A cancellation or a failed prompt keeps protection engaged.
+    if (disableSystemVerify) {
+        SystemLockPrompt(
+            title = "Confirm to turn off app lock",
+            subtitle = "Verify it's you before disabling protection",
+            negativeButtonText = "Keep it on",
+            onUnlocked = {
+                disableSystemVerify = false
+                lockEnabled = false
+                lockMethod = LockMethod.IN_APP_PIN
+                appLock.disable()
+                message("App lock turned off")
+            },
+            onUnavailable = {
+                disableSystemVerify = false
+                message("Could not verify - app lock stays on")
+            },
+            onCancelled = {
+                disableSystemVerify = false
+                message("App lock stays on")
+            }
+        )
+    }
+
+    // Authorizing a turn-off through the in-app PIN. The dialog runs PBKDF2 off the main thread.
+    if (disablePinVerify) {
+        PinVerifyDialog(
+            expectedLength = appLock.pinLength(),
+            onDismiss = { disablePinVerify = false },
+            onVerify = { pin ->
+                val ok = withContext(Dispatchers.Default) { appLock.verify(pin) }
+                if (ok) {
+                    disablePinVerify = false
+                    lockEnabled = false
+                    lockMethod = LockMethod.IN_APP_PIN
+                    appLock.disable()
+                    message("App lock turned off")
+                }
+                ok
+            }
+        )
+    }
+
     if (showPinDialog) {
         PinSetupDialog(
             isChange = pendingPinMethod == null && appLock.hasPin(),
@@ -640,7 +784,10 @@ fun SettingsScreen(
                 pendingPinMethod = null
             },
             onSubmit = { pin ->
-                if (appLock.setPin(pin)) {
+                // PBKDF2 hashing is deliberately expensive: run it off the main thread so the
+                // settings UI never janks or blocks while the PIN is salted and digested.
+                val ok = withContext(Dispatchers.Default) { appLock.setPin(pin) }
+                if (ok) {
                     pendingPinMethod?.let { method ->
                         appLock.setMethod(method)
                         pendingPinMethod = null
@@ -653,9 +800,8 @@ fun SettingsScreen(
                             "Recovery PIN saved · app lock stays on your screen lock"
                         else "App lock is on with your PIN"
                     )
-                } else {
-                    message("Choose 4 to 8 digits")
                 }
+                ok
             }
         )
     }
@@ -670,6 +816,18 @@ private fun prettyStamp(stamp: String?): String = stamp?.let {
 
 private fun openUrl(context: Context, url: String) {
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+}
+
+/**
+ * Cold-restarts the app after a restore, so every collected flow and Room-backed
+ * singleton is rebuilt against the restored database.
+ */
+private fun restartApp(context: Context) {
+    val intent = Intent(context, MainActivity::class.java).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    }
+    runCatching { context.startActivity(intent) }
+    Runtime.getRuntime().exit(0)
 }
 
 @Composable
@@ -827,4 +985,87 @@ fun AboutScreen(onBack: () -> Unit) {
             )
         }
     }
+}
+
+/**
+ * Compact authorization prompt for turning the app lock off with the in-app PIN. Verification
+ * runs through [onVerify] (which must hop off the main thread for PBKDF2) and the dialog stays
+ * open with an error until the correct PIN is entered.
+ */
+@Composable
+private fun PinVerifyDialog(
+    expectedLength: Int,
+    onDismiss: () -> Unit,
+    onVerify: suspend (String) -> Boolean
+) {
+    var pin by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = { if (!checking) onDismiss() },
+        title = { Text("Confirm your PIN") },
+        text = {
+            Column {
+                Text(
+                    "Enter your current PIN to turn off app lock.",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary
+                )
+                Spacer(Modifier.height(MmSpacing.md))
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { value ->
+                        pin = value.filter { it.isDigit() }.take(expectedLength.coerceIn(4, 8))
+                        error = null
+                    },
+                    label = { Text("PIN") },
+                    singleLine = true,
+                    enabled = !checking,
+                    isError = error != null,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.NumberPassword,
+                        imeAction = ImeAction.Done
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                error?.let {
+                    Spacer(Modifier.height(MmSpacing.xs))
+                    Text(it, style = MmType.caption, color = MmColors.expense)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !checking,
+                onClick = {
+                    if (pin.length < 4) {
+                        error = "Enter your PIN"
+                        return@TextButton
+                    }
+                    checking = true
+                    val entered = pin
+                    scope.launch {
+                        val ok = onVerify(entered)
+                        checking = false
+                        if (!ok) {
+                            pin = ""
+                            error = "Incorrect PIN"
+                        }
+                    }
+                }
+            ) {
+                if (checking) {
+                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                } else {
+                    Text("Confirm")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(enabled = !checking, onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

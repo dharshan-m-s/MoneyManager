@@ -185,6 +185,72 @@ object AppDatabaseMigrations {
     }
 
     /**
+     * Migration 10 -> 11: normalized bill payments so an occurrence can be paid in parts.
+     *
+     *  - `bill_payment_allocations` holds one row per recorded payment (linked transaction or
+     *    explicit cash) with a unique `transactionId`, so a ledger transaction can never settle
+     *    two bills or be counted twice.
+     *  - `bill_instances.paidAmountMinorUnits` caches the SUM of those allocations for cheap
+     *    aggregate queries; `paid` keeps meaning "fully settled" (sum >= amount due).
+     *
+     * Backfill: every legacy `paid = 1` occurrence becomes exactly one full-settlement
+     * allocation of its amount due (legacy had no partial concept; its payment link - if any -
+     * becomes the allocation's transaction, null stays null = cash). If two legacy occurrences
+     * ever pointed at the same transaction, INSERT OR IGNORE keeps the oldest occurrence's
+     * allocation; the other occurrence loses the bogus link and returns to unpaid rather than
+     * double-counting one transaction.
+     */
+    val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `bill_payment_allocations` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`billInstanceId` INTEGER NOT NULL, " +
+                    "`transactionId` INTEGER, " +
+                    "`amountMinorUnits` INTEGER NOT NULL, " +
+                    "`paidAtEpochMillis` INTEGER NOT NULL, " +
+                    "`note` TEXT, " +
+                    "`createdAtEpochMillis` INTEGER NOT NULL, " +
+                    "FOREIGN KEY(`billInstanceId`) REFERENCES `bill_instances`(`id`) ON DELETE CASCADE, " +
+                    "FOREIGN KEY(`transactionId`) REFERENCES `transactions`(`id`) ON DELETE CASCADE)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_bill_payment_allocations_billInstanceId` " +
+                    "ON `bill_payment_allocations` (`billInstanceId`)"
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_bill_payment_allocations_transactionId` " +
+                    "ON `bill_payment_allocations` (`transactionId`)"
+            )
+            db.execSQL(
+                "ALTER TABLE `bill_instances` ADD COLUMN `paidAmountMinorUnits` INTEGER NOT NULL DEFAULT 0"
+            )
+            db.execSQL(
+                "INSERT OR IGNORE INTO `bill_payment_allocations` " +
+                    "(`billInstanceId`, `transactionId`, `amountMinorUnits`, `paidAtEpochMillis`, `createdAtEpochMillis`) " +
+                    "SELECT `id`, `paymentTransactionId`, `amountDueMinorUnits`, " +
+                    "COALESCE(`paidAtEpochMillis`, `dueDateEpochMillis`), " +
+                    "COALESCE(`paidAtEpochMillis`, `dueDateEpochMillis`) " +
+                    "FROM `bill_instances` WHERE `paid` = 1 ORDER BY `id`"
+            )
+            db.execSQL(
+                "UPDATE `bill_instances` SET `paidAmountMinorUnits` = `amountDueMinorUnits` " +
+                    "WHERE `paid` = 1 AND EXISTS (" +
+                    "  SELECT 1 FROM `bill_payment_allocations` a WHERE a.`billInstanceId` = `bill_instances`.`id`)"
+            )
+            // Occurrences that lost the INSERT OR IGNORE race above have no allocation of
+            // their own: their payment link was a duplicate, so drop it instead of showing a
+            // paid state with zero recorded money.
+            db.execSQL(
+                "UPDATE `bill_instances` SET `paid` = 0, `paidAtEpochMillis` = NULL, " +
+                    "`paymentTransactionId` = NULL, `paidAmountMinorUnits` = 0 " +
+                    "WHERE `paid` = 1 AND NOT EXISTS (" +
+                    "  SELECT 1 FROM `bill_payment_allocations` a WHERE a.`billInstanceId` = `bill_instances`.`id`)"
+            )
+        }
+    }
+
+    /**
      * Add new migrations above this line. Each migration must:
      * 1. Be backward-safe (can't drop columns used by older code)
      * 2. Preserve all existing data
@@ -200,12 +266,13 @@ object AppDatabaseMigrations {
         MIGRATION_6_7,
         MIGRATION_7_8,
         MIGRATION_8_9,
-        MIGRATION_9_10
+        MIGRATION_9_10,
+        MIGRATION_10_11
     )
 
     /**
      * Returns the latest database version. Used by DatabaseModule to set the version
      * parameter dynamically so it stays in sync with migrations.
      */
-    fun latestVersion(): Int = 10
+    fun latestVersion(): Int = 11
 }

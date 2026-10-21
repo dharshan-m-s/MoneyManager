@@ -7,6 +7,7 @@ import com.moneymanager.app.data.local.dao.TransactionDao
 import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.local.entity.BillEntity
 import com.moneymanager.app.data.local.entity.BillInstanceEntity
+import com.moneymanager.app.data.local.entity.BillPaymentAllocationEntity
 import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.billing.BillRecurrenceService
 import com.moneymanager.app.domain.model.AccountType
@@ -18,6 +19,7 @@ import com.moneymanager.app.domain.model.TxnType
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 
 @Singleton
 class BillRepository @Inject constructor(
@@ -30,94 +32,168 @@ class BillRepository @Inject constructor(
     private val backupManager: BackupManager
 ) {
     /**
-     * Marks an existing bill instance as paid by linking it to an already-recorded transaction.
-     * Passing null means the user explicitly chose "Paid by Cash" (or recorded the movement
-     * elsewhere); no ledger transaction is created in that case.
+     * Records a payment against an existing bill occurrence and links it to an
+     * already-recorded transaction, or (with a null [paymentTransactionId]) records an
+     * explicit cash/out-of-band payment.
      *
-     * For a credit-card bill where the chosen transaction is the bank side of a payment, the
-     * card-side leg is required to reduce the outstanding correctly. If the transaction is not
-     * already paired with a card leg, the missing leg is created once - the original bank
-     * transaction is never duplicated. Repeated calls are idempotent.
+     * Partial payments are first-class: the allocation amount may be less than the remaining
+     * due, the occurrence stays unsettled with its paid aggregate updated, and the schedule
+     * only advances once payments cover the amount due. Over-payments are recorded at their
+     * full amount (never silently capped) and show up as an extra credit on the settled
+     * occurrence.
+     *
+     * Candidate validation: a credit-card bill's payment must originate OUTSIDE the cards -
+     * a purchase on the linked card (or any other card) is spending, not a payment, and is
+     * rejected instead of being reclassified as a transfer onto the wrong card.
+     *
+     * For a card bill where the chosen transaction is the bank side of a payment, the
+     * card-side leg is required to reduce the outstanding correctly; it is created once and
+     * the original bank transaction is never duplicated. A transaction already allocated to
+     * any bill (directly or as the peer of a paired transfer) is rejected.
      */
-    suspend fun markAsPaid(instance: BillInstanceEntity, paymentTransactionId: Long?) {
-        var paidBillId: Long? = null
-        database.withTransaction {
-            val current = billDao.findInstanceById(instance.id) ?: return@withTransaction
-            // Already paid: never pay the same occurrence twice or re-link its history.
-            if (current.paid) return@withTransaction
+    suspend fun markAsPaid(
+        instance: BillInstanceEntity,
+        paymentTransactionId: Long?,
+        amountMinorUnits: Long? = null
+    ): BillInstanceEntity {
+        var settledBillId: Long? = null
+        val updated = database.withTransaction {
+            val current = billDao.findInstanceById(instance.id)
+                ?: return@withTransaction instance
+            // Fully settled: never pay the same occurrence again or re-link its history.
+            if (current.paid) return@withTransaction current
+            val bill = billDao.findById(current.billId)
+            val cardId = bill?.linkedAccountId
+            val remaining =
+                (current.amountDueMinorUnits - current.paidAmountMinorUnits).coerceAtLeast(0L)
 
-            var effectivePaymentId = paymentTransactionId
-            var paidAt = System.currentTimeMillis()
+            var effectivePaymentId: Long? = paymentTransactionId
+            var moneyMoved: Long
+            var paidAt: Long = System.currentTimeMillis()
 
             if (paymentTransactionId != null) {
                 val payment = requireNotNull(transactionDao.findById(paymentTransactionId)) {
                     "Payment transaction no longer exists"
                 }
-                val linked = billDao.findByPaymentTransactionId(paymentTransactionId)
-                require(linked == null || linked.id == instance.id) {
-                    "Payment transaction is already linked to another bill"
+                require(!isAllocatedAnywhere(paymentTransactionId)) {
+                    "This transaction is already recorded as a payment for another bill"
                 }
+                val peerId = payment.linkedTransferTransactionId
+                if (peerId != null) {
+                    require(!isAllocatedAnywhere(peerId)) {
+                        "This transfer is already recorded as a payment for another bill"
+                    }
+                }
+
+                // A card bill is settled from outside the cards; a purchase (on the linked
+                // card or any other) must never be reclassified into a payment leg.
+                if (cardId != null) {
+                    require(payment.accountId != cardId) {
+                        "This is a transaction on the card itself, not a payment towards it. " +
+                            "Record a new payment instead."
+                    }
+                    val sourceAccount = requireNotNull(accountDao.findById(payment.accountId)) {
+                        "Payment account no longer exists"
+                    }
+                    require(sourceAccount.accountType != AccountType.CREDIT_CARD) {
+                        "A purchase on another credit card does not pay this bill. Choose a " +
+                            "transaction from a bank account."
+                    }
+                    require(payment.debitMinorUnits > 0L) {
+                        "Choose a transaction that pays money out"
+                    }
+                } else {
+                    require(
+                        !payment.isCreditCardBillPayment && payment.paysOffAccountId == null
+                    ) {
+                        "Choose the transaction that paid the bill directly"
+                    }
+                }
+
+                val moneyOut = payment.debitMinorUnits
+                require(moneyOut > 0L) { "The selected transaction has no payment amount" }
+                moneyMoved = moneyOut
                 paidAt = payment.occurredAtEpochMillis
 
-                val bill = billDao.findById(current.billId)
-                val cardId = bill?.linkedAccountId
-                if (cardId != null && payment.accountId != cardId) {
-                    // Resolve the card side: an existing CC bill-payment leg if present, else
-                    // create the missing leg. The bank transaction itself is untouched.
-                    val peer = payment.linkedTransferTransactionId?.let { transactionDao.findById(it) }
-                    val existingCardLeg = peer?.takeIf {
-                        it.accountId == cardId && it.paysOffAccountId == cardId
+                val peer = peerId?.let { transactionDao.findById(it) }
+                if (cardId != null && peer != null && peer.accountId != cardId) {
+                    throw IllegalArgumentException(
+                        "This transfer already pays a different credit card"
+                    )
+                }
+                val existingCardLeg = peer?.takeIf {
+                    it.accountId == cardId && it.paysOffAccountId == cardId
+                }
+                if (existingCardLeg != null) {
+                    require(!isAllocatedAnywhere(existingCardLeg.id)) {
+                        "This payment is already linked to another bill"
                     }
-                    if (existingCardLeg != null) {
-                        val linkedTo = billDao.findByPaymentTransactionId(existingCardLeg.id)
-                        require(linkedTo == null || linkedTo.id == instance.id) {
-                            "This payment is already linked to another bill"
-                        }
-                    } else if (payment.txnSubType == TxnSubType.EXPENSE) {
-                        // A card bill payment is a transfer, not ordinary spending. The user has
-                        // explicitly identified this row as the payment, so reclassify it rather
-                        // than leaving it in the spend totals.
-                        transactionDao.update(
-                            payment.copy(
-                                txnSubType = TxnSubType.TRANSFER_OUT,
-                                txnKind = TxnKind.REGULAR,
-                                rawCategoryName = payment.rawCategoryName ?: "A/c to A/c",
-                                updatedAtEpochMillis = System.currentTimeMillis()
-                            )
+                } else if (cardId != null && payment.txnSubType == TxnSubType.EXPENSE) {
+                    // A card bill payment is a transfer, not ordinary spending. The user has
+                    // explicitly identified this row as the payment, so reclassify it rather
+                    // than leaving it in the spend totals.
+                    transactionDao.update(
+                        payment.copy(
+                            txnSubType = TxnSubType.TRANSFER_OUT,
+                            txnKind = TxnKind.REGULAR,
+                            rawCategoryName = payment.rawCategoryName ?: "A/c to A/c",
+                            updatedAtEpochMillis = System.currentTimeMillis()
                         )
-                        accountingService.recalculateAccounts(setOf(payment.accountId))
-                    }
-                    effectivePaymentId = existingCardLeg?.id ?: createCardSidePayment(
+                    )
+                    accountingService.recalculateAccounts(setOf(payment.accountId))
+                }
+                effectivePaymentId = if (cardId != null) {
+                    existingCardLeg?.id ?: createCardSidePayment(
                         payment = payment,
                         cardAccountId = cardId,
                         cardName = bill.billerName
                     )
+                } else {
+                    payment.id
                 }
+            } else {
+                moneyMoved = amountMinorUnits ?: remaining
             }
 
-            billDao.updateInstance(
-                current.copy(
-                    paid = true,
+            if (amountMinorUnits != null && paymentTransactionId != null) {
+                require(amountMinorUnits in 1L..moneyMoved) {
+                    "Payment amount must match the selected transaction"
+                }
+                moneyMoved = amountMinorUnits
+            }
+            require(moneyMoved > 0L) { "Enter a payment amount" }
+
+            billDao.insertAllocation(
+                BillPaymentAllocationEntity(
+                    billInstanceId = current.id,
+                    transactionId = effectivePaymentId,
+                    amountMinorUnits = moneyMoved,
                     paidAtEpochMillis = paidAt,
-                    paymentTransactionId = effectivePaymentId
+                    createdAtEpochMillis = System.currentTimeMillis()
                 )
             )
-            paidBillId = current.billId
+            val newState = requireNotNull(syncInstancePaymentState(current.id))
+            if (newState.paid) settledBillId = current.billId
+            newState
         }
         // Advance the schedule past the settled occurrence so the template's next due date
-        // reflects the recurrence immediately, not at the next app start.
-        paidBillId?.let { billRecurrenceService.reconcileBill(it) }
+        // reflects the recurrence immediately, not at the next app start. Partial payments
+        // leave the schedule alone - the occurrence is still owed.
+        settledBillId?.let { billRecurrenceService.reconcileBill(it) }
         backupManager.scheduleAfterWrite()
+        return updated
     }
 
     /**
-     * Records a new payment for a credit-card bill as a proper two-legged transfer:
+     * Records a payment for a credit-card bill as a proper two-legged transfer:
      *  - a TRANSFER_OUT on the source account (real money leaves it),
      *  - a CARD_PAYMENT (TRANSFER_IN + cc-bill-payment kind) on the card (outstanding falls),
-     * and links the bill instance to the card leg, atomically.
+     * and allocates it against the bill instance, atomically. The amount may be partial -
+     * the occurrence stays unsettled until allocations cover the amount due, and only then
+     * does the schedule advance.
      *
-     * Returns the card-side transaction id. If the instance is already paid the existing
-     * payment id is returned, so retries cannot create a second payment.
+     * Returns the card-side transaction id. If the instance is already fully settled the
+     * existing payment id is returned, so retries cannot create a second payment.
      */
     suspend fun recordCreditCardBillPayment(
         instanceId: Long,
@@ -126,7 +202,7 @@ class BillRepository @Inject constructor(
         occurredAtEpochMillis: Long,
         notes: String? = null
     ): Long {
-        var paidBillId: Long? = null
+        var settledBillId: Long? = null
         val result = database.withTransaction {
             val instance = requireNotNull(billDao.findInstanceById(instanceId)) {
                 "Bill occurrence no longer exists"
@@ -148,9 +224,11 @@ class BillRepository @Inject constructor(
             val source = requireNotNull(accountDao.findById(sourceAccountId)) {
                 "Payment account no longer exists"
             }
+            val remaining =
+                (instance.amountDueMinorUnits - instance.paidAmountMinorUnits).coerceAtLeast(0L)
             val amount = when {
                 amountMinorUnits > 0L -> amountMinorUnits
-                instance.amountDueMinorUnits > 0L -> instance.amountDueMinorUnits
+                remaining > 0L -> remaining
                 else -> throw IllegalArgumentException("Enter a payment amount")
             }
             val whenMillis = occurredAtEpochMillis.coerceAtLeast(0L)
@@ -179,22 +257,90 @@ class BillRepository @Inject constructor(
                 requireNotNull(transactionDao.findById(outId)).copy(linkedTransferTransactionId = cardIdTxn)
             )
 
-            billDao.updateInstance(
-                instance.copy(
-                    paid = true,
+            billDao.insertAllocation(
+                BillPaymentAllocationEntity(
+                    billInstanceId = instance.id,
+                    transactionId = cardIdTxn,
+                    amountMinorUnits = amount,
                     paidAtEpochMillis = whenMillis,
-                    paymentTransactionId = cardIdTxn
+                    createdAtEpochMillis = System.currentTimeMillis()
                 )
             )
-            paidBillId = instance.billId
+            val settled = requireNotNull(syncInstancePaymentState(instance.id))
+            if (settled.paid) settledBillId = instance.billId
             accountingService.recalculateAccounts(setOf(source.id, cardId))
             cardIdTxn
         }
-        // Advance the schedule past the settled occurrence immediately (see markAsPaid).
-        paidBillId?.let { billRecurrenceService.reconcileBill(it) }
+        // Advance the schedule only once the occurrence is actually settled (see markAsPaid).
+        settledBillId?.let { billRecurrenceService.reconcileBill(it) }
         backupManager.scheduleAfterWrite()
         return result
     }
+
+    /**
+     * Instance ids whose payment state references any of these transactions - either through
+     * an allocation row or the legacy link column. Read BEFORE deleting the transactions,
+     * then call [recomputeInstancePaymentStates] after the (cascade) deletion.
+     */
+    suspend fun instanceIdsReferencingTransactions(transactionIds: Set<Long>): Set<Long> {
+        if (transactionIds.isEmpty()) return emptySet()
+        val fromAllocations = billDao.findInstanceIdsForTransactions(transactionIds)
+        val fromLegacy = transactionIds.mapNotNull { billDao.findByPaymentTransactionId(it)?.id }
+        return (fromAllocations + fromLegacy).toSet()
+    }
+
+    /**
+     * Recomputes cached payment aggregates after payment transactions disappeared (their
+     * allocation rows cascade away with them). The occurrence returns to whichever state the
+     * remaining allocations justify - unpaid, partially paid or still settled - instead of a
+     * blanket reset that would discard surviving partial payments.
+     */
+    suspend fun recomputeInstancePaymentStates(instanceIds: Set<Long>) {
+        if (instanceIds.isEmpty()) return
+        database.withTransaction {
+            instanceIds.forEach { syncInstancePaymentState(it) }
+        }
+        backupManager.scheduleAfterWrite()
+    }
+
+    /**
+     * Recomputes an occurrence's cached columns (paidAmount, paid, paidAt, primary payment
+     * link) from its allocations. Must run inside the caller's transaction when part of a
+     * larger operation. `paid` becomes true only when recorded payments cover the amount due;
+     * `paidAt` is the date the coverage completed, not the latest payment date.
+     */
+    private suspend fun syncInstancePaymentState(instanceId: Long): BillInstanceEntity? {
+        val instance = billDao.findInstanceById(instanceId) ?: return null
+        val allocations = billDao.findAllocationsForInstance(instanceId)
+        val sum = allocations.sumOf { it.amountMinorUnits }
+        val settled = allocations.isNotEmpty() && sum >= instance.amountDueMinorUnits
+        val completedAt = if (settled) {
+            var running = 0L
+            var crossedAt: Long? = null
+            for (allocation in allocations) {
+                running += allocation.amountMinorUnits
+                if (running >= instance.amountDueMinorUnits) {
+                    crossedAt = allocation.paidAtEpochMillis
+                    break
+                }
+            }
+            crossedAt
+        } else {
+            null
+        }
+        val updated = instance.copy(
+            paid = settled,
+            paidAtEpochMillis = completedAt,
+            paymentTransactionId = allocations.firstOrNull { it.transactionId != null }?.transactionId,
+            paidAmountMinorUnits = sum
+        )
+        billDao.updateInstance(updated)
+        return updated
+    }
+
+    private suspend fun isAllocatedAnywhere(transactionId: Long): Boolean =
+        billDao.findAllocationByTransactionId(transactionId) != null ||
+            billDao.findByPaymentTransactionId(transactionId) != null
 
     /**
      * Creates the card-side leg for an already-recorded bank payment and links the two legs so
@@ -208,7 +354,7 @@ class BillRepository @Inject constructor(
         // Re-read in case markAsPaid just reclassified this row (expense -> transfer).
         val current = transactionDao.findById(payment.id) ?: payment
         val amount = if (current.debitMinorUnits > 0L) current.debitMinorUnits
-        else kotlin.math.abs(current.creditMinorUnits).takeIf { it > 0L }
+        else abs(current.creditMinorUnits).takeIf { it > 0L }
             ?: 0L
         require(amount > 0L) { "The selected transaction has no payment amount" }
         val cardTransactionId = transactionDao.insert(

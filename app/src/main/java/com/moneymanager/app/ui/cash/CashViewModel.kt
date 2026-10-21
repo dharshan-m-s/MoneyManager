@@ -7,17 +7,18 @@ import com.moneymanager.app.data.local.dao.TransactionDao
 import com.moneymanager.app.data.local.dao.CategoryDao
 import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.model.AccountType
-import com.moneymanager.app.data.repository.AccountingService
 import com.moneymanager.app.domain.model.Money
+import com.moneymanager.app.domain.reporting.FinancialSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
-import java.time.ZoneId
-import java.time.ZonedDateTime
 
 data class CatSpend(val categoryId: Long?, val name: String, val total: Long)
+
+/** Canonical per-month cash totals (spend/income), keyed by the first day of the month. */
+data class CashMonthTotals(val spendMinor: Long, val incomeMinor: Long)
 
 data class CashUiState(
     val cashInHand: Money = Money.ZERO,
@@ -25,99 +26,104 @@ data class CashUiState(
     val monthIncome: Money = Money.ZERO,
     val primaryCashAccountId: Long? = null,
     val transactions: List<TransactionEntity> = emptyList(),
-    val topCategoryTotals: List<CatSpend> = emptyList()
+    val topCategoryTotals: List<CatSpend> = emptyList(),
+    val monthTotals: Map<java.time.LocalDate, CashMonthTotals> = emptyMap()
 )
 
 @HiltViewModel
 class CashViewModel @Inject constructor(
     accountDao: AccountDao,
     transactionDao: TransactionDao,
-    categoryDao: CategoryDao,
-    private val accountingService: AccountingService
+    categoryDao: CategoryDao
 ) : ViewModel() {
 
-    private val zone = ZoneId.of("Asia/Kolkata")
-    private val monthStart: Long
-    private val monthEndExclusive: Long
-
-    init {
-        val start = ZonedDateTime.now(zone).toLocalDate().withDayOfMonth(1).atStartOfDay(zone)
-        monthStart = start.toInstant().toEpochMilli()
-        monthEndExclusive = start.plusMonths(1).toInstant().toEpochMilli()
-    }
+    // Canonical reporting period - same month window and timezone as the dashboard and every
+    // other summary. Computed once per VM instance, consistent with the rest of the app.
+    private val period = FinancialSummary.currentMonthPeriod()
 
     val uiState = combine(
         accountDao.observeByType(AccountType.CASH),
         transactionDao.observeAllCashTransactions(),
         categoryDao.observeAll()
     ) { cashAccounts, allImportedCashTxns, categories ->
-        // IMPORTANT: the Cash screen is calculated from the transaction ledger, not from a
-        // persisted/imported Balance column. The CSV contains Balance=0 for cash rows and uses
-        // cash-forward restore rows as the real opening checkpoint. AccountingService/
-        // AccountingEngine is therefore the single source of truth for the displayed balance.
-        // Historical cash transactions must remain visible even if a legacy import created the
-        // cash account with an incorrect visibility flag. Balance display still respects the
-        // user's active/hidden account settings, but history/analytics are sourced from every
-        // non-deleted CASH account so imported rows cannot disappear from the Cash page.
-        val usableCashAccounts = cashAccounts.filter { it.active && !it.deleted && !it.hide }
+        // The Cash screen is calculated from the transaction ledger, not a persisted/imported
+        // Balance column - the CSV contains Balance=0 for cash rows and uses cash-forward restore
+        // rows as the real opening checkpoint. Historical cash transactions must remain visible
+        // even if a legacy import created the cash account with a wrong visibility flag, so
+        // history is sourced from every non-deleted CASH account. Balance, however, only counts
+        // accounts that participate in combined totals (FinancialSummary.isIncluded), matching
+        // the dashboard, and reads the value AccountingService persisted - the single source of
+        // truth - instead of re-deriving it with an ad-hoc timestamp filter.
+        val includedCashAccounts = cashAccounts.filter { FinancialSummary.isIncluded(it) }
         val historyCashAccounts = cashAccounts.filter { !it.deleted }
-        val cashAccountIds = historyCashAccounts.map { it.id }.toSet()
+        val historyIds = historyCashAccounts.map { it.id }.toSet()
         val allCashTxns = allImportedCashTxns
-            .filter { it.accountId in cashAccountIds }
-            .sortedWith(compareByDescending<com.moneymanager.app.data.local.entity.TransactionEntity> { it.occurredAtEpochMillis }.thenByDescending { it.id })
-        val cashTxns = allCashTxns.filter {
-            it.occurredAtEpochMillis >= monthStart && it.occurredAtEpochMillis < monthEndExclusive
-        }
+            .filter { it.accountId in historyIds }
+            .sortedWith(
+                compareByDescending<TransactionEntity> { it.occurredAtEpochMillis }
+                    .thenByDescending { it.id }
+            )
 
-        var totalBalance = 0L
-        for (account in usableCashAccounts) {
-            val accountTxns = allCashTxns.filter { it.accountId == account.id }
-            val state = accountingService.ledgerRowsFor(accountTxns, AccountType.CASH)
-                .let(com.moneymanager.app.domain.accounting.AccountingEngine::balanceState)
-            val calculated = if (account.manualBalanceOverrideMinorUnits != null &&
-                account.manualBalanceOverrideAtEpochMillis != null
-            ) {
-                val postOverride = accountingService.ledgerRowsFor(accountTxns, AccountType.CASH)
-                    .asSequence()
-                    .filter { it.occurredAtEpochMillis > account.manualBalanceOverrideAtEpochMillis }
-                    .sumOf { it.movement.ledgerDeltaMinorUnits }
-                account.manualBalanceOverrideMinorUnits + postOverride
-            } else {
-                state.calculatedBalanceMinorUnits
-            }
-            totalBalance += calculated
-        }
+        // Balance: persisted authoritative value of included cash accounts.
+        val totalBalance = includedCashAccounts.sumOf { it.currentBalanceMinorUnits }
 
-        val spend = cashTxns.filter { it.includeInStatistics && it.debitMinorUnits > it.creditMinorUnits }
-            .sumOf { it.debitMinorUnits - it.creditMinorUnits }
-        val income = cashTxns.filter { it.includeInStatistics && it.creditMinorUnits > it.debitMinorUnits }
-            .sumOf { it.creditMinorUnits - it.debitMinorUnits }
+        // Month figures use the canonical spend/income predicates (transaction semantics, not a
+        // raw debit/credit sign test), so transfers, cash withdrawals, refunds/reversals and
+        // excluded-statistics rows are treated exactly as they are everywhere else in the app.
+        val accounts = cashAccounts.associateBy { it.id }
+        val monthRows = allCashTxns.filter { period.contains(it.occurredAtEpochMillis) }
+        val spendRows = financialSpendRows(monthRows, accounts)
+        val incomeRows = financialIncomeRows(monthRows, accounts)
+        val spend = spendRows.sumOf { FinancialSummary.spendAmountMinor(it) }
+        val income = incomeRows.sumOf { FinancialSummary.incomeAmountMinor(it) }
 
-        // Calculate Top Spend Areas from the same imported ledger used for the balance. This
-        // avoids a second SQL accounting path getting out of sync with the canonical engine.
+        // Top Spend Areas from the same canonical spend rows, so the totals reconcile with the
+        // month spend above.
         val names = categories.associate { it.id to it.name }
-        val categoryTotals = cashTxns
-            .asSequence()
-            .filter { it.includeInStatistics && it.debitMinorUnits > it.creditMinorUnits }
+        val categoryTotals = spendRows
             .groupBy { it.categoryId }
             .map { (categoryId, txns) ->
                 CatSpend(
                     categoryId = categoryId,
                     name = categoryId?.let(names::get) ?: "Uncategorized",
-                    total = txns.sumOf { it.debitMinorUnits - it.creditMinorUnits }
+                    total = txns.sumOf { FinancialSummary.spendAmountMinor(it) }
                 )
             }
-            .filter { it.total > 0 }
+            .filter { it.total != 0L }
             .sortedByDescending { it.total }
             .take(6)
+
+        val monthTotals = monthRows
+            .groupBy {
+                java.time.Instant.ofEpochMilli(it.occurredAtEpochMillis)
+                    .atZone(FinancialSummary.zone).toLocalDate().withDayOfMonth(1)
+            }
+            .mapValues { (_, rowsInMonth) ->
+                val spend = rowsInMonth.filter { FinancialSummary.isSpendRow(it, accounts) }
+                    .sumOf { FinancialSummary.spendAmountMinor(it) }
+                val income = rowsInMonth.filter { FinancialSummary.isIncomeRow(it, accounts) }
+                    .sumOf { FinancialSummary.incomeAmountMinor(it) }
+                CashMonthTotals(spendMinor = spend, incomeMinor = income)
+            }
 
         CashUiState(
             cashInHand = Money(totalBalance),
             monthSpend = Money(spend),
             monthIncome = Money(income),
-            primaryCashAccountId = usableCashAccounts.firstOrNull()?.id,
+            primaryCashAccountId = includedCashAccounts.firstOrNull()?.id,
             transactions = allCashTxns,
-            topCategoryTotals = categoryTotals
+            topCategoryTotals = categoryTotals,
+            monthTotals = monthTotals
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CashUiState())
+
+    private fun financialSpendRows(
+        rows: List<TransactionEntity>,
+        accounts: Map<Long, com.moneymanager.app.data.local.entity.AccountEntity>
+    ): List<TransactionEntity> = rows.filter { FinancialSummary.isSpendRow(it, accounts) }
+
+    private fun financialIncomeRows(
+        rows: List<TransactionEntity>,
+        accounts: Map<Long, com.moneymanager.app.data.local.entity.AccountEntity>
+    ): List<TransactionEntity> = rows.filter { FinancialSummary.isIncomeRow(it, accounts) }
 }

@@ -50,7 +50,7 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY occurredAtEpochMillis DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<TransactionEntity>>
 
-    @Query("SELECT * FROM transactions WHERE occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive ORDER BY occurredAtEpochMillis DESC")
+    @Query("SELECT * FROM transactions WHERE occurredAtEpochMillis >= :startInclusive AND occurredAtEpochMillis < :endExclusive ORDER BY occurredAtEpochMillis DESC")
     suspend fun findInRange(startInclusive: Long, endExclusive: Long): List<TransactionEntity>
 
     @Query("SELECT * FROM transactions ORDER BY occurredAtEpochMillis DESC LIMIT :limit")
@@ -65,15 +65,27 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE txnSubType = 'INCOME' ORDER BY occurredAtEpochMillis DESC LIMIT :limit")
     fun observeRecentIncome(limit: Int): Flow<List<TransactionEntity>>
 
+    /** Canonical income list: same predicate as FinancialSummary.isIncomeRow (income semantics,
+     *  statistics-included, included accounts, refunds/reversals excluded) so the Income screen
+     *  reconciles with the dashboard income tile. */
     @Query(
-        "SELECT * FROM transactions WHERE occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive " +
+        "SELECT t.* FROM transactions t INNER JOIN accounts a ON a.id = t.accountId " +
+            "WHERE t.txnSubType = 'INCOME' AND t.txnKind != 'REFUND_REVERSAL' " +
+            "AND t.includeInStatistics = 1 " +
+            "AND $INCLUDED_ACCOUNT " +
+            "ORDER BY t.occurredAtEpochMillis DESC LIMIT :limit"
+    )
+    fun observeIncomeList(limit: Int): Flow<List<TransactionEntity>>
+
+    @Query(
+        "SELECT * FROM transactions WHERE occurredAtEpochMillis >= :startInclusive AND occurredAtEpochMillis < :endExclusive " +
             "ORDER BY occurredAtEpochMillis DESC"
     )
     fun observeInRange(startInclusive: Long, endExclusive: Long): Flow<List<TransactionEntity>>
 
     @Query(
         "SELECT * FROM transactions WHERE accountId = :accountId " +
-            "AND occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive " +
+            "AND occurredAtEpochMillis >= :startInclusive AND occurredAtEpochMillis < :endExclusive " +
             "ORDER BY occurredAtEpochMillis DESC"
     )
     fun observeByAccountInRange(accountId: Long, startInclusive: Long, endExclusive: Long): Flow<List<TransactionEntity>>
@@ -136,7 +148,7 @@ interface TransactionDao {
             "WHERE (t.txnSubType = 'EXPENSE' OR t.txnKind = 'REFUND_REVERSAL') " +
             "AND t.includeInStatistics = 1 " +
             "AND $INCLUDED_ACCOUNT " +
-            "AND t.occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive"
+            "AND t.occurredAtEpochMillis >= :startInclusive AND t.occurredAtEpochMillis < :endExclusive"
     )
     fun observeTotalSpendInRange(startInclusive: Long, endExclusive: Long): Flow<Long>
 
@@ -146,7 +158,7 @@ interface TransactionDao {
             "WHERE t.txnSubType = 'INCOME' AND t.txnKind != 'REFUND_REVERSAL' " +
             "AND t.includeInStatistics = 1 " +
             "AND $INCLUDED_ACCOUNT " +
-            "AND t.occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive"
+            "AND t.occurredAtEpochMillis >= :startInclusive AND t.occurredAtEpochMillis < :endExclusive"
     )
     fun observeTotalIncomeInRange(startInclusive: Long, endExclusive: Long): Flow<Long>
 
@@ -156,7 +168,7 @@ interface TransactionDao {
             "WHERE (t.txnSubType = 'EXPENSE' OR t.txnKind = 'REFUND_REVERSAL') " +
             "AND t.includeInStatistics = 1 " +
             "AND $INCLUDED_ACCOUNT " +
-            "AND t.occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive " +
+            "AND t.occurredAtEpochMillis >= :startInclusive AND t.occurredAtEpochMillis < :endExclusive " +
             "GROUP BY t.categoryId ORDER BY total DESC"
     )
     fun observeCategoryTotalsInRange(startInclusive: Long, endExclusive: Long): Flow<List<CategoryTotal>>
@@ -186,7 +198,7 @@ interface TransactionDao {
             "AND (t.txnSubType = 'EXPENSE' OR t.txnKind = 'REFUND_REVERSAL') " +
             "AND t.includeInStatistics = 1 " +
             "AND $INCLUDED_ACCOUNT " +
-            "AND t.occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive " +
+            "AND t.occurredAtEpochMillis >= :startInclusive AND t.occurredAtEpochMillis < :endExclusive " +
             "ORDER BY t.occurredAtEpochMillis DESC"
     )
     fun observeByCategoryInRange(categoryId: Long?, startInclusive: Long, endExclusive: Long): Flow<List<TransactionEntity>>
@@ -202,10 +214,15 @@ interface TransactionDao {
 
     @Query(
         "SELECT * FROM transactions WHERE accountId = :accountId " +
-            "AND occurredAtEpochMillis BETWEEN :startInclusive AND :endExclusive " +
+            "AND occurredAtEpochMillis >= :startInclusive AND occurredAtEpochMillis < :endExclusive " +
             "ORDER BY occurredAtEpochMillis ASC"
     )
     suspend fun findByAccountInRange(accountId: Long, startInclusive: Long, endExclusive: Long): List<TransactionEntity>
+
+    /** Full (unpaged) history for one account, used to compute month/cycle subtotals that must
+     *  not depend on how many rows a list page happens to have loaded. */
+    @Query("SELECT * FROM transactions WHERE accountId = :accountId ORDER BY occurredAtEpochMillis ASC")
+    fun observeFullAccountHistory(accountId: Long): Flow<List<TransactionEntity>>
 }
 
 data class CategoryTotal(val categoryId: Long?, val total: Long)

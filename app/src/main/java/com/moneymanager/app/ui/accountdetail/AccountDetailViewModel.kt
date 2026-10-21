@@ -66,25 +66,51 @@ class AccountDetailViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun stateFor(accountId: Long) = combine(
         accountDao.observeById(accountId),
-        limitFlow.flatMapLatest { limit -> transactionDao.observeByAccountLimited(accountId, limit) }
-    ) { account, txns ->
+        limitFlow.flatMapLatest { limit -> transactionDao.observeByAccountLimited(accountId, limit) },
+        transactionDao.observeFullAccountHistory(accountId)
+    ) { account, txns, fullHistory ->
         val isCard = account?.accountType == AccountType.CREDIT_CARD
-        val monthGroups = txns.groupBy {
-            YearMonth.from(Instant.ofEpochMilli(it.occurredAtEpochMillis).atZone(zone))
-        }.toSortedMap(compareByDescending { it })
+        // Month/cycle income & expense are computed from the FULL history, not the bounded page
+        // being displayed, so a subtotal never changes just because fewer rows were paged in.
+        //
+        // Performance: index each side ONCE instead of re-scanning the page for every group
+        // (the previous shape was O(groups x page = O(groups x history)). Aggregates come from a
+        // single pass over the full history; displayed rows come from a single pass over the page.
+        val fullByMonth = HashMap<YearMonth, MutableList<TransactionEntity>>()
+        for (t in fullHistory) {
+            val ym = YearMonth.from(Instant.ofEpochMilli(t.occurredAtEpochMillis).atZone(zone))
+            fullByMonth.getOrPut(ym) { ArrayList() }.add(t)
+        }
+        val pageByMonth = HashMap<YearMonth, MutableList<TransactionEntity>>()
+        for (t in txns) {
+            val ym = YearMonth.from(Instant.ofEpochMilli(t.occurredAtEpochMillis).atZone(zone))
+            pageByMonth.getOrPut(ym) { ArrayList() }.add(t)
+        }
+        val monthGroups = fullByMonth.entries
+            .sortedByDescending { it.key }
             .map { (ym, list) ->
                 MonthGroup(
                     label = "${ym.month.name.take(3).lowercase().replaceFirstChar { c -> c.uppercase() }} ${ym.year}",
                     income = list.filter { it.includeInStatistics }.sumOf { it.creditMinorUnits },
                     expense = list.filter { it.includeInStatistics }.sumOf { it.debitMinorUnits },
-                    transactions = list.sortedByDescending { it.occurredAtEpochMillis }
+                    transactions = (pageByMonth[ym] ?: emptyList())
+                        .sortedByDescending { it.occurredAtEpochMillis }
                 )
             }
         val cycleStartDay = account?.billingCycleStartDay ?: 1
         val cycleGroups = if (isCard) {
-            txns.groupBy {
-                AccountingEngine.billingCycleWindowFor(cycleStartDay, it.occurredAtEpochMillis, zone).startInclusive
-            }.toSortedMap(compareByDescending { it })
+            val fullByCycle = HashMap<Long, MutableList<TransactionEntity>>()
+            for (t in fullHistory) {
+                val start = AccountingEngine.billingCycleWindowFor(cycleStartDay, t.occurredAtEpochMillis, zone).startInclusive
+                fullByCycle.getOrPut(start) { ArrayList() }.add(t)
+            }
+            val pageByCycle = HashMap<Long, MutableList<TransactionEntity>>()
+            for (t in txns) {
+                val start = AccountingEngine.billingCycleWindowFor(cycleStartDay, t.occurredAtEpochMillis, zone).startInclusive
+                pageByCycle.getOrPut(start) { ArrayList() }.add(t)
+            }
+            fullByCycle.entries
+                .sortedByDescending { it.key }
                 .map { (startEpoch, list) ->
                     val window = AccountingEngine.billingCycleWindowFor(cycleStartDay, startEpoch, zone)
                     CycleGroup(
@@ -93,7 +119,8 @@ class AccountDetailViewModel @Inject constructor(
                         endExclusive = window.endExclusive,
                         income = list.filter { it.includeInStatistics }.sumOf { it.creditMinorUnits },
                         expense = list.filter { it.includeInStatistics }.sumOf { it.debitMinorUnits },
-                        transactions = list.sortedByDescending { it.occurredAtEpochMillis }
+                        transactions = (pageByCycle[startEpoch] ?: emptyList())
+                            .sortedByDescending { it.occurredAtEpochMillis }
                     )
                 }
         } else {

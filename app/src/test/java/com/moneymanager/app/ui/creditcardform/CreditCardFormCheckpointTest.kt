@@ -13,6 +13,7 @@ import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.data.repository.AccountingService
 import com.moneymanager.app.data.repository.AttachmentRepository
 import com.moneymanager.app.data.repository.BackupManager
+import com.moneymanager.app.data.repository.BillRepository
 import com.moneymanager.app.data.repository.TransactionRepository
 import com.moneymanager.app.domain.billing.BillRecurrenceService
 import com.moneymanager.app.domain.billing.BillSchedule
@@ -71,14 +72,23 @@ class CreditCardFormCheckpointTest {
             context, db, db.transactionDao(), db.accountDao(), db.categoryDao()
         )
         val attachmentRepository = AttachmentRepository(context, db.transactionAttachmentDao())
+        val billRecurrenceService = BillRecurrenceService(db.billDao())
         transactionRepository = TransactionRepository(
             db, db.transactionDao(), db.accountDao(), db.categoryDao(), db.billDao(),
-            service, backupManager, attachmentRepository
+            service, backupManager, attachmentRepository,
+            BillRepository(
+                database = db,
+                billDao = db.billDao(),
+                transactionDao = db.transactionDao(),
+                accountDao = db.accountDao(),
+                accountingService = service,
+                billRecurrenceService = billRecurrenceService,
+                backupManager = backupManager
+            )
         )
-        val billRecurrenceService = BillRecurrenceService(db.billDao())
         viewModel = CreditCardFormViewModel(
             db.accountDao(), db.billDao(), transactionRepository, service,
-            billRecurrenceService, backupManager
+            billRecurrenceService, backupManager, db
         )
     }
 

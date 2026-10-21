@@ -213,13 +213,20 @@ fun SpendSummaryScreen(
 @Composable
 private fun SpendDonutChart(rows: List<SpendCategoryRow>, total: Long) {
     val holeColor = MmColors.surface
+    // The ring only shows positive contributions; a category that nets negative (refunds
+    // exceeded spend) is a credit, not a wedge. The ring is scaled to those positive rows so it
+    // still reads as a full breakdown, while the header total stays the canonical net spend.
+    val positiveRows = rows.filter { it.total > 0L }
+    val ringTotal = positiveRows.sumOf { it.total }
+    // Colours are resolved here (composable scope); the Canvas draw lambda is not composable.
+    val rowColors = positiveRows.map { parseColor(it.colorHex) }
     Canvas(modifier = Modifier.size(132.dp)) {
         var startAngle = -90f
-        rows.forEach { row ->
-            val sweep = if (total > 0) 360f * row.total / total else 0f
+        positiveRows.forEachIndexed { index, row ->
+            val sweep = if (ringTotal > 0) 360f * row.total / ringTotal else 0f
             val visibleSweep = (sweep - 1.5f).coerceAtLeast(0f)
             drawArc(
-                parseColor(row.colorHex), startAngle + 0.75f, visibleSweep, false,
+                rowColors[index], startAngle + 0.75f, visibleSweep, false,
                 style = Stroke(width = 26f, cap = StrokeCap.Butt),
                 size = Size(size.width, size.height)
             )
@@ -298,8 +305,9 @@ private fun MonthBarGraph(
     }
 }
 
+@Composable
 private fun parseColor(hex: String): Color = try {
     Color(android.graphics.Color.parseColor(hex))
 } catch (e: Exception) {
-    Color(0xFFE2E8F0)
+    MmColors.outline
 }

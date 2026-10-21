@@ -22,6 +22,7 @@ data class TransferUiState(
     val amountText: String = "",
     val notes: String = "",
     val error: String? = null,
+    val saving: Boolean = false,
     val saved: Boolean = false
 )
 
@@ -53,6 +54,9 @@ class TransferViewModel @Inject constructor(
 
     fun save() {
         val s = _ui.value
+        // A rapid double tap must not create two transfer pairs. Ignore every submit once one is
+        // in flight or already completed.
+        if (s.saving || s.saved) return
         val amount = runCatching { BigDecimal(s.amountText.trim()) }.getOrNull()
         if (amount == null || amount.signum() <= 0) {
             _ui.value = s.copy(error = "Enter a valid amount"); return
@@ -65,15 +69,24 @@ class TransferViewModel @Inject constructor(
         if (from == to) {
             _ui.value = s.copy(error = "Source and destination must be different accounts"); return
         }
+        _ui.value = s.copy(saving = true, error = null)
         viewModelScope.launch {
-            transactionRepository.createTransfer(
-                occurredAtEpochMillis = System.currentTimeMillis(),
-                fromAccountId = from,
-                toAccountId = to,
-                amount = Money.fromRupees(amount),
-                notes = s.notes.ifBlank { null }
-            )
-            _ui.value = _ui.value.copy(saved = true)
+            runCatching {
+                transactionRepository.createTransfer(
+                    occurredAtEpochMillis = System.currentTimeMillis(),
+                    fromAccountId = from,
+                    toAccountId = to,
+                    amount = Money.fromRupees(amount),
+                    notes = s.notes.ifBlank { null }
+                )
+            }.onSuccess {
+                _ui.value = _ui.value.copy(saved = true, saving = false)
+            }.onFailure { e ->
+                _ui.value = _ui.value.copy(
+                    saving = false,
+                    error = e.message ?: "Could not save the transfer"
+                )
+            }
         }
     }
 }

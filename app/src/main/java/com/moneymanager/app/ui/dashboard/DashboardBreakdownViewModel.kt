@@ -141,9 +141,12 @@ class DashboardBreakdownViewModel @Inject constructor(
                     DashboardBreakdownState(
                         kind = kind,
                         periodLabel = "Unpaid occurrences",
-                        formula = "Every generated unpaid bill occurrence, including overdue ones. " +
+                        formula = "Every generated unpaid bill occurrence, including overdue ones, " +
+                            "counted as the amount still remaining after recorded partial payments. " +
                             "Recurring occurrences are created only inside each biller's lead window.",
-                        total = Money(lines.sumOf { it.instance.amountDueMinorUnits }),
+                        total = Money(lines.sumOf {
+                            it.instance.amountDueMinorUnits - it.instance.paidAmountMinorUnits
+                        }),
                         billLines = lines,
                         loading = false
                     )

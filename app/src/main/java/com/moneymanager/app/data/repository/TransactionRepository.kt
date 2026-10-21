@@ -46,7 +46,8 @@ class TransactionRepository @Inject constructor(
     private val billDao: BillDao,
     private val accountingService: AccountingService,
     private val backupManager: BackupManager,
-    private val attachmentRepository: AttachmentRepository
+    private val attachmentRepository: AttachmentRepository,
+    private val billRepository: BillRepository
 ) {
     /** Creates a new, live (non-historical) transaction and immediately applies its effect to
      *  the account's running balance via the app's own accounting engine - this is the path
@@ -106,7 +107,19 @@ class TransactionRepository @Inject constructor(
      *  account, payment type, flags). Historical snapshot fields stay intact. When the account
      *  changes, both the old and new accounts are recalculated by the canonical engine; when a
      *  category is chosen, the human-readable rawCategoryName is synced from the categories
-     *  table so the detail screens keep showing a sensible name. */
+     *  table so the detail screens keep showing a sensible name.
+     *
+     *  LINKED-TRANSFER CONTRACT (spec section 4): a pair shares two facts - the amount and the
+     *  date. Editing either applies to BOTH legs inside this one database transaction, each leg
+     *  keeping its own credit/debit placement, so the pair can never drift out of balance and
+     *  net worth cannot change from an edit. Everything else (merchant, notes, payment method,
+     *  flags) stays per leg. A leg may be re-pointed to a different account, but never onto the
+     *  account receiving the other side. Credit-card bill-payment pairs reject amount changes
+     *  here - that amount is owned by the bill-payment model (section 3) and must change
+     *  through it, so an edit cannot desynchronise the payment allocations.
+     *
+     *  When [amount] is null the stored magnitude and its sign are left exactly as they were;
+     *  the caller does not silently flip a signed row. */
     suspend fun updateEditableTransaction(
         transactionId: Long,
         amount: Money? = null,
@@ -124,20 +137,39 @@ class TransactionRepository @Inject constructor(
         isIncome: Boolean? = null
     ) {
         database.withTransaction {
-            val existing = transactionDao.findById(transactionId) ?: return@withTransaction
+            val existing = transactionDao.findById(transactionId)
+                ?: throw NoSuchElementException("This transaction no longer exists")
+            val now = System.currentTimeMillis()
             val isTransfer = existing.txnSubType == TxnSubType.TRANSFER_IN || existing.txnSubType == TxnSubType.TRANSFER_OUT
-            val amountValue = amount ?: Money(if (existing.creditMinorUnits != 0L) existing.creditMinorUnits else -existing.debitMinorUnits)
-            var credit = if (existing.creditMinorUnits != 0L) {
-                if (existing.creditMinorUnits < 0L) -amountValue.minorUnits else amountValue.minorUnits
-            } else 0L
-            var debit = if (existing.debitMinorUnits != 0L) {
-                if (existing.debitMinorUnits < 0L) -amountValue.minorUnits else amountValue.minorUnits
-            } else 0L
+            val peer = if (isTransfer) {
+                existing.linkedTransferTransactionId?.let { transactionDao.findById(it) }
+            } else null
+            val isBillPaymentPair = existing.isCreditCardBillPayment || existing.paysOffAccountId != null ||
+                peer?.isCreditCardBillPayment == true || (peer != null && peer.paysOffAccountId != null)
+
+            if (accountId != null && peer != null && accountId == peer.accountId) {
+                throw IllegalArgumentException(
+                    "A transfer cannot move into the account that receives its other side"
+                )
+            }
+            val currentMagnitude = if (existing.creditMinorUnits != 0L) {
+                kotlin.math.abs(existing.creditMinorUnits)
+            } else {
+                kotlin.math.abs(existing.debitMinorUnits)
+            }
+            val magnitude = kotlin.math.abs(amount?.minorUnits ?: currentMagnitude)
+            if (amount != null && isBillPaymentPair && magnitude != currentMagnitude) {
+                throw IllegalArgumentException(
+                    "The amount of a credit-card bill payment is managed by the bill - edit the payment there"
+                )
+            }
+
+            var credit: Long
+            var debit: Long
             var newTxnType = existing.txnType
             var newTxnSubType = existing.txnSubType
             var newTxnKind = existing.txnKind
             if (isIncome != null && !isTransfer) {
-                val magnitude = amountValue.abs().minorUnits
                 credit = if (isIncome) magnitude else 0L
                 debit = if (isIncome) 0L else magnitude
                 newTxnType = if (isIncome) TxnType.CREDIT_TRANSACTION else TxnType.DEBIT_TRANSACTION
@@ -145,6 +177,15 @@ class TransactionRepository @Inject constructor(
                 newTxnKind = if (existing.paymentType == PaymentType.CASH) {
                     if (isIncome) TxnKind.CASH_INCOME else TxnKind.CASH_SPEND
                 } else TxnKind.REGULAR
+            } else {
+                // Keep each side's own placement and sign: credit rows keep their credit sign,
+                // debit rows their debit sign, so an edit can never invert a stored row.
+                credit = if (existing.creditMinorUnits != 0L) {
+                    if (existing.creditMinorUnits < 0L) -magnitude else magnitude
+                } else 0L
+                debit = if (existing.debitMinorUnits != 0L) {
+                    if (existing.debitMinorUnits < 0L) -magnitude else magnitude
+                } else 0L
             }
             val newCategoryId = if (categoryId == null && existing.categoryId != null) existing.categoryId else categoryId
             val categoryName = newCategoryId?.let { categoryDao.findById(it)?.name } ?: existing.rawCategoryName
@@ -169,37 +210,64 @@ class TransactionRepository @Inject constructor(
                 reimbursable = reimbursable ?: existing.reimbursable,
                 includeInStatistics = includeInStatistics ?: existing.includeInStatistics,
                 dedupeFingerprint = fingerprint,
-                updatedAtEpochMillis = System.currentTimeMillis()
+                updatedAtEpochMillis = now
             ))
-            val affected = if (newAccountId != existing.accountId) setOf(existing.accountId, newAccountId) else setOf(existing.accountId)
+
+            // Pair-level mirror: the other leg follows the amount and the date together with
+            // this one, keeping its own credit/debit placement, inside the same transaction.
+            if (peer != null && (amount != null || occurredAtEpochMillis != null)) {
+                val peerDate = if (occurredAtEpochMillis != null) newDate else peer.occurredAtEpochMillis
+                val peerMagnitude = if (amount != null) magnitude else if (peer.creditMinorUnits != 0L) {
+                    kotlin.math.abs(peer.creditMinorUnits)
+                } else {
+                    kotlin.math.abs(peer.debitMinorUnits)
+                }
+                val peerCredit = if (peer.creditMinorUnits != 0L) {
+                    if (peer.creditMinorUnits < 0L) -peerMagnitude else peerMagnitude
+                } else 0L
+                val peerDebit = if (peer.debitMinorUnits != 0L) {
+                    if (peer.debitMinorUnits < 0L) -peerMagnitude else peerMagnitude
+                } else 0L
+                transactionDao.update(peer.copy(
+                    occurredAtEpochMillis = peerDate,
+                    creditMinorUnits = peerCredit,
+                    debitMinorUnits = peerDebit,
+                    dedupeFingerprint = fingerprint(
+                        peerDate, peer.accountId, peerCredit, peerDebit,
+                        peer.merchantReceiverSender, peer.rawCategoryName
+                    ),
+                    updatedAtEpochMillis = now
+                ))
+            }
+
+            // Recalculate every account either leg touched: old and new account of this leg,
+            // plus the peer's account whenever the peer row changed with it.
+            val affected = mutableSetOf(existing.accountId, newAccountId)
+            peer?.let { affected.add(it.accountId) }
             accountingService.recalculateAccounts(affected)
         }.also { backupManager.scheduleAfterWrite() }
     }
 
     /** Permanently deletes a transaction and everything linked to it: the other leg of a
-     *  transfer, and any bill-instance payment marker (so a linked bill returns to unpaid and
-     *  never shows a stale payment). The owning account (and the peer leg's account for
-     *  transfers) is recalculated through the canonical engine afterwards. */
+     *  transfer, and every bill-payment allocation backed by it (cascaded with the row), then
+     *  recomputes each affected occurrence from its surviving allocations - it returns to
+     *  unpaid, stays partially paid, or remains settled as the remaining payments justify,
+     *  never a blanket reset that would discard a surviving partial payment. */
     suspend fun deleteTransaction(transactionId: Long) {
         database.withTransaction {
             val existing = transactionDao.findById(transactionId) ?: return@withTransaction
             val affected = linkedAccountIdsFor(existing)
             val peerIdForAttachments = existing.linkedTransferTransactionId
-
-            // Un-link a credit-card/bill payment so the bill instance returns to unpaid.
-            billDao.findByPaymentTransactionId(transactionId)?.let { instance ->
-                billDao.updateInstance(instance.copy(paid = false, paidAtEpochMillis = null, paymentTransactionId = null))
-            }
+            val linkedInstanceIds = billRepository.instanceIdsReferencingTransactions(
+                setOfNotNull(transactionId, peerIdForAttachments)
+            )
 
             transactionDao.deleteById(transactionId)
 
             // Delete the paired transfer leg too, keeping the linkedTransferTransactionId
             // columns consistent on both sides. A bill may be linked to either leg (a
-            // card-side payment is the usual case), so unlink the peer as well.
+            // card-side payment is the usual case).
             peerIdForAttachments?.let { peerId ->
-                billDao.findByPaymentTransactionId(peerId)?.let { instance ->
-                    billDao.updateInstance(instance.copy(paid = false, paidAtEpochMillis = null, paymentTransactionId = null))
-                }
                 transactionDao.findById(peerId)?.let { peer ->
                     val moreAffected = linkedAccountIdsFor(peer)
                     transactionDao.deleteById(peerId)
@@ -207,6 +275,7 @@ class TransactionRepository @Inject constructor(
                 }
             }
 
+            billRepository.recomputeInstancePaymentStates(linkedInstanceIds)
             accountingService.recalculateAccounts(affected)
 
             // Remove the receipt image files too - the attachment ROWS cascade with the

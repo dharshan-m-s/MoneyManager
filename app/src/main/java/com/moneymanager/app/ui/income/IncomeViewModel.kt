@@ -14,6 +14,6 @@ import javax.inject.Inject
 class IncomeViewModel @Inject constructor(
     transactionDao: TransactionDao
 ) : ViewModel() {
-    val transactions: StateFlow<List<TransactionEntity>> = transactionDao.observeRecentIncome(20000)
+    val transactions: StateFlow<List<TransactionEntity>> = transactionDao.observeIncomeList(20000)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 }

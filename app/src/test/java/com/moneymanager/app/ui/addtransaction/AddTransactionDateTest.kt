@@ -8,7 +8,9 @@ import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.repository.AccountingService
 import com.moneymanager.app.data.repository.AttachmentRepository
 import com.moneymanager.app.data.repository.BackupManager
+import com.moneymanager.app.data.repository.BillRepository
 import com.moneymanager.app.data.repository.TransactionRepository
+import com.moneymanager.app.domain.billing.BillRecurrenceService
 import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.BusinessPersonal
 import kotlinx.coroutines.cancel
@@ -58,7 +60,16 @@ class AddTransactionDateTest {
             db.billDao(),
             accountingService,
             backupManager,
-            AttachmentRepository(context, db.transactionAttachmentDao())
+            AttachmentRepository(context, db.transactionAttachmentDao()),
+            BillRepository(
+                database = db,
+                billDao = db.billDao(),
+                transactionDao = db.transactionDao(),
+                accountDao = db.accountDao(),
+                accountingService = accountingService,
+                billRecurrenceService = BillRecurrenceService(db.billDao()),
+                backupManager = backupManager
+            )
         )
         viewModel = AddTransactionViewModel(
             db.accountDao(),

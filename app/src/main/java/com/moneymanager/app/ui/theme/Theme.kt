@@ -37,6 +37,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 val MMGreenDark = Color(0xFF006B45)
 val MMWhite = Color(0xFFFFFFFF)
 
+/**
+ * Deliberate brand-header surfaces (dashboard hero, account/credit-card headers, lock gate).
+ *
+ * These are NOT inversions of each other: light mode uses the confident brand green as a
+ * saturated identity band; dark mode uses a deeper, desaturated brand green so the band reads as
+ * the same product without glare or a green-over-slate clash. Text on them is always [MMWhite].
+ */
+val MmBrandHeaderLight = Color(0xFF0B6B4A)
+val MmBrandHeaderLightEnd = Color(0xFF0A6E4B)
+val MmBrandHeaderDark = Color(0xFF0C3B2C)
+val MmBrandHeaderDarkEnd = Color(0xFF0E5A40)
+
+/** Credit-card header is a distinct brand family (blue) so a card never reads as a bank account. */
+val MmCardHeaderLight = Color(0xFF1B4D8F)
+val MmCardHeaderLightEnd = Color(0xFF245FA8)
+val MmCardHeaderDark = Color(0xFF16305A)
+val MmCardHeaderDarkEnd = Color(0xFF1C4179)
+
 /** Light-mode palette — crisp neutral surfaces, deep green primary. */
 val MmPaletteLightBackground = Color(0xFFF6F8F7)
 val MmPaletteLightSurface = Color(0xFFFFFFFF)
@@ -46,9 +64,9 @@ val MmPaletteLightOutline = Color(0xFFCBD5E1)
 val MmPaletteLightTextPrimary = Color(0xFF151917)
 val MmPaletteLightTextSecondary = Color(0xFF64706A)
 val MmPaletteLightTextTertiary = Color(0xFF94A3B8)
-val MmPaletteLightAccent = Color(0xFF0A8F5A)
+val MmPaletteLightAccent = Color(0xFF067A4C)
 val MmPaletteLightOnAccent = Color(0xFFFFFFFF)
-val MmPaletteLightIncome = Color(0xFF059669)
+val MmPaletteLightIncome = Color(0xFF047857)
 val MmPaletteLightExpense = Color(0xFFDC2626)
 val MmPaletteLightWarning = Color(0xFFD97706)
 val MmPaletteLightAmberDue = Color(0xFFB45309)
@@ -59,7 +77,7 @@ val MmPaletteLightBrown = Color(0xFF92400E)
 val MmPaletteLightIconShadow = Color(0x1A000000)
 
 /** Dark-mode palette — deep navy-slate stack with lifted semantic colours. */
-val MmPaletteDarkBackground = Color(0xFF0B1220)
+val MmPaletteDarkBackground = Color(0xFF080E1A)
 val MmPaletteDarkSurface = Color(0xFF131C2E)
 val MmPaletteDarkSurfaceMuted = Color(0xFF1C2740)
 val MmPaletteDarkDivider = Color(0xFF2A3752)
@@ -139,6 +157,30 @@ object MmColors {
     val expense: Color @Composable get() = if (isLight) MmPaletteLightExpense else MmPaletteDarkExpense
     /** Warning — resolves to correct light/dark value. */
     val warning: Color @Composable get() = if (isLight) MmPaletteLightWarning else MmPaletteDarkWarning
+
+    /**
+     * Foreground for text/icons sitting on a [brandHeader] / [brandGradient] band. These bands are
+     * always dark enough for white, so this is deliberately constant rather than theme-derived.
+     */
+    val onBrand: Color get() = MMWhite
+
+    /**
+     * Restrained brand gradient for identity bands (dashboard hero, account header, lock gate).
+     * Two closely-related brand stops, not a green→background wash: it improves hierarchy on the
+     * header itself and never fades into an unrelated surface colour.
+     */
+    val brandGradient: List<Color> @Composable get() = if (isLight) {
+        listOf(MmBrandHeaderLight, MmBrandHeaderLightEnd)
+    } else {
+        listOf(MmBrandHeaderDark, MmBrandHeaderDarkEnd)
+    }
+
+    /** Blue gradient for the credit-card header — the same treatment, a different brand family. */
+    val cardHeaderGradient: List<Color> @Composable get() = if (isLight) {
+        listOf(MmCardHeaderLight, MmCardHeaderLightEnd)
+    } else {
+        listOf(MmCardHeaderDark, MmCardHeaderDarkEnd)
+    }
 }
 
 /** Semantic text styles used across redesigned screens (financial hierarchy in one place). */

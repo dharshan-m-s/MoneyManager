@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Update
 import com.moneymanager.app.data.local.entity.BillEntity
 import com.moneymanager.app.data.local.entity.BillInstanceEntity
+import com.moneymanager.app.data.local.entity.BillPaymentAllocationEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -52,8 +53,28 @@ interface BillDao {
     @Query("DELETE FROM bill_instances WHERE id = :id")
     suspend fun deleteInstanceById(id: Long)
 
-    @Query("DELETE FROM bill_instances WHERE billId = :billId AND paid = 0 AND paymentTransactionId IS NULL AND dueDateEpochMillis > :afterEpochMillis")
+    @Query("DELETE FROM bill_instances WHERE billId = :billId AND paid = 0 AND paidAmountMinorUnits = 0 AND dueDateEpochMillis > :afterEpochMillis")
     suspend fun deleteFutureUnpaid(billId: Long, afterEpochMillis: Long): Int
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertAllocation(allocation: BillPaymentAllocationEntity): Long
+
+    @Query("SELECT * FROM bill_payment_allocations WHERE billInstanceId = :instanceId ORDER BY paidAtEpochMillis ASC, id ASC")
+    suspend fun findAllocationsForInstance(instanceId: Long): List<BillPaymentAllocationEntity>
+
+    @Query("SELECT * FROM bill_payment_allocations WHERE billInstanceId = :instanceId ORDER BY paidAtEpochMillis ASC, id ASC")
+    fun observeAllocationsForInstance(instanceId: Long): Flow<List<BillPaymentAllocationEntity>>
+
+    @Query("SELECT * FROM bill_payment_allocations WHERE transactionId = :transactionId LIMIT 1")
+    suspend fun findAllocationByTransactionId(transactionId: Long): BillPaymentAllocationEntity?
+
+    @Query("SELECT billInstanceId FROM bill_payment_allocations WHERE transactionId IN (:transactionIds)")
+    suspend fun findInstanceIdsForTransactions(transactionIds: Set<Long>): List<Long>
+
+    /** Every ledger transaction already counted as a bill payment somewhere - excluded from
+     *  candidate lists so one transaction can never be offered (or counted) twice. */
+    @Query("SELECT transactionId FROM bill_payment_allocations WHERE transactionId IS NOT NULL")
+    suspend fun findAllocatedTransactionIds(): List<Long?>
 
     @Query("UPDATE bills SET nextDueDateEpochMillis = :dueEpochMillis, scheduleAnchorDay = :anchorDay, updatedAtEpochMillis = :now WHERE id = :billId")
     suspend fun updateSchedule(billId: Long, dueEpochMillis: Long, anchorDay: Int, now: Long)
@@ -70,11 +91,8 @@ interface BillDao {
     @Query("SELECT * FROM bill_instances WHERE paymentTransactionId = :transactionId LIMIT 1")
     suspend fun findByPaymentTransactionId(transactionId: Long): BillInstanceEntity?
 
-    @Query("SELECT paymentTransactionId FROM bill_instances WHERE paymentTransactionId IN (:transactionIds)")
-    suspend fun findLinkedPaymentTransactionIds(transactionIds: Set<Long>): List<Long>
-
     @Query(
-        "SELECT COALESCE(SUM(bi.amountDueMinorUnits), 0) FROM bill_instances bi " +
+        "SELECT COALESCE(SUM(bi.amountDueMinorUnits - bi.paidAmountMinorUnits), 0) FROM bill_instances bi " +
             "INNER JOIN bills b ON b.id = bi.billId WHERE bi.paid = 0 AND b.active = 1"
     )
     fun observeTotalUpcomingBillAmount(): Flow<Long>

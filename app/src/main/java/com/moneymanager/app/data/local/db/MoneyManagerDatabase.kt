@@ -14,6 +14,7 @@ import com.moneymanager.app.data.local.dao.TransactionDao
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.BillEntity
 import com.moneymanager.app.data.local.entity.BillInstanceEntity
+import com.moneymanager.app.data.local.entity.BillPaymentAllocationEntity
 import com.moneymanager.app.data.local.entity.BudgetEntity
 import com.moneymanager.app.data.local.entity.CategoryEntity
 import com.moneymanager.app.data.local.entity.ImportBatchEntity
@@ -28,12 +29,13 @@ import com.moneymanager.app.data.local.entity.TransactionEntity
         TransactionEntity::class,
         BillEntity::class,
         BillInstanceEntity::class,
+        BillPaymentAllocationEntity::class,
         BudgetEntity::class,
         ImportBatchEntity::class,
         ImportRowResultEntity::class,
         TransactionAttachmentEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

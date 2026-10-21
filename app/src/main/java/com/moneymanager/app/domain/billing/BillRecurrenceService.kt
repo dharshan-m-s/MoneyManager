@@ -57,7 +57,7 @@ class BillRecurrenceService @Inject constructor(
         billDao.findInstancesForBill(bill.id)
             .filter { instance ->
                 !instance.paid &&
-                    instance.paymentTransactionId == null &&
+                    instance.paidAmountMinorUnits == 0L &&
                     instance.dueDateEpochMillis > now &&
                     instance.dueDateEpochMillis !in scheduled
             }
@@ -77,7 +77,9 @@ class BillRecurrenceService @Inject constructor(
         var advanceGuard = 0
         while (advanceGuard++ < MAX_GENERATION_STEPS) {
             val headInstance = billDao.findInstance(bill.id, headDue) ?: break
-            if (!headInstance.paid && headInstance.paymentTransactionId == null) break
+            // Advance only past fully settled occurrences. A partial payment (payments below
+            // the amount due) still owes money, so the occurrence remains the head.
+            if (!headInstance.paid) break
             headDue = BillSchedule.nextOccurrence(headDue, bill.billingCycle, anchor)
         }
 
@@ -132,8 +134,9 @@ class BillRecurrenceService @Inject constructor(
             return
         }
         // The estimate is not a historical payment. Refresh it only on the template's current
-        // occurrence and only while that occurrence is still unpaid.
-        if (updateAmount && !existing.paid && existing.paymentTransactionId == null &&
+        // occurrence and only while that occurrence has no recorded payments at all - once a
+        // (partial) payment exists the amount due is history and must not move under it.
+        if (updateAmount && !existing.paid && existing.paidAmountMinorUnits == 0L &&
             existing.amountDueMinorUnits != bill.estimatedAmountMinorUnits
         ) {
             billDao.updateInstance(existing.copy(amountDueMinorUnits = bill.estimatedAmountMinorUnits))

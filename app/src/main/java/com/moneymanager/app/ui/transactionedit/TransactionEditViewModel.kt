@@ -30,8 +30,13 @@ data class TransactionEditUiState(
     val loaded: Boolean = false,
     val saving: Boolean = false,
     val saved: Boolean = false,
-    /** Transfers keep their paired legs intact; only date, method and notes are editable. */
+    /** Transfers keep their paired legs intact; amount and date apply to BOTH legs (the
+     *  repository mirrors them), while category, direction and account stay managed by the
+     *  transfer itself. Per-leg facts - merchant, payment method, notes - edit in place. */
     val isTransfer: Boolean = false,
+    /** Either leg is a credit-card bill payment: its amount belongs to the bill-payment model
+     *  (section 3), so the amount field is read-only here and the repository rejects changes. */
+    val isBillPaymentPair: Boolean = false,
     val isIncome: Boolean = false,
     val originalIsIncome: Boolean = false,
     val amount: String = "",
@@ -104,6 +109,9 @@ class TransactionEditViewModel @Inject constructor(
         viewModelScope.launch {
             val txn = transactionDao.findById(id) ?: return@launch
             val isTransfer = txn.txnSubType == TxnSubType.TRANSFER_IN || txn.txnSubType == TxnSubType.TRANSFER_OUT
+            val peer = if (isTransfer) txn.linkedTransferTransactionId?.let { transactionDao.findById(it) } else null
+            val isBillPaymentPair = txn.isCreditCardBillPayment || txn.paysOffAccountId != null ||
+                peer?.isCreditCardBillPayment == true || (peer != null && peer.paysOffAccountId != null)
             val isIncome = txn.creditMinorUnits != 0L && txn.debitMinorUnits == 0L
             originalAccount.value = accountDao.findById(txn.accountId)
             _ui.value = TransactionEditUiState(
@@ -122,6 +130,7 @@ class TransactionEditViewModel @Inject constructor(
                 reimbursable = txn.reimbursable,
                 includeInStatistics = txn.includeInStatistics,
                 isTransfer = isTransfer,
+                isBillPaymentPair = isBillPaymentPair,
                 isIncome = isIncome,
                 originalIsIncome = isIncome,
                 loaded = true
@@ -152,8 +161,14 @@ class TransactionEditViewModel @Inject constructor(
         }
         val dateError = if (s.epochMillis == null) "Choose a date" else null
         val accountError = if (!s.isTransfer && s.accountId < 0) "Choose an account" else null
-        if (amountError != null || dateError != null || accountError != null) {
-            _ui.value = s.copy(amountError = amountError, dateError = dateError, accountError = accountError)
+        val notLoadedError = if (!s.loaded || s.transactionId <= 0L) "Transaction is not ready to save yet" else null
+        if (amountError != null || dateError != null || accountError != null || notLoadedError != null) {
+            _ui.value = s.copy(
+                amountError = amountError,
+                dateError = dateError,
+                accountError = accountError,
+                error = notLoadedError
+            )
             return
         }
         _ui.value = s.copy(saving = true, error = null)
@@ -161,7 +176,10 @@ class TransactionEditViewModel @Inject constructor(
             try {
                 transactionRepository.updateEditableTransaction(
                     transactionId = s.transactionId,
-                    amount = if (s.isTransfer) null else amountValue,
+                    // Pair-level fact: the repository mirrors the amount to BOTH legs of a
+                    // plain transfer. A credit-card bill payment never sends one - the field is
+                    // read-only there and the amount stays owned by the bill-payment model.
+                    amount = if (s.isBillPaymentPair) null else amountValue,
                     merchantReceiverSender = s.merchant.trim(),
                     notes = s.notes.trim(),
                     reimbursable = s.reimbursable,

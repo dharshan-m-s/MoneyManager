@@ -68,3 +68,19 @@ The updater refuses to install an APK when:
 - the GitHub asset digest is present and does not match the downloaded APK
 
 All downloaded files remain in the app cache and are exposed to the Android package installer through `FileProvider`.
+
+## Cache policy
+
+Downloads live in `cacheDir/updates`. The policy is explicit and covered by
+`app/src/test/java/com/moneymanager/app/updater/data/UpdateCachePolicyTest.kt`:
+
+- Each download writes to `<apk>.part` and is renamed to the final `.apk` only after the integrity
+  checks pass, so a crash or a cancel never leaves a half-file that looks installable.
+- `deleteApksExcept(versionName)` keeps exactly the APK (and any in-flight `.part`) for the version
+  about to be installed, and deletes every other stale `.apk` **and** abandoned `.part`. A partial
+  download for a version we are not installing can never be resumed, so it is pruned; the partial
+  for the target version is preserved so an in-flight download is not interrupted.
+- `deleteOldVersions(keepFile)` keeps only the file being installed after a successful hand-off.
+- `cleanCache()` (full wipe) exists for explicit user-driven cleanup.
+- No cache-cleaning path ever deletes user backups, the database, receipts or any persistent
+  document — those live outside `cacheDir` and are never enumerated by these methods.

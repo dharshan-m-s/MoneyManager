@@ -1,6 +1,8 @@
 package com.moneymanager.app.ui.bills
 
+import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.TransactionEntity
+import com.moneymanager.app.domain.model.AccountType
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -169,4 +171,33 @@ object BillPaymentMatcher {
         "payment", "pay", "bill", "bills", "recharge", "online", "upi", "india",
         "limited", "ltd", "private", "pvt", "services", "service"
     )
+}
+
+/**
+ * Hard eligibility rules for "which transactions may be linked as a bill payment", separate
+ * from [BillPaymentMatcher]'s fuzzy ranking so a suggestible row is still excluded when it
+ * would corrupt the ledger:
+ *  - already-allocated transactions are never offered again (one transaction, one bill),
+ *  - card-side payment legs are records of money reaching a card, not payments of a bill,
+ *  - only debits (money leaving) can pay anything,
+ *  - a credit-card bill is settled from outside the cards: purchases on the linked card and
+ *    expenses on any other card are rejected instead of being reclassified into a payment
+ *    leg on the wrong card, so the account must be a known, active, non-card account.
+ */
+object BillPaymentEligibility {
+    fun isEligible(
+        txn: TransactionEntity,
+        account: AccountEntity?,
+        linkedCardAccountId: Long?,
+        allocatedTransactionIds: Set<Long> = emptySet()
+    ): Boolean {
+        if (txn.id in allocatedTransactionIds) return false
+        if (txn.isCreditCardBillPayment || txn.paysOffAccountId != null) return false
+        if (txn.debitMinorUnits <= 0L) return false
+        if (linkedCardAccountId != null) {
+            if (account == null || account.deleted) return false
+            if (account.accountType == AccountType.CREDIT_CARD) return false
+        }
+        return true
+    }
 }

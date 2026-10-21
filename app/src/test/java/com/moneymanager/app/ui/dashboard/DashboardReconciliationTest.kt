@@ -366,4 +366,37 @@ class DashboardReconciliationTest {
             freshDb.close()
         }
     }
+
+    @Test
+    fun safeToSpendWithoutBudgetIsCashAfterScheduledBills() {
+        pumpUntil("dashboard ui") { dashboardViewModel.uiState.value != null }
+        val ui = dashboardViewModel.uiState.value!!
+        // No budget is seeded: Safe to Spend must be available cash minus the remaining amount
+        // owed on scheduled bills, and it must say so.
+        assertEquals(SafeToSpendMode.CASH_AFTER_BILLS, ui.safeToSpendMode)
+        assertEquals(Money(0L), ui.budget)
+        assertEquals(ui.bankBalance.minorUnits - ui.upcomingBillsTotal.minorUnits, ui.safeToSpend.minorUnits)
+        assertEquals(600_000L - 12_000L, ui.safeToSpend.minorUnits)
+    }
+
+    @Test
+    fun safeToSpendWithBudgetIsRemainingBudgetNotCashMinusSpendTwice() {
+        // Give the current month a budget, then verify Safe to Spend is budget − spend and the
+        // mode flips accordingly (spending must not be subtracted from cash a second time).
+        val month = com.moneymanager.app.domain.billing.BillSchedule.dateOf(period.startInclusive)
+        runBlocking {
+            db.budgetDao().upsertForMonth(
+                year = month.year,
+                month = month.monthValue,
+                amount = 100_000L,
+                now = System.currentTimeMillis()
+            )
+        }
+        pumpUntil("dashboard ui with budget") { dashboardViewModel.uiState.value?.budget?.minorUnits == 100_000L }
+        val ui = dashboardViewModel.uiState.value!!
+        assertEquals(SafeToSpendMode.BUDGET_REMAINING, ui.safeToSpendMode)
+        assertEquals(Money(100_000L), ui.budget)
+        // Spent so far this month is 32,000 from the seeded fixture.
+        assertEquals(100_000L - 32_000L, ui.safeToSpend.minorUnits)
+    }
 }

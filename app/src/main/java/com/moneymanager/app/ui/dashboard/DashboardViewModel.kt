@@ -34,6 +34,8 @@ data class DashboardUiState(
     val upcomingBillsTotal: Money = Money.ZERO,
     val upcomingBillsCount: Int = 0,
     val safeToSpend: Money = Money.ZERO,
+    /** Which definition Safe to Spend is using, so the UI can label it honestly. */
+    val safeToSpendMode: SafeToSpendMode = SafeToSpendMode.CASH_AFTER_BILLS,
     val budget: Money = Money.ZERO,
     val budgetProgress: Float = 0f,
     val cashBalance: Money = Money.ZERO,
@@ -45,6 +47,14 @@ data class DashboardUiState(
     val categoryNames: Map<Long, String> = emptyMap(),
     val hasAnyData: Boolean = false
 )
+
+/**
+ * How [DashboardUiState.safeToSpend] is defined for the current month:
+ *  - [BUDGET_REMAINING]: a monthly budget is set, so it is that budget minus this month's spend.
+ *  - [CASH_AFTER_BILLS]: no budget is set, so it is available liquid cash minus the remaining
+ *    amount still owed on scheduled (upcoming/overdue) bills.
+ */
+enum class SafeToSpendMode { BUDGET_REMAINING, CASH_AFTER_BILLS }
 
 /**
  * Dashboard totals are derived exclusively from [FinancialSummary]; the drill-down screens use
@@ -93,17 +103,23 @@ class DashboardViewModel @Inject constructor(
         val incomeRows = FinancialSummary.incomeRows(monthTransactions, accountById, period)
         val monthSpend = spendRows.sumOf { FinancialSummary.spendAmountMinor(it) }
         val monthIncome = incomeRows.sumOf { FinancialSummary.incomeAmountMinor(it) }
-        val upcomingTotal = upcomingBills.sumOf { it.amountDueMinorUnits }
+        // Remaining still owed on each upcoming occurrence after any partial payments -
+        // fully paid occurrences are already excluded by observeUpcomingUnpaid.
+        val upcomingTotal = upcomingBills.sumOf { it.amountDueMinorUnits - it.paidAmountMinorUnits }
 
         val budget = budgetEntity?.budgetAmountMinorUnits ?: 0L
         val progress = if (budget > 0L) (monthSpend.toDouble() / budget.toDouble()).toFloat().coerceAtLeast(0f) else 0f
-        val safeToSpend = if (budget > 0L) {
-            // Remaining budget. Spending already reduced the account balance, so subtracting
-            // monthSpend again from the balance would double-count it.
-            budget - monthSpend
-        } else {
-            // Available liquid cash after the bills that are already scheduled.
-            balance - upcomingTotal
+        // Safe to Spend has exactly two documented definitions, never mixed:
+        //  - With a budget: money left in the budget this month. Spending has already reduced
+        //    account balances, so subtracting monthSpend again from the balance would
+        //    double-count it - hence remaining budget, not balance-minus-spend.
+        //  - Without a budget: available liquid cash minus the remaining amount still owed on
+        //    scheduled bills (card payments and transfers are not spending, so they never
+        //    reduce this twice).
+        val safeToSpendMode = if (budget > 0L) SafeToSpendMode.BUDGET_REMAINING else SafeToSpendMode.CASH_AFTER_BILLS
+        val safeToSpend = when (safeToSpendMode) {
+            SafeToSpendMode.BUDGET_REMAINING -> budget - monthSpend
+            SafeToSpendMode.CASH_AFTER_BILLS -> balance - upcomingTotal
         }
 
         val categoryTotals = spendRows
@@ -142,6 +158,7 @@ class DashboardViewModel @Inject constructor(
             upcomingBillsTotal = Money(upcomingTotal),
             upcomingBillsCount = upcomingBills.size,
             safeToSpend = Money(safeToSpend),
+            safeToSpendMode = safeToSpendMode,
             budget = Money(budget),
             budgetProgress = progress,
             cashBalance = Money(cashBalance),

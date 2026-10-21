@@ -12,6 +12,7 @@ import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.data.repository.BillRepository
 import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.Money
+import com.moneymanager.app.ui.components.MoneyFormat
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -92,24 +93,31 @@ class BillsViewModel @Inject constructor(
                 val inWindow = transactionDao.findInRange(start, end)
                 val recent = transactionDao.findRecent(500)
                 val source = (inWindow + recent).distinctBy { it.id }
-                val linkedIds: Set<Long> = billDao.findLinkedPaymentTransactionIds(source.map { it.id }.toSet()).toSet()
-                val available = source.filterNot { it.id in linkedIds }
-                val allAccounts = accountDao.findByIds(available.map { it.accountId }.toSet()).associateBy { it.id }
-                val manualSource = (recent + inWindow)
-                    .distinctBy { it.id }
-                    .filter { it.debitMinorUnits > 0 && it.creditMinorUnits <= 0 && it.id !in linkedIds }
+                val accountsById = accountDao.findByIds(source.map { it.accountId }.toSet())
+                    .associateBy { it.id }
+                // One transaction can settle exactly one bill, ever - exclude everything the
+                // ledger has already counted as a payment.
+                val allocated = billDao.findAllocatedTransactionIds().filterNotNull().toSet()
+                val linkedCardId = row.bill.linkedAccountId
+                val available = source.filter {
+                    BillPaymentEligibility.isEligible(
+                        txn = it,
+                        account = accountsById[it.accountId],
+                        linkedCardAccountId = linkedCardId,
+                        allocatedTransactionIds = allocated
+                    )
+                }
+                val manualSource = available
                     .sortedByDescending { it.occurredAtEpochMillis }
                     .take(800)
-                val recentCandidates = manualSource.map { BillPaymentCandidate(it, allAccounts[it.accountId]) }
+                val recentCandidates = manualSource.map { BillPaymentCandidate(it, accountsById[it.accountId]) }
                 val matches = BillPaymentMatcher.findMatches(
                     billName = row.bill.billerName,
                     billAmountMinorUnits = instance.amountDueMinorUnits,
                     dueDateEpochMillis = instance.dueDateEpochMillis,
                     transactions = available
                 )
-                val matchAccounts = accountDao.findByIds(matches.map { it.transaction.accountId }.toSet())
-                    .associateBy { it.id }
-                val matchCandidates = matches.map { BillPaymentCandidate(it.transaction, matchAccounts[it.transaction.accountId]) }
+                val matchCandidates = matches.map { BillPaymentCandidate(it.transaction, accountsById[it.transaction.accountId]) }
                 val paymentAccounts = accountDao.findAll()
                     .filter {
                         it.active && !it.deleted && it.accountType != AccountType.CREDIT_CARD &&
@@ -160,7 +168,8 @@ class BillsViewModel @Inject constructor(
         _paymentSearch.value = _paymentSearch.value.copy(recordNotes = value)
     }
 
-    /** Option B: record a genuine card payment (source account -> card outstanding). */
+    /** Option B: record a genuine card payment (source account -> card outstanding). The
+     *  amount may be partial; the occurrence only settles once allocations cover the due. */
     fun recordPayment() {
         val s = _paymentSearch.value
         val instance = s.billRow?.nextInstance ?: return
@@ -188,7 +197,10 @@ class BillsViewModel @Inject constructor(
                     notes = s.recordNotes.ifBlank { null }
                 )
             }.onSuccess {
-                _paymentSearch.value = BillPaymentSearchState(message = "Payment recorded")
+                val updated = billDao.findInstanceById(instance.id)
+                _paymentSearch.value = BillPaymentSearchState(
+                    message = updated?.let { state -> paymentMessage(state) } ?: "Payment recorded"
+                )
             }.onFailure {
                 _paymentSearch.value = _paymentSearch.value.copy(
                     saving = false,
@@ -198,14 +210,22 @@ class BillsViewModel @Inject constructor(
         }
     }
 
-    fun markAsPaid(instance: BillInstanceEntity, paymentTransactionId: Long?) {
+    /** Links an existing transaction ([paymentTransactionId]) or, with a null id, records an
+     *  explicit cash payment. [amountMinorUnits] only applies to cash (null = settle the
+     *  remaining due); a linked transaction is always allocated at its own amount so the
+     *  ledger never counts more (or less) than the money that actually moved. */
+    fun markAsPaid(
+        instance: BillInstanceEntity,
+        paymentTransactionId: Long?,
+        amountMinorUnits: Long? = null
+    ) {
         val s = _paymentSearch.value
         if (s.saving) return
         _paymentSearch.value = s.copy(saving = true, error = null)
         viewModelScope.launch {
-            runCatching { billRepository.markAsPaid(instance, paymentTransactionId) }
-                .onSuccess {
-                    _paymentSearch.value = BillPaymentSearchState(message = "Bill marked as paid")
+            runCatching { billRepository.markAsPaid(instance, paymentTransactionId, amountMinorUnits) }
+                .onSuccess { result ->
+                    _paymentSearch.value = BillPaymentSearchState(message = paymentMessage(result))
                 }
                 .onFailure {
                     _paymentSearch.value = _paymentSearch.value.copy(
@@ -214,6 +234,17 @@ class BillsViewModel @Inject constructor(
                         saving = false
                     )
                 }
+        }
+    }
+
+    private fun paymentMessage(result: BillInstanceEntity): String {
+        val remaining = (result.amountDueMinorUnits - result.paidAmountMinorUnits).coerceAtLeast(0L)
+        val rupees = { minor: Long -> MoneyFormat.rupeesNoDecimals(Money(minor)) }
+        return when {
+            result.paid && result.paidAmountMinorUnits > result.amountDueMinorUnits ->
+                "Bill settled - ${rupees(result.paidAmountMinorUnits - result.amountDueMinorUnits)} extra recorded"
+            result.paid -> "Bill marked as paid"
+            else -> "Part payment recorded - ${rupees(remaining)} still due"
         }
     }
 

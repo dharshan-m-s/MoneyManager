@@ -60,15 +60,22 @@ class SpendSummaryViewModel @Inject constructor(
         categoryDao.observeAll()
     ) { totals: List<CategoryTotal>, categories ->
         val byId = categories.associateBy { it.id }
-        totals.filter { it.total > 0 }.map { t ->
+        // Keep every category with a non-zero net contribution - including a category that nets
+        // negative because refunds exceeded spend - so the rows and the total are the same
+        // calculation. Consumers render negative rows as credits rather than dropping them.
+        totals.filter { it.total != 0L }.map { t ->
             val cat = t.categoryId?.let { byId[it] }
             SpendCategoryRow(t.categoryId, cat?.name ?: "Uncategorized", t.total, cat?.colorHex ?: "#9E9E9E")
         }.sortedByDescending { it.total }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Total spend for the selected month, in minor units. */
-    val selectedMonthTotal: StateFlow<Long> = categoryRows
-        .map { rows -> rows.sumOf { it.total } }
+    /** Canonical total spend for the selected month (same query definition the graph and the
+     *  dashboard use), in minor units. */
+    val selectedMonthTotal: StateFlow<Long> = _selectedMonthIndex
+        .flatMapLatest { index ->
+            val window = availableMonths[index]
+            transactionDao.observeTotalSpendInRange(window.startInclusive, window.endExclusive)
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     /** Total spend for the immediately previous calendar month (0 when the screen is on the oldest month). */

@@ -142,12 +142,33 @@ fun MoneyManagerRoot() {
                     Box(Modifier.fillMaxSize().mmBrandWash())
                 }
             }
+            // Fail-closed recovery: the lock is enabled for the in-app PIN but no usable hash
+            // exists (the credential columns were lost/corrupted). The ledger must stay shut;
+            // the only way forward is an explicit, deliberate reset, which re-opens setup.
+            appLock.method() == LockMethod.IN_APP_PIN && !appLock.hasPin() -> {
+                SystemLockRetry(
+                    title = "PIN unavailable",
+                    message = "The saved PIN could not be read. For your safety the ledger stays " +
+                        "locked. Turn app lock off in Settings to continue, then set a new PIN.",
+                    onRetry = {
+                        appLock.disable()
+                        locked = false
+                        lockSession += 1
+                    }
+                )
+            }
             else -> PinUnlockScreen(
                 // With the system method this verifies the optional recovery PIN.
                 subtitle = if (appLock.method() == LockMethod.SYSTEM_BIOMETRIC)
                     "Enter your recovery PIN to continue"
                 else "Enter your PIN to continue",
                 expectedLength = appLock.pinLength(),
+                isLockedOut = { appLock.isLockedOut(System.currentTimeMillis()) },
+                lockoutRemainingMillis = {
+                    appLock.lockoutRemainingMillis(System.currentTimeMillis())
+                },
+                onFailure = { appLock.recordFailedAttempt(System.currentTimeMillis()) },
+                onSuccess = { appLock.clearFailedAttempts() },
                 onUnlock = { pin ->
                     // Measured stage: PBKDF2 verification. This runs on Dispatchers.Default (see
                     // PinUnlockScreen), never on the main thread. The Trace section shows up in
@@ -272,7 +293,14 @@ fun MoneyManagerRoot() {
  * platform prompt is the only way in, so that is the single action offered.
  */
 @Composable
-private fun SystemLockRetry(onRetry: () -> Unit) {
+private fun SystemLockRetry(
+    onRetry: () -> Unit,
+    title: String = "Screen lock unavailable",
+    message: String = "No screen lock is enrolled on this device and no recovery PIN was set. Add a " +
+        "screen lock in this device's settings, then come back to unlock. Setting a " +
+        "recovery PIN beforehand avoids this.",
+    actionLabel: String = "Try again"
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -285,15 +313,13 @@ private fun SystemLockRetry(onRetry: () -> Unit) {
         MmIconBadge(icon = Icons.Filled.Lock, tint = MmColors.accent, size = 64.dp)
         Spacer(Modifier.height(MmSpacing.lg))
         Text(
-            "Screen lock unavailable",
+            title,
             style = MmType.screenTitle,
             color = MmColors.textPrimary
         )
         Spacer(Modifier.height(MmSpacing.xs))
         Text(
-            "No screen lock is enrolled on this device and no recovery PIN was set. Add a " +
-                "screen lock in this device's settings, then come back to unlock. Setting a " +
-                "recovery PIN beforehand avoids this.",
+            message,
             style = MmType.caption,
             color = MmColors.textSecondary,
             textAlign = TextAlign.Center
@@ -304,7 +330,7 @@ private fun SystemLockRetry(onRetry: () -> Unit) {
             backgroundColor = MmColors.accent,
             contentColor = MmColors.onAccent,
             shape = RoundedCornerShape(MmSpacing.touchTarget / 2),
-            text = { Text("Try again", style = MmType.label, color = MmColors.onAccent) },
+            text = { Text(actionLabel, style = MmType.label, color = MmColors.onAccent) },
             icon = {
                 Icon(Icons.Filled.Fingerprint, contentDescription = null, tint = MmColors.onAccent)
             }

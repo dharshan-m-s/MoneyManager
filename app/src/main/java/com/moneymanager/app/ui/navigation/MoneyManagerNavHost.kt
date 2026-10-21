@@ -73,6 +73,20 @@ fun MoneyManagerNavHost(
         navController.navigate(route) { launchSingleTop = true }
     }
 
+    // Deleting an account/credit card is an intentional completed operation, not a Back: it must
+    // return to the Accounts list rather than leave the stack on a detail/editor screen that now
+    // references a deleted row. Everything above the list (the editor, and any stale detail) is
+    // popped in one step. If the list is not on the stack (deep link), we open it.
+    fun returnToAccountsAfterDelete() {
+        val returned = navController.popBackStack(
+            route = Destination.Accounts.route,
+            inclusive = false
+        )
+        if (!returned) {
+            navController.navigate(Destination.Accounts.route) { launchSingleTop = true }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = Destination.Dashboard.route,
@@ -383,7 +397,7 @@ fun MoneyManagerNavHost(
                 editingAccountId = accountId.takeIf { it >= 0 },
                 onBack = { safeBack() },
                 onSaved = { safeBack() },
-                onDeleted = { safeBack() }
+                onDeleted = { returnToAccountsAfterDelete() }
             )
         }
 

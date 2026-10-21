@@ -3,8 +3,10 @@ package com.moneymanager.app.ui.creditcardform
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.moneymanager.app.data.local.dao.AccountDao
 import com.moneymanager.app.data.local.dao.BillDao
+import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.BillEntity
 import com.moneymanager.app.data.local.entity.BillerType
@@ -82,7 +84,8 @@ class CreditCardFormViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val accountingService: AccountingService,
     private val billRecurrenceService: BillRecurrenceService,
-    private val backupManager: BackupManager
+    private val backupManager: BackupManager,
+    private val database: MoneyManagerDatabase
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(CreditCardFormState())
@@ -181,9 +184,13 @@ class CreditCardFormViewModel @Inject constructor(
                 val business = if (s.isBusiness) BusinessPersonal.BUSINESS else BusinessPersonal.PERSONAL
                 val active = !s.inactive
 
-                val cardId: Long
+                var cardId: Long = -1L
                 if (s.editingAccountId != null) {
-                    val existing = accountDao.findById(s.editingAccountId) ?: return@launch
+                    val existing = accountDao.findById(s.editingAccountId)
+                    if (existing == null) {
+                        _ui.value = _ui.value.copy(saving = false, error = "This card no longer exists")
+                        return@launch
+                    }
                     cardId = existing.id
                     val derivedOutstanding = accountingService
                         .derivedBalancesFor(existing).baseOutstandingMinorUnits
@@ -193,31 +200,36 @@ class CreditCardFormViewModel @Inject constructor(
                         com.moneymanager.app.domain.accounting.AccountingEngine
                             .checkpointAdjustment(outstanding, derivedOutstanding)
                     } else existing.outstandingAdjustmentMinorUnits
-                    accountDao.update(
-                        existing.copy(
-                            institutionName = s.billerName.trim(),
-                            sourceAccountId = s.cardNumber.trim(),
-                            nickname = s.nickname.ifBlank { s.billerName.trim() },
-                            outstandingMinorUnits = effectiveOutstanding,
-                            // Durable user reconciliation: survives any later full
-                            // recalculation/restart while purchases and payments still move it.
-                            outstandingCheckpointMinorUnits = if (s.outstandingEdited) outstanding
-                                else existing.outstandingCheckpointMinorUnits,
-                            outstandingCheckpointAtEpochMillis = if (s.outstandingEdited) now
-                                else existing.outstandingCheckpointAtEpochMillis,
-                            outstandingAdjustmentMinorUnits = adjustment,
-                            creditLimitMinorUnits = limit,
-                            availableLimitMinorUnits = limit?.let { it - effectiveOutstanding } ?: available,
-                            billingCycleStartDay = s.billingCycleStartDay,
-                            dueDate = s.dueDateEpochMillis ?: existing.dueDate,
-                            billAmountMinorUnits = billAmount ?: existing.billAmountMinorUnits,
-                            autoPay = s.autoPay,
-                            active = active,
-                            hide = s.hideAccount,
-                            businessPersonal = business,
-                            updatedAtEpochMillis = now
+                    // Account write + recalc commit together so a crash can never leave the
+                    // checkpoint stored with a stale derived balance.
+                    database.withTransaction {
+                        accountDao.update(
+                            existing.copy(
+                                institutionName = s.billerName.trim(),
+                                sourceAccountId = s.cardNumber.trim(),
+                                nickname = s.nickname.ifBlank { s.billerName.trim() },
+                                outstandingMinorUnits = effectiveOutstanding,
+                                // Durable user reconciliation: survives any later full
+                                // recalculation/restart while purchases and payments still move it.
+                                outstandingCheckpointMinorUnits = if (s.outstandingEdited) outstanding
+                                    else existing.outstandingCheckpointMinorUnits,
+                                outstandingCheckpointAtEpochMillis = if (s.outstandingEdited) now
+                                    else existing.outstandingCheckpointAtEpochMillis,
+                                outstandingAdjustmentMinorUnits = adjustment,
+                                creditLimitMinorUnits = limit,
+                                availableLimitMinorUnits = limit?.let { it - effectiveOutstanding } ?: available,
+                                billingCycleStartDay = s.billingCycleStartDay,
+                                dueDate = s.dueDateEpochMillis ?: existing.dueDate,
+                                billAmountMinorUnits = billAmount ?: existing.billAmountMinorUnits,
+                                autoPay = s.autoPay,
+                                active = active,
+                                hide = s.hideAccount,
+                                businessPersonal = business,
+                                updatedAtEpochMillis = now
+                            )
                         )
-                    )
+                        accountingService.recalculateAccounts(setOf(cardId))
+                    }
                 } else {
                     val clash = accountDao.findBySourceAccountId(s.cardNumber.trim())
                     if (clash != null) {
@@ -227,39 +239,42 @@ class CreditCardFormViewModel @Inject constructor(
                         )
                         return@launch
                     }
-                    cardId = accountDao.insert(
-                        AccountEntity(
-                            sourceAccountId = s.cardNumber.trim(),
-                            institutionName = s.billerName.trim(),
-                            nickname = s.nickname.ifBlank { s.billerName.trim() },
-                            accountType = AccountType.CREDIT_CARD,
-                            businessPersonal = business,
-                            openingBalanceMinorUnits = 0,
-                            currentBalanceMinorUnits = 0,
-                            outstandingMinorUnits = outstanding,
-                            outstandingCheckpointMinorUnits = outstanding,
-                            outstandingCheckpointAtEpochMillis = now,
-                            // The card starts with no ledger; the entered value is the full
-                            // base and future movements apply on top of it.
-                            outstandingAdjustmentMinorUnits = outstanding,
-                            creditLimitMinorUnits = limit,
-                            availableLimitMinorUnits = available,
-                            billingCycleStartDay = s.billingCycleStartDay,
-                            dueDate = s.dueDateEpochMillis,
-                            billAmountMinorUnits = billAmount,
-                            autoPay = s.autoPay,
-                            active = active,
-                            hide = s.hideAccount,
-                            createdAtEpochMillis = now,
-                            updatedAtEpochMillis = now
+                    database.withTransaction {
+                        cardId = accountDao.insert(
+                            AccountEntity(
+                                sourceAccountId = s.cardNumber.trim(),
+                                institutionName = s.billerName.trim(),
+                                nickname = s.nickname.ifBlank { s.billerName.trim() },
+                                accountType = AccountType.CREDIT_CARD,
+                                businessPersonal = business,
+                                openingBalanceMinorUnits = 0,
+                                currentBalanceMinorUnits = 0,
+                                outstandingMinorUnits = outstanding,
+                                outstandingCheckpointMinorUnits = outstanding,
+                                outstandingCheckpointAtEpochMillis = now,
+                                // The card starts with no ledger; the entered value is the full
+                                // base and future movements apply on top of it.
+                                outstandingAdjustmentMinorUnits = outstanding,
+                                creditLimitMinorUnits = limit,
+                                availableLimitMinorUnits = available,
+                                billingCycleStartDay = s.billingCycleStartDay,
+                                dueDate = s.dueDateEpochMillis,
+                                billAmountMinorUnits = billAmount,
+                                autoPay = s.autoPay,
+                                active = active,
+                                hide = s.hideAccount,
+                                createdAtEpochMillis = now,
+                                updatedAtEpochMillis = now
+                            )
                         )
-                    )
+                        // Recompute from the canonical engine so the durable checkpoint and the
+                        // available limit are consistent with any ledger rows that already exist.
+                        accountingService.recalculateAccounts(setOf(cardId))
+                    }
                 }
 
-                // Recompute from the canonical engine so the durable checkpoint and the
-                // available limit are consistent with any ledger rows that already exist.
-                accountingService.recalculateAccounts(setOf(cardId))
-
+                // Bill upsert + first-occurrence materialization run after the account change is
+                // committed; both are individually transactional and idempotent.
                 val billId = upsertLinkedBill(
                     cardId = cardId,
                     billerName = s.billerName.trim(),

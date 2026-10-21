@@ -59,7 +59,8 @@ class AccountEditViewModelCheckpointTest {
         viewModel = AccountEditViewModel(
             db.accountDao(),
             service,
-            BackupManager(context, db, db.transactionDao(), db.accountDao(), db.categoryDao())
+            BackupManager(context, db, db.transactionDao(), db.accountDao(), db.categoryDao()),
+            db
         )
     }
 
@@ -248,5 +249,27 @@ class AccountEditViewModelCheckpointTest {
         assertTrue(persisted.active)
         assertFalse(persisted.hide)
         assertFalse(persisted.hideAccountTxns)
+    }
+
+    /**
+     * Changing the account type is a metadata edit. It must never wipe a durable
+     * reconciliation checkpoint, even though the type change re-runs the balance path.
+     */
+    @Test
+    fun changingAccountTypePreservesTheCheckpoint() = runBlocking {
+        val accountId = insertCheckpointedBankAccount()
+
+        viewModel.load(accountId)
+        pumpUntil("form loaded") { viewModel.state.value.accountId == accountId }
+        viewModel.accountType(AccountType.WALLET)
+        viewModel.save()
+        pumpUntil("save completes") { viewModel.state.value.saved }
+
+        val persisted = db.accountDao().findById(accountId)!!
+        assertEquals(AccountType.WALLET, persisted.accountType)
+        assertEquals(500_000L, persisted.manualBalanceOverrideMinorUnits)
+        assertEquals(499_000L, persisted.manualBalanceAdjustmentMinorUnits)
+        assertEquals(500_000L, persisted.currentBalanceMinorUnits)
+        assertNull(viewModel.state.value.error)
     }
 }

@@ -140,6 +140,15 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                         is UpdateState.Downloaded -> {
                             Text("Update ready", style = MaterialTheme.typography.h6)
                             Text("${current.update.versionName} is ready to install.", color = MmColors.textSecondary, modifier = Modifier.padding(top = 4.dp))
+                            Text(
+                                if (current.update.hasChecksum)
+                                    "Downloaded file's SHA-256 matched the published checksum; it will be verified again against the installed app's signature at install."
+                                else
+                                    "No checksum was published for this release, so the download was checked for package, version and signing-certificate match only.",
+                                color = MmColors.textSecondary,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 6.dp)
+                            )
                             Spacer(Modifier.height(14.dp))
                             Button(
                                 onClick = {

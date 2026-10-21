@@ -57,7 +57,7 @@ class UpdateRepository(context: Context) {
                 return@withContext CheckResult.Error(UpdateError.NoApk)
             }
             val shaAsset = release.assets.firstOrNull { it.name == "${apkAsset.name}.sha256" }
-            val expectedSha256 = shaAsset?.browserDownloadUrl?.let { fetchChecksum(it) }
+            val (expectedSha256, checksumSource) = resolveChecksum(apkAsset, shaAsset?.browserDownloadUrl)
             val update = ReleaseUpdate(
                 versionName = version.toString(),
                 versionCode = versionCode,
@@ -67,7 +67,8 @@ class UpdateRepository(context: Context) {
                 apkUrl = apkUrl,
                 apkName = apkAsset.name,
                 expectedSha256 = expectedSha256,
-                mandatory = false
+                mandatory = false,
+                checksumSource = checksumSource
             )
             lastDiagnostics = lastDiagnostics.copy(
                 httpStatus = response.httpStatus,
@@ -99,13 +100,29 @@ class UpdateRepository(context: Context) {
         }
         try {
             if (connection.responseCode !in 200..299) return@runCatching null
-            val content = connection.inputStream.bufferedReader().use { it.readText() }.trim()
-            val hash = Regex("""^([0-9a-fA-F]{64})(?:\s|$)""").find(content)?.groupValues?.get(1) ?: return@runCatching null
-            "sha256:$hash"
+            val content = connection.inputStream.bufferedReader().use { it.readText() }
+            ChecksumParser.parseSha256File(content)
         } finally {
             connection.disconnect()
         }
     }.getOrNull()
+
+    /**
+     * Resolves the expected APK digest from the strongest available source and records which one
+     * was used. Preference order:
+     *  1. the GitHub API asset `digest` (server-computed, cannot drift from the uploaded bytes);
+     *  2. the release's `<apk>.sha256` asset, whose format matches `sha256sum` (hash + whitespace).
+     * Returns (null, null) when neither is present, so the caller can proceed but must not claim
+     * the APK was checksum-verified.
+     */
+    private fun resolveChecksum(
+        apkAsset: com.moneymanager.app.updater.model.GitHubAsset,
+        shaAssetUrl: String?
+    ): Pair<String?, String?> {
+        ChecksumParser.normalizeDigest(apkAsset.digest)?.let { return it to "api-digest" }
+        shaAssetUrl?.let { url -> fetchChecksum(url)?.let { return it to "sha256-asset" } }
+        return null to null
+    }
 
     suspend fun download(update: ReleaseUpdate, onProgress: (Int, Long, Long?) -> Unit): Result<File> = withContext(Dispatchers.IO) {
         val safeName = update.apkName.replace(Regex("[^A-Za-z0-9._-]"), "_")
@@ -151,9 +168,19 @@ class UpdateRepository(context: Context) {
                 connection.disconnect()
             }
             if (!temp.exists() || temp.length() <= 0L) throw java.io.IOException("Downloaded APK is empty")
-            update.expectedSha256?.takeIf { it.startsWith("sha256:") }?.let { expected ->
-                val actual = "sha256:" + sha256(temp)
-                if (!actual.equals(expected, ignoreCase = true)) throw SecurityException("APK digest mismatch")
+            when {
+                // A published but structurally invalid digest is an explicit failure, never a
+                // silent "skip verification": that would hide a corrupted/hostile release.
+                update.expectedSha256 != null && !update.hasChecksum ->
+                    throw SecurityException("Published APK checksum is malformed")
+                update.hasChecksum -> {
+                    val expected = update.expectedSha256!!
+                    val actual = "sha256:" + sha256(temp)
+                    if (!actual.equals(expected, ignoreCase = true)) throw SecurityException("APK digest mismatch")
+                }
+                // No checksum published: package/version/signature verification still runs during
+                // install; the UI must not describe this APK as checksum-verified.
+                else -> Unit
             }
             if (!temp.renameTo(target)) throw java.io.IOException("Could not finalize APK")
             Result.success(target)
@@ -194,7 +221,17 @@ class UpdateRepository(context: Context) {
         val marker = "-v${versionName.trimStart('v')}-"
         val dir = File(appContext.cacheDir, "updates")
         if (!dir.exists()) return
-        dir.listFiles()?.filter { it.name.endsWith(".apk") && !it.name.contains(marker) }?.forEach { it.delete() }
+        dir.listFiles()?.forEach { file ->
+            when {
+                // Keep the matching APK (a valid pending installation).
+                file.name.endsWith(".apk") && file.name.contains(marker) -> Unit
+                // Remove any other APK: an outdated version we no longer need.
+                file.name.endsWith(".apk") -> file.delete()
+                // Remove abandoned partial downloads. A `.part` for the version we are about to
+                // install is preserved so an in-flight download is never interrupted.
+                file.name.endsWith(".part") && !file.name.contains(marker) -> file.delete()
+            }
+        }
     }
 
     sealed interface CheckResult {

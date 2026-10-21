@@ -88,6 +88,7 @@ import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.theme.MMGreenDark
 import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -160,7 +161,11 @@ fun BillsScreen(
                 pendingRow.bill.linkedAccountId != null,
             state = paymentSearch,
             onSelectTransaction = viewModel::selectPaymentTransaction,
-            onPaidByCash = { if (!paymentSearch.loading && !paymentSearch.saving) viewModel.markAsPaid(pendingRow.nextInstance!!, null) },
+            onPaidByCash = { amountMinorUnits ->
+                if (!paymentSearch.loading && !paymentSearch.saving) {
+                    viewModel.markAsPaid(pendingRow.nextInstance!!, null, amountMinorUnits)
+                }
+            },
             onConfirm = {
                 val transactionId = paymentSearch.selectedTransactionId
                 val instance = pendingRow.nextInstance
@@ -185,7 +190,7 @@ private fun BillPaymentDialog(
     isCreditCard: Boolean,
     state: BillPaymentSearchState,
     onSelectTransaction: (Long?) -> Unit,
-    onPaidByCash: () -> Unit,
+    onPaidByCash: (Long?) -> Unit,
     onConfirm: () -> Unit,
     onRecordSource: (Long) -> Unit,
     onRecordAmount: (String) -> Unit,
@@ -197,8 +202,11 @@ private fun BillPaymentDialog(
     var showRecent by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
     var recentQuery by remember(state.billRow?.bill?.id) { mutableStateOf("") }
     var showRecordPayment by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
+    var showCashPayment by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
+    var cashAmount by remember(state.billRow?.bill?.id) { mutableStateOf("") }
     var showAccountPicker by remember { mutableStateOf(false) }
     val selectedSource = state.accounts.firstOrNull { it.id == state.recordSourceAccountId }
+    val occurrence = state.billRow?.nextInstance
     val paymentFormScroll = rememberScrollState()
     val dateFormat = DateTimeFormatter.ofPattern("dd MMM yyyy")
     val zone = ZoneId.of("Asia/Kolkata")
@@ -280,14 +288,27 @@ private fun BillPaymentDialog(
                         Icon(Icons.Filled.Search, contentDescription = null, tint = MmColors.accent, modifier = Modifier.size(22.dp))
                         Column(Modifier.padding(start = 10.dp)) {
                             Text("We checked your recent payments", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "Pick the transaction you already recorded. Nothing new will be created.",
-                                fontSize = 11.sp,
-                                color = MmColors.textSecondary,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        }
+                        Text(
+                            "Pick the transaction you already recorded. Nothing new will be created.",
+                            fontSize = 11.sp,
+                            color = MmColors.textSecondary,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
                     }
+                }
+
+                if (occurrence != null && occurrence.paidAmountMinorUnits > 0L) {
+                    val fmt = { minor: Long -> MoneyFormat.rupeesNoDecimals(Money(minor)) }
+                    Text(
+                        "Already paid ${fmt(occurrence.paidAmountMinorUnits)} of " +
+                            "${fmt(occurrence.amountDueMinorUnits)} - " +
+                            "${fmt(occurrence.amountDueMinorUnits - occurrence.paidAmountMinorUnits)} remaining",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MmColors.accent,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                    )
+                }
                 }
 
                 if (!showRecordPayment) {
@@ -405,6 +426,36 @@ private fun BillPaymentDialog(
                     }
                 }
 
+                val selectedTxn = (state.matches + state.recentTransactions)
+                    .firstOrNull { it.transaction.id == state.selectedTransactionId }
+                    ?.transaction
+                if (selectedTxn != null && occurrence != null) {
+                    val fmt = { minor: Long -> MoneyFormat.rupeesNoDecimals(Money(minor)) }
+                    val remainingForLink =
+                        (occurrence.amountDueMinorUnits - occurrence.paidAmountMinorUnits)
+                            .coerceAtLeast(0L)
+                    val txnAmount = selectedTxn.debitMinorUnits
+                    val outcome = when {
+                        txnAmount >= remainingForLink -> {
+                            val excess = txnAmount - remainingForLink
+                            if (excess > 0L) {
+                                "Records ${fmt(txnAmount)} - settles this occurrence with " +
+                                    "${fmt(excess)} extra, kept as a credit"
+                            } else {
+                                "Records ${fmt(txnAmount)} - settles this occurrence in full"
+                            }
+                        }
+                        else -> "Records ${fmt(txnAmount)} - " +
+                            "${fmt(remainingForLink - txnAmount)} still due after this"
+                    }
+                    Text(
+                        outcome,
+                        fontSize = 12.sp,
+                        color = MmColors.textSecondary,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                    )
+                }
+
                 state.error?.let {
                     Text(it, color = MmColors.expense, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                 }
@@ -443,8 +494,48 @@ private fun BillPaymentDialog(
                         }
                     }
 
+                    if (showCashPayment) {
+                        val cashMinor = runCatching {
+                            Money.fromRupees(BigDecimal(cashAmount.trim().ifBlank { "0" })).minorUnits
+                        }.getOrNull() ?: 0L
+                        Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                            MmAmountField(
+                                value = cashAmount,
+                                onValueChange = { cashAmount = it },
+                                label = "Amount paid now"
+                            )
+                            Spacer(Modifier.height(MmSpacing.sm))
+                            Button(
+                                onClick = { onPaidByCash(cashMinor) },
+                                enabled = !state.saving && cashMinor > 0L,
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    backgroundColor = MmColors.accent,
+                                    contentColor = MmColors.onAccent
+                                )
+                            ) {
+                                Text(
+                                    if (state.saving) "Recording…" else "Confirm cash payment",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            TextButton(
+                                onClick = { showCashPayment = false },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Cancel", color = MmColors.textSecondary, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    } else {
                     Button(
-                        onClick = onPaidByCash,
+                        onClick = {
+                            cashAmount = occurrence
+                                ?.let { (it.amountDueMinorUnits - it.paidAmountMinorUnits).coerceAtLeast(0L) }
+                                ?.let { Money(it).toBigDecimal().stripTrailingZeros().toPlainString() }
+                                ?: ""
+                            showCashPayment = true
+                        },
                         enabled = !state.saving,
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp),
                         shape = RoundedCornerShape(12.dp),
@@ -452,10 +543,11 @@ private fun BillPaymentDialog(
                     ) {
                         Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(19.dp))
                         Text(
-                            if (isCreditCard) "Already recorded — just mark as paid" else "Paid by Cash",
+                            if (isCreditCard) "Already recorded — settle by cash" else "Paid by Cash",
                             modifier = Modifier.padding(start = 8.dp),
                             fontWeight = FontWeight.Bold
                         )
+                    }
                     }
 
                     Button(
@@ -566,6 +658,7 @@ private fun BillCard(
     )
     val overdue = next != null && daysUntilDue < 0
     val paid = next == null && latestPaid != null
+    val partial = next != null && next.paidAmountMinorUnits in 1L until next.amountDueMinorUnits
     val dateFormat = DateTimeFormatter.ofPattern("dd MMM")
     val zone = ZoneId.of("Asia/Kolkata")
 
@@ -574,6 +667,9 @@ private fun BillCard(
     if (paid) {
         statusText = "Paid"
         statusColor = MmColors.income
+    } else if (partial) {
+        statusText = "Partly paid"
+        statusColor = if (overdue) MmColors.expense else MmColors.accent
     } else if (next != null) {
         statusText = if (overdue) "${-daysUntilDue} days overdue" else {
             val days = daysUntilDue
@@ -589,9 +685,16 @@ private fun BillCard(
     val displayDate = if (paid) {
         val paidMillis = latestPaid.paidAtEpochMillis ?: dueMillis
         "Paid on: " + dateFormat.format(Instant.ofEpochMilli(paidMillis).atZone(zone))
+    } else if (partial && next != null) {
+        "Paid ${MoneyFormat.rupeesNoDecimals(Money(next.paidAmountMinorUnits))} of " +
+            "${MoneyFormat.rupeesNoDecimals(Money(next.amountDueMinorUnits))} • Due $dueDateStr"
     } else {
         "Due on: $dueDateStr"
     }
+
+    // What still has to be paid: the remaining part of the amount due after recorded payments.
+    val amountRemainingMinor = next?.let { it.amountDueMinorUnits - it.paidAmountMinorUnits }
+        ?: row.bill.estimatedAmountMinorUnits
 
     MmCard(
         modifier = Modifier
@@ -657,7 +760,7 @@ private fun BillCard(
         Spacer(Modifier.height(MmSpacing.sm))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                MoneyFormat.rupeesNoDecimals(Money(next?.amountDueMinorUnits ?: row.bill.estimatedAmountMinorUnits)),
+                MoneyFormat.rupeesNoDecimals(Money(amountRemainingMinor)),
                 style = MmType.amountRow,
                 color = when {
                     overdue -> MmColors.expense

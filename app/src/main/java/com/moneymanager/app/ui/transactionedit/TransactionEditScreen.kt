@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.model.PaymentType
 import com.moneymanager.app.ui.components.MmAmountField
 import com.moneymanager.app.ui.components.MmCard
@@ -54,12 +55,14 @@ import com.moneymanager.app.ui.components.MmReceiptAttachSection
 import com.moneymanager.app.ui.components.MmSegmentedControl
 import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MmTextField
+import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MMGreenDark
 import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import kotlinx.coroutines.launch
+import java.math.BigDecimal
 
 @Composable
 fun TransactionEditScreen(
@@ -136,9 +139,17 @@ fun TransactionEditScreen(
                             Text("Transfer", style = MmType.sectionTitle, color = MmColors.textPrimary)
                             Spacer(Modifier.height(MmSpacing.xs))
                             Text(
-                                "Both sides of a transfer stay linked, so the amount, category and account " +
-                                    "are managed from the transfer itself. You can still change the date, " +
-                                    "payment method and notes here.",
+                                if (state.isBillPaymentPair) {
+                                    "Both sides of this credit-card payment stay linked. The amount " +
+                                        "belongs to the bill payment, so it is shown read-only here - " +
+                                        "edit the bill payment to change what was paid. The date applies " +
+                                        "to both sides; merchant, payment method and notes stay per side."
+                                } else {
+                                    "Both sides of this transfer stay linked. Amount and date apply to " +
+                                        "both sides together. Category, direction and account are managed " +
+                                        "from the transfer itself; merchant, payment method and notes " +
+                                        "stay per side."
+                                },
                                 style = MmType.caption,
                                 color = MmColors.textSecondary
                             )
@@ -157,13 +168,32 @@ fun TransactionEditScreen(
                             )
                             Spacer(Modifier.height(MmSpacing.md))
                         }
-                        MmAmountField(
-                            value = state.amount,
-                            onValueChange = { viewModel.onField { copy(amount = it) } },
-                            label = "Amount",
-                            isError = state.amountError != null,
-                            supportingText = state.amountError
-                        )
+                        if (state.isBillPaymentPair) {
+                            // Read-only: the amount belongs to the bill-payment model (section 3).
+                            Text("Amount", style = MmType.label, color = MmColors.textSecondary)
+                            Spacer(Modifier.height(MmSpacing.xs))
+                            Text(
+                                runCatching { MoneyFormat.rupeesNoDecimals(Money.fromRupees(BigDecimal(state.amount))) }
+                                    .getOrDefault("₹ ${state.amount}"),
+                                style = MmType.sectionTitle,
+                                color = MmColors.textPrimary
+                            )
+                            Spacer(Modifier.height(MmSpacing.xs))
+                            Text(
+                                "Set by the bill payment - edit the bill to change it",
+                                style = MmType.caption,
+                                color = MmColors.textSecondary
+                            )
+                        } else {
+                            MmAmountField(
+                                value = state.amount,
+                                onValueChange = { viewModel.onField { copy(amount = it) } },
+                                label = "Amount",
+                                isError = state.amountError != null,
+                                supportingText = state.amountError
+                                    ?: if (state.isTransfer) "Applies to both sides of the transfer" else null
+                            )
+                        }
                         Spacer(Modifier.height(MmSpacing.md))
                         MmDateField(
                             label = "Date",
@@ -173,6 +203,13 @@ fun TransactionEditScreen(
                         )
                         if (state.dateError != null) {
                             Text(state.dateError!!, fontSize = 11.sp, color = MmColors.expense, modifier = Modifier.padding(top = 3.dp))
+                        } else if (state.isTransfer) {
+                            Text(
+                                "Applies to both sides of the transfer",
+                                style = MmType.caption,
+                                color = MmColors.textSecondary,
+                                modifier = Modifier.padding(top = 3.dp)
+                            )
                         }
                     }
 

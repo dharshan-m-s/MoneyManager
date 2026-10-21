@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.runtime.Composable
@@ -64,6 +65,7 @@ import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmChip
 import com.moneymanager.app.ui.components.MmDateField
 import com.moneymanager.app.ui.components.MmEmptyState
+import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmLegendDot
 import com.moneymanager.app.ui.components.MmLoadingState
 import com.moneymanager.app.ui.components.MmProgressBar
@@ -73,7 +75,6 @@ import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.mmCategoryTint
 import com.moneymanager.app.ui.home.HomePreferences
-import com.moneymanager.app.ui.theme.MMGreenDark
 import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -84,16 +85,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val dashboardZone: ZoneId = ZoneId.of("Asia/Kolkata")
-
-/** Lifted green for the far end of the hero gradient — same family as the chrome green. */
-private val HeroGreenLift = Color(0xFF0A8F5A)
-
-/** Deeper green for the top of the hero gradient in dark mode (less glare on dark surfaces). */
-private val HeroGreenDeepDark = Color(0xFF04432C)
-
-/** True when the active theme is light. Lets pure draw/layout code branch without a @Composable. */
-private val MmIsLight: Boolean
-    @Composable get() = androidx.compose.material.MaterialTheme.colors.isLight
 
 private enum class RecentTypeFilter(val label: String) {
     ALL("All"),
@@ -212,6 +203,10 @@ fun DashboardScreen(
 
             item {
                 BudgetCard(state = state, onOpenBudget = onOpenBudget, hideAmounts = hideAmounts)
+            }
+
+            item {
+                SafeToSpendCard(state = state, hideAmounts = hideAmounts, onOpenBudget = onOpenBudget)
             }
 
             item {
@@ -401,10 +396,7 @@ private fun DashboardHero(
             .fillMaxWidth()
             .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
             .background(
-                Brush.verticalGradient(
-                    if (MmIsLight) listOf(MMGreenDark, HeroGreenLift)
-                    else listOf(HeroGreenDeepDark, MMGreenDark)
-                )
+                Brush.verticalGradient(MmColors.brandGradient)
             )
     ) {
         Column(
@@ -438,7 +430,7 @@ private fun DashboardHero(
                                 .align(Alignment.TopEnd)
                                 .padding(top = 10.dp, end = 10.dp)
                                 .size(9.dp)
-                                .background(Color(0xFFFBBF24), CircleShape)
+                                .background(MmColors.warning, CircleShape)
                         )
                     }
                 }
@@ -646,6 +638,49 @@ private fun BudgetCard(state: DashboardUiState, onOpenBudget: () -> Unit, hideAm
                 }
                 IconButton(onClick = onOpenBudget) {
                     Icon(Icons.Filled.ChevronRight, contentDescription = "Open budget", tint = MmColors.textSecondary)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Safe to Spend: a single, explainable number for the rest of the month. The label states which
+ * definition is in effect so the value is never ambiguous - remaining budget when a budget is
+ * set, otherwise liquid cash after scheduled bills.
+ */
+@Composable
+private fun SafeToSpendCard(state: DashboardUiState, hideAmounts: Boolean, onOpenBudget: () -> Unit) {
+    val hasBudget = state.safeToSpendMode == SafeToSpendMode.BUDGET_REMAINING
+    val caption = if (hasBudget) {
+        "Remaining of your ${MoneyFormat.rupeesNoDecimals(state.budget)} budget"
+    } else {
+        "Cash left after ${MoneyFormat.rupeesNoDecimals(state.upcomingBillsTotal)} of scheduled bills"
+    }
+    MmCard(modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MmIconBadge(icon = Icons.Filled.Savings, tint = MmColors.accent)
+            Spacer(Modifier.width(MmSpacing.md))
+            Column(Modifier.weight(1f)) {
+                Text("Safe to spend", style = MmType.caption, color = MmColors.textSecondary)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    if (hideAmounts) "••••••" else MoneyFormat.rupeesNoDecimals(state.safeToSpend),
+                    style = MmType.sectionTitle,
+                    color = MmColors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(caption, style = MmType.caption, color = MmColors.textTertiary)
+            }
+            if (!hasBudget) {
+                IconButton(onClick = onOpenBudget) {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = "Set a budget",
+                        tint = MmColors.textSecondary
+                    )
                 }
             }
         }

@@ -197,8 +197,9 @@ fun BudgetScreen(
                 )
                 Spacer(Modifier.height(MmSpacing.md))
                 Text(
-                    "\"Safe to spend\" is calculated by deducting this month's spend and upcoming " +
-                        "bills from your budget, so you always know what is genuinely left.",
+                    "\"Safe to spend\" is calculated by deducting this month's spend from your " +
+                        "budget, so you always know what is genuinely left. Without a budget it " +
+                        "instead shows your available cash minus scheduled bills.",
                     style = MmType.caption,
                     color = MmColors.textSecondary
                 )

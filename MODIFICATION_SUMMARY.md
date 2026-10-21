@@ -9,17 +9,18 @@ no second transaction system, no duplicate repositories and no fabricated demo d
 `ui/theme/Theme.kt` is now the single source of visual truth:
 
 - **`MmSpacing`** — one spacing scale (`xxs` 2, `xs` 4, `sm` 8, `md` 12, `lg` 16, `xl` 24,
-  `xxl` 32) plus `screen` (20dp minimum horizontal margin), `card`, `touchTarget` (48dp) and the
-  standard radii (`radiusCard` 20, `radiusRow`/`radiusField` 16, `radiusSheet` 28).
+  `xxl` 32) plus `screen` (20dp minimum horizontal margin), `card` (16dp) and `touchTarget` (48dp)
+  and the standard radii (`radiusCard` 22, `radiusRow`/`radiusField` 16, `radiusSheet` 30).
 - **`MmType`** — semantic text styles: `screenTitle`, `sectionTitle`, `body`, `label`, `caption`
   and a financial amount hierarchy (`amountHero` > `amountLarge` > `amountRow`).
 - **`MmColors`** — *theme-resolved colour roles* (`background`, `surface`, `surfaceMuted`,
   `divider`, `outline`, `textPrimary/Secondary/Tertiary`, `accent`, **`onAccent`**, `income`,
-  `expense`, `warning`). The old light-only literals (`MMBackground`, `MMGrayDivider`,
+  `expense`, `warning`, plus the brand/card headers `onBrand`, `brandGradient` and
+  `cardHeaderGradient`). The old light-only literals (`MMBackground`, `MMGrayDivider`,
   `MMGrayText`, `MMOutline`, `MMSurfaceElevated`, `MMSurfaceMuted`, tints, `MMCashForward`, …)
   were removed from screens app-wide; this is what removes the white boxes and grey-on-grey text
-  in dark mode. `MMGreenDark`/`MMWhite` (brand header), the chart hues and `MMIconShadow` are the
-  only fixed constants left, and that rule is documented in the file.
+  in dark mode. Every colour literal now lives in `Theme.kt`; screens name no colour directly, and
+  the WCAG contrast of the semantic pairs is enforced by `ThemeContrastTest`.
 
 ## 2. Reusable component library (new, `ui/components/`)
 

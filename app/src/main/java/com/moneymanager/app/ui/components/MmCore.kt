@@ -509,15 +509,20 @@ data class MmOption(val id: Long, val label: String, val subtitle: String? = nul
 
 /**
  * Window background for full-screen gate/bootstrap surfaces (PIN lock, biometric interstitial,
- * retry screens): a brand-green wash fading into the theme background. White status-bar icons
- * always have contrast on the green band, and the surface reads as part of the app instead of
- * a blank page.
+ * retry screens): a restrained brand band at the top that resolves into the theme background -
+ * not a decorative green-to-grey wash. The band gives the gate an identity and keeps white
+ * status-bar icons legible, while the lower surface stays a calm, theme-correct colour.
  */
 @Composable
-fun Modifier.mmBrandWash(): Modifier = background(
-    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-        0f to com.moneymanager.app.ui.theme.MMGreenDark,
-        0.22f to MmColors.background,
-        1f to MmColors.background
+fun Modifier.mmBrandWash(): Modifier {
+    val brand = com.moneymanager.app.ui.theme.MmColors.brandGradient
+    val background = MmColors.background
+    return background(
+        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+            0f to brand.first(),
+            0.16f to brand.last(),
+            0.34f to background,
+            1f to background
+        )
     )
-)
+}

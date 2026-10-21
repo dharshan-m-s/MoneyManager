@@ -242,10 +242,19 @@ fun TransactionDetailScreen(
             onDismiss = { showDeleteConfirm = false },
             onConfirm = {
                 showDeleteConfirm = false
+                // Navigation back to the caller happens only once the delete actually committed
+                // (observed via deleteState); a failed delete keeps this screen and shows why.
                 viewModel.delete(transactionId)
-                onDeleted()
             }
         )
+    }
+
+    val deleteState by viewModel.deleteState.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(deleteState.deleted) {
+        if (deleteState.deleted) onDeleted()
+    }
+    androidx.compose.runtime.LaunchedEffect(deleteState.error) {
+        deleteState.error?.let { snackbarState.showSnackbar(it) }
     }
 }
 

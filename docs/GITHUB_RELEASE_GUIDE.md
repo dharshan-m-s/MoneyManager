@@ -4,7 +4,7 @@ This project is prepared to build the Android **release** variant and publish a 
 
 ## 1. Install the local toolchain
 
-Install Android Studio with SDK Platform 36, Build-Tools 36.0.0, and JDK 17. The included `gradlew`/`gradlew.bat` bootstraps Gradle 9.5.0 on the first build, so a separate Gradle installation is not required. The project targets Android 16 (API 36), which is required for new Google Play submissions and updates from August 31, 2026. AGP 9.3.0 requires Gradle 9.5.0 and JDK 17. The GitHub workflows therefore install Gradle 9.5.0 and Temurin 17.
+Install Android Studio with SDK Platform 36 and Build-Tools 36.0.0, and JDK 21 (Temurin). The included `gradlew`/`gradlew.bat` bootstraps the Gradle version pinned in `gradle/wrapper/gradle-wrapper.properties`, so a separate Gradle installation is not required. The project targets Android 16 (API 36), which is required for new Google Play submissions and updates from August 31, 2026. The GitHub workflows install Gradle via the wrapper and Temurin JDK 21.
 
 ## 2. Create the release signing key
 

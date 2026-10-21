@@ -72,9 +72,24 @@ class TransactionDetailViewModel @Inject constructor(
     fun attachmentsFor(transactionId: Long): Flow<List<TransactionAttachmentEntity>> =
         attachmentRepository.observeForTransaction(transactionId)
 
+    /** Delete result state, observed by the screen so navigation back only happens on success
+     *  and a failure is surfaced instead of silently pretending the row was removed. */
+    private val _deleteState = kotlinx.coroutines.flow.MutableStateFlow(DeleteState())
+    val deleteState: kotlinx.coroutines.flow.StateFlow<DeleteState> = _deleteState
+
+    data class DeleteState(val deleting: Boolean = false, val deleted: Boolean = false, val error: String? = null)
+
     fun delete(id: Long) {
+        if (_deleteState.value.deleting) return
         viewModelScope.launch {
+            _deleteState.value = DeleteState(deleting = true)
             runCatching { transactionRepository.deleteTransaction(id) }
+                .onSuccess { _deleteState.value = DeleteState(deleted = true) }
+                .onFailure { e ->
+                    _deleteState.value = DeleteState(
+                        error = "Could not delete: ${e.message ?: "unknown error"}"
+                    )
+                }
         }
     }
 }

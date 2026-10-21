@@ -52,6 +52,7 @@ import com.moneymanager.app.data.local.entity.AccountBalanceSource
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.Money
+import com.moneymanager.app.domain.reporting.FinancialSummary
 import com.moneymanager.app.ui.components.AccountsFab
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmEmptyState
@@ -83,8 +84,11 @@ fun AccountsScreen(
     val tab = AccountsTab.entries[selectedTab]
     val filtered = accounts.filter { it.accountType in tab.types && !it.deleted }
     val visible = filtered.filter { !it.hide }
-    val total = visible
-        .filter { it.active }
+    // Total uses the same inclusion rule as every other combined total (FinancialSummary),
+    // so the Accounts tab header reconciles with the dashboard: exclude accounts hidden from
+    // statistics and child accounts (their money is represented by the parent).
+    val total = filtered
+        .filter { FinancialSummary.isIncluded(it) }
         .sumOf { account ->
             if (account.accountType == AccountType.CREDIT_CARD) {
                 account.outstandingMinorUnits ?: 0L

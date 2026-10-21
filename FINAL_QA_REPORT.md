@@ -1,5 +1,13 @@
 # Final QA Report — Money Manager
 
+> **Historical document — superseded.** The PASS tables below describe an earlier commit
+> (database schema version 9, 40 unit tests). They are kept for the record but the numbers and
+> migration references are **out of date** and must not be read as current status. The repository
+> now ships schema **version 11** with a full 1→11 migration chain, and the unit/Robolectric suite
+> has grown well beyond 40 tests. See the current final report (Section 19 deliverable) and
+> `docs/` for what actually works on this commit. Do not treat any PASS line below as applying to
+> the current tree.
+
 ## Scope
 
 This pass rebuilt the GitHub update system around a dedicated updater package and then audited the surrounding navigation, release, manifest, database-migration, and publishing surfaces.

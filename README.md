@@ -26,8 +26,20 @@ This local project is a standalone reworked implementation based on the `dharsha
 - A Moneyview CSV import entry point is available from the dashboard.
 - Imported transactions are mapped into the same ledger used by normal app transactions.
 
-## Important build note
+## Build and test
 
-The execution environment used for this deliverable does not have outbound DNS/network access, so Gradle dependency/bootstrap download could not be completed here. The project contains its Gradle bootstrap script and project files, but the final Android build must be performed in an environment with Android SDK/Gradle dependency access (for example Android Studio on your machine).
+The project builds and its tests run with the checked-in Gradle wrapper (JDK 21 for CI, JDK 25
+locally for Robolectric). The verified commands are:
+
+```bash
+./gradlew :app:testDebugUnitTest        # unit + Robolectric suite
+./gradlew :app:lintDebug                # Android lint
+./gradlew :app:assembleDebug            # debug APK
+./gradlew :app:connectedDebugAndroidTest # Room migration tests (needs a device/emulator)
+```
+
+`./gradlew :app:assembleRelease` requires the release signing secrets and is run by the
+`.github/workflows/release.yml` workflow. See `RELEASE_CHECKLIST.md` and
+`docs/GITHUB_RELEASE_GUIDE.md`.
 
 No changes were pushed from this local deliverable.

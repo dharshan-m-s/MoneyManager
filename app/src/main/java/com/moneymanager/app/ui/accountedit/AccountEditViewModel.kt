@@ -2,7 +2,9 @@ package com.moneymanager.app.ui.accountedit
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.moneymanager.app.data.local.dao.AccountDao
+import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.repository.AccountingService
 import com.moneymanager.app.data.repository.BackupManager
 import com.moneymanager.app.domain.model.AccountType
@@ -42,7 +44,8 @@ data class AccountEditState(
 class AccountEditViewModel @Inject constructor(
     private val accountDao: AccountDao,
     private val accountingService: AccountingService,
-    private val backupManager: BackupManager
+    private val backupManager: BackupManager,
+    private val database: MoneyManagerDatabase
 ) : ViewModel() {
     private val _state = MutableStateFlow(AccountEditState())
     val state: StateFlow<AccountEditState> = _state
@@ -50,6 +53,10 @@ class AccountEditViewModel @Inject constructor(
     fun load(id: Long) {
         viewModelScope.launch {
             val a = accountDao.findById(id) ?: run { _state.value = _state.value.copy(error = "Account not found"); return@launch }
+            // The derived (engine) balance is shown next to the editable checkpoint so the user
+            // can see how the ledger value differs from their reconciliation. Movement values
+            // for cards are the outstanding, but this editor only handles cash-like balances.
+            val derived = accountingService.derivedBalancesFor(a).autoBalanceMinorUnits
             _state.value = AccountEditState(
                 accountId = a.id,
                 nickname = a.nickname,
@@ -61,7 +68,7 @@ class AccountEditViewModel @Inject constructor(
                 // checkpoint is an offset applied to the ledger; the effective balance already
                 // includes every movement after (and around) that checkpoint.
                 currentBalance = Money(a.currentBalanceMinorUnits).toBigDecimal().stripTrailingZeros().toPlainString(),
-                calculatedBalance = Money(a.currentBalanceMinorUnits).toBigDecimal().stripTrailingZeros().toPlainString(),
+                calculatedBalance = Money(derived).toBigDecimal().stripTrailingZeros().toPlainString(),
                 manualBalanceEnabled = a.manualBalanceOverrideMinorUnits != null,
                 manualModeWasEnabled = a.manualBalanceOverrideMinorUnits != null,
                 balanceDirty = false,
@@ -89,15 +96,20 @@ class AccountEditViewModel @Inject constructor(
             val s = _state.value
             if (s.saving) return@launch
             val id = s.accountId ?: return@launch
-            val a = accountDao.findById(id) ?: return@launch
+            val a = accountDao.findById(id) ?: run {
+                _state.value = s.copy(error = "Account not found")
+                return@launch
+            }
             val supportsManualBalance = s.accountType == AccountType.BANK ||
                 s.accountType == AccountType.CASH || s.accountType == AccountType.WALLET ||
                 s.accountType == AccountType.DEBIT_CARD || s.accountType == AccountType.PREPAID_CARD
             val manualEnabled = supportsManualBalance && s.manualBalanceEnabled
 
-            // A checkpoint is written only when the user deliberately changed the balance
-            // control or enabled manual mode. A name/visibility edit preserves the existing
-            // checkpoint (and its timestamp) untouched.
+            // Explicitly turning manual mode off is the ONLY action that discards a durable
+            // checkpoint. Every other save - a name/institution/visibility edit, or a change of
+            // account type - preserves the existing checkpoint columns untouched, so a metadata
+            // edit can never silently destroy the user's reconciliation.
+            val manualTurnedOff = s.manualModeDirty && !s.manualBalanceEnabled
             val shouldWriteCheckpoint = manualEnabled &&
                 (s.balanceDirty || s.manualModeDirty || !s.manualModeWasEnabled)
             val entered = if (shouldWriteCheckpoint) {
@@ -118,7 +130,7 @@ class AccountEditViewModel @Inject constructor(
             val derived = accountingService.derivedBalancesFor(a).autoBalanceMinorUnits
             val now = System.currentTimeMillis()
             val updated = a.copy(
-                nickname = s.nickname.ifBlank { a.institutionName },
+                nickname = s.nickname.ifBlank { s.institutionName.ifBlank { a.institutionName } },
                 institutionName = s.institutionName.ifBlank { a.institutionName },
                 sourceAccountId = sourceId,
                 accountType = s.accountType,
@@ -126,28 +138,45 @@ class AccountEditViewModel @Inject constructor(
                 // The entered amount is a live reconciliation checkpoint, not an invented
                 // opening transaction. It is stored as an offset against the derived ledger
                 // balance so later (including backdated) movements apply exactly once.
-                manualBalanceOverrideMinorUnits = if (manualEnabled) {
-                    if (shouldWriteCheckpoint) entered else a.manualBalanceOverrideMinorUnits
-                } else null,
-                manualBalanceOverrideAtEpochMillis = if (manualEnabled) {
-                    if (shouldWriteCheckpoint) now else a.manualBalanceOverrideAtEpochMillis
-                } else null,
-                manualBalanceAdjustmentMinorUnits = if (manualEnabled) {
-                    if (shouldWriteCheckpoint) {
-                        com.moneymanager.app.domain.accounting.AccountingEngine
-                            .checkpointAdjustment(entered!!, derived)
-                    } else a.manualBalanceAdjustmentMinorUnits
-                } else null,
+                manualBalanceOverrideMinorUnits = when {
+                    manualTurnedOff -> null
+                    shouldWriteCheckpoint -> entered
+                    else -> a.manualBalanceOverrideMinorUnits
+                },
+                manualBalanceOverrideAtEpochMillis = when {
+                    manualTurnedOff -> null
+                    shouldWriteCheckpoint -> now
+                    else -> a.manualBalanceOverrideAtEpochMillis
+                },
+                manualBalanceAdjustmentMinorUnits = when {
+                    manualTurnedOff -> null
+                    shouldWriteCheckpoint -> com.moneymanager.app.domain.accounting.AccountingEngine
+                        .checkpointAdjustment(entered!!, derived)
+                    else -> a.manualBalanceAdjustmentMinorUnits
+                },
                 active = s.active,
                 hide = s.hide,
                 hideAccountTxns = s.hideTransactions,
                 updatedAtEpochMillis = now
             )
             _state.value = s.copy(saving = true, error = null)
-            accountDao.update(updated)
-            accountingService.recalculateAccounts(setOf(updated.id))
-            _state.value = _state.value.copy(saved = true, saving = false, error = null)
-            backupManager.scheduleAfterWrite()
+            try {
+                // The metadata/checkpoint write and the derived-balance recalculation must commit
+                // together: a crash between them would otherwise leave the checkpoint stored but
+                // currentBalanceMinorUnits stale until the next recalculation.
+                database.withTransaction {
+                    accountDao.update(updated)
+                    accountingService.recalculateAccounts(setOf(updated.id))
+                }
+                _state.value = _state.value.copy(saved = true, saving = false, error = null)
+                backupManager.scheduleAfterWrite()
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    saved = false,
+                    saving = false,
+                    error = "Could not save: ${e.message ?: "unknown error"}"
+                )
+            }
         }
     }
 }

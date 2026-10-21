@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,15 +67,19 @@ import kotlinx.coroutines.withContext
 fun PinSetupDialog(
     isChange: Boolean,
     onDismiss: () -> Unit,
-    onSubmit: (String) -> Unit
+    // Runs off the main thread (PBKDF2 is deliberately slow). Returns false if the PIN was
+    // rejected by the store; the dialog stays open and shows an error.
+    onSubmit: suspend (String) -> Boolean
 ) {
     var pin by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var reveal by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!saving) onDismiss() },
         title = { Text(if (isChange) "Change PIN" else "Set a PIN") },
         text = {
             Column {
@@ -93,6 +98,7 @@ fun PinSetupDialog(
                     },
                     label = { Text("PIN") },
                     singleLine = true,
+                    enabled = !saving,
                     isError = error != null,
                     visualTransformation =
                         if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
@@ -120,6 +126,7 @@ fun PinSetupDialog(
                     },
                     label = { Text("Confirm PIN") },
                     singleLine = true,
+                    enabled = !saving,
                     isError = error != null,
                     visualTransformation =
                         if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
@@ -136,15 +143,36 @@ fun PinSetupDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                when {
-                    !PinHasher.isValidPin(pin) -> error = "Use 4 to 8 digits"
-                    pin != confirm -> error = "The two PINs don't match"
-                    else -> onSubmit(pin)
+            TextButton(
+                enabled = !saving,
+                onClick = {
+                    when {
+                        !PinHasher.isValidPin(pin) -> error = "Use 4 to 8 digits"
+                        pin != confirm -> error = "The two PINs don't match"
+                        else -> {
+                            saving = true
+                            val value = pin
+                            scope.launch {
+                                // onSubmit owns the off-thread hop for the (slow) PBKDF2 hash and
+                                // any UI-safe messaging, so this stays on the main dispatcher.
+                                val ok = onSubmit(value)
+                                saving = false
+                                if (!ok) error = "Could not save the PIN"
+                            }
+                        }
+                    }
                 }
-            }) { Text("Save") }
+            ) {
+                if (saving) {
+                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                } else {
+                    Text("Save")
+                }
+            }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = {
+            TextButton(enabled = !saving, onClick = onDismiss) { Text("Cancel") }
+        }
     )
 }
 
@@ -164,7 +192,12 @@ fun PinUnlockScreen(
     onUnlock: suspend (String) -> Boolean,
     modifier: Modifier = Modifier,
     subtitle: String = "Enter your PIN to continue",
-    expectedLength: Int = 4
+    expectedLength: Int = 4,
+    // Failed-attempt policy, owned by the caller so it can persist across process restarts.
+    isLockedOut: () -> Boolean = { false },
+    lockoutRemainingMillis: () -> Long = { 0L },
+    onFailure: () -> Unit = {},
+    onSuccess: () -> Unit = {}
 ) {
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -172,11 +205,36 @@ fun PinUnlockScreen(
     var showPin by remember { mutableStateOf(false) }
     // True while the (deliberately slow, PBKDF2-backed) verification runs off the main thread.
     var verifying by remember { mutableStateOf(false) }
+    // Cooldown countdown, mirrored into Compose state so the keypad can disable itself.
+    var lockoutRemaining by remember { mutableStateOf(0L) }
     val scope = rememberCoroutineScope()
     val targetLength = expectedLength.coerceIn(4, 8)
 
+    // Tick the countdown while a cooldown is armed, and re-check on first composition.
+    LaunchedEffect(Unit) {
+        while (true) {
+            val remaining = lockoutRemainingMillis()
+            lockoutRemaining = remaining
+            if (remaining <= 0L) {
+                if (isLockedOut()) {
+                    // Still within the window computed elsewhere; keep polling briefly.
+                } else {
+                    // Cool-down over: clear the stale message so the keypad is usable again.
+                    if (error?.startsWith("Too many") == true) error = null
+                }
+            }
+            kotlinx.coroutines.delay(500)
+        }
+    }
+
+    val lockedOut = lockoutRemaining > 0L || isLockedOut()
+
     fun submit() {
         if (verifying) return
+        if (isLockedOut() || lockoutRemaining > 0L) {
+            error = "Too many attempts"
+            return
+        }
         if (pin.length < 4) {
             error = "Enter your PIN"
             return
@@ -190,10 +248,14 @@ fun PinUnlockScreen(
             verifying = false
             if (ok) {
                 error = null
+                onSuccess()
             } else {
                 attempts += 1
                 pin = ""
-                error = "Incorrect PIN"
+                onFailure()
+                val remaining = lockoutRemainingMillis()
+                lockoutRemaining = remaining
+                error = if (remaining > 0L) "Too many attempts" else "Incorrect PIN"
             }
         }
     }
@@ -288,6 +350,11 @@ fun PinUnlockScreen(
                     Spacer(Modifier.width(MmSpacing.sm))
                     Text("Checking…", style = MmType.caption, color = MmColors.textSecondary)
                 }
+                lockedOut -> Text(
+                    "Too many attempts · retry in ${(lockoutRemaining / 1000) + 1}s",
+                    style = MmType.caption,
+                    color = errorTint
+                )
                 error != null && attempts > 1 -> Text(
                     "$error · attempt $attempts",
                     style = MmType.caption,
@@ -312,7 +379,7 @@ fun PinUnlockScreen(
                 .padding(bottom = MmSpacing.xxl),
             showPin = showPin,
             pinLength = pin.length,
-            enabled = !verifying,
+            enabled = !verifying && !lockedOut,
             onDigit = ::onDigit,
             onBackspace = ::onBackspace,
             onToggleReveal = { showPin = !showPin }

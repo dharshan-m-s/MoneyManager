@@ -25,13 +25,51 @@ Never hard-code a colour in a screen. Use the theme-resolved roles in `MmColors`
 | `MmColors.accent` | Brand and primary actions |
 | `MmColors.onAccent` | Text and icons **on** `accent` (filled buttons, brand headers) |
 | `MmColors.income` / `MmColors.expense` / `MmColors.warning` | Semantic money states |
+| `MmColors.brandGradient` | Green brand header/hero band (dashboard hero, account header) |
+| `MmColors.cardHeaderGradient` | Blue credit-card header band |
+| `MmColors.onBrand` | Text and icons on any brand/card header band (use instead of `MMWhite`) |
 
-The fixed constants at the top of `Theme.kt` are limited to three legitimate uses: the brand top
-bar (`MMGreenDark` + `MMWhite`), the chart/category hues (`MMGreen`, `MMBlue`, `MMBrown`,
-`MMPurple`, `MMCyan`, `MMAmberDue`) and `MMIconShadow`.
+Solid brand bands (top bars, account headers) use `background(Brush.verticalGradient(MmColors.brandGradient))`
+and `MmColors.onBrand` for their contents. `Modifier.mmBrandWash()` is the softer dashboard variant:
+it fades the brand gradient into `background` by 34% so the hero blends into the page instead of
+stopping at a hard edge. All three are `@Composable` and read the active theme, so the wash is green
+in light mode and the deeper brand green in dark mode rather than a decorative mint that glows.
 
-> `Color.White` on `MmColors.accent` is a dark-mode bug - the dark theme's accent is a light
-> green. Always use `MmColors.onAccent` on brand surfaces.
+Colour literals (`Color(0x…)`) exist **only** in `ui/theme/Theme.kt`. The palettes
+(`MmPaletteLight*`, `MmPaletteDark*`) and the brand/card header constants are the single source of
+truth; screens never name a colour directly. The remaining chart/category hues
+(`MMGreen`, `MMBlue`, `MMBrown`, `MMPurple`, `MMCyan`, `MMAmberDue`) live there too and are read
+through semantic roles (`income`/`expense`/`warning`) wherever a meaning applies.
+
+#### Palette rationale
+
+- **Deep navy-slate dark theme** (`background #080E1A`, `surface #131C2E`) rather than pure black:
+  a slightly lifted surface keeps cards and inset areas readable and avoids OLED-black smear, while
+  the darker background preserves the ~1.1:1 surface/background separation that gives cards an edge
+  without a shadow (shadows are invisible on dark).
+- **Brand green** carries the app's identity: a mid green (`#067A4C`) for light mode accents and a
+  deeper green (`#0B6B4A` → `#0A6E4B`) for header bands that white text sits on in both themes.
+- **Credit cards get their own blue band** (`#1B4D8F` → `#245FA8` light, `#16305A` → `#1C4179`
+  dark) so a card is visually distinct from a bank account at a glance.
+- **Semantic money colours**: income green (`#047857` light / a lifted green dark) and expense red
+  (`#DC2626` light / a lifted red dark) are tuned so they stay legible as *text* on their surface —
+  not just as a tint — in both themes.
+
+#### Contrast rules (enforced by `ThemeContrastTest`)
+
+`app/src/test/java/com/moneymanager/app/ui/theme/ThemeContrastTest.kt` computes WCAG 2.1 sRGB
+contrast ratios from the **actual** palette values and fails the build if any pair breaks its target:
+
+- body text on `background`/`surface`/`surfaceMuted`: **≥ 4.5:1**
+- semantic colours (`income`/`expense`/`warning`/`accent`) as text on `surface`: **≥ 4.5:1**
+- `onAccent` on `accent`, and `onBrand` (white) on every brand/card header stop: **≥ 4.5:1**
+- dark `surface` vs `background` and `surfaceMuted` vs `surface`: **≥ 1.1:1** (structural edge)
+
+When touching any colour, run `./gradlew :app:testDebugUnitTest --tests "*ThemeContrastTest"`; the
+failure message prints the measured ratio so a value can be nudged until it passes honestly.
+
+> `Color.White` (or `MMWhite`) on a *non*-brand surface is a dark-mode bug. On brand/card header
+> bands use `MmColors.onBrand`; on `accent` use `MmColors.onAccent`.
 
 ### Spacing
 
@@ -86,4 +124,6 @@ action row. Deliberately shallow so toolbars are never overcrowded.
 5. Every async screen has a loading, empty and error state.
 6. Every action gives feedback (snackbar, inline error, or navigation).
 7. Hide optional fields with no value rather than showing a dash; never delete the underlying data.
-8. Verify the screen in light mode, dark mode and at a small width before calling it done.
+8. Verify the screen in light mode and dark mode: colours come from `MmColors`, and the change must
+   keep `ThemeContrastTest` green. `ThemeRenderingTest` (androidTest) smoke-renders the shared
+   components in both themes.

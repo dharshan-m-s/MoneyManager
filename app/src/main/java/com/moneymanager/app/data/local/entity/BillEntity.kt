@@ -1,5 +1,6 @@
 package com.moneymanager.app.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -122,9 +123,64 @@ data class BillInstanceEntity(
     val billId: Long,
     val dueDateEpochMillis: Long,
     val amountDueMinorUnits: Long,
+    /** Fully settled only: true once recorded payments cover [amountDueMinorUnits] (an
+     *  over-payment also settles the bill). Partial payments keep this false so every
+     *  "unpaid occurrence" query still sees the instance. */
     val paid: Boolean = false,
     val paidAtEpochMillis: Long? = null,
-    /** Existing ledger transaction linked when "Mark as Paid" is confirmed. A null value means
-     *  the user explicitly chose "Paid by Cash"; neither path creates a duplicate expense. */
-    val paymentTransactionId: Long? = null
+    /** Legacy single-link column, kept in sync as the FIRST linked payment transaction of the
+     *  occurrence. Authoritative payment detail lives in [BillPaymentAllocationEntity]; a null
+     *  value on a paid row means the settlement came from cash or the link was cleared. */
+    val paymentTransactionId: Long? = null,
+    /** Cached SUM of [BillPaymentAllocationEntity.amountMinorUnits] for this occurrence.
+     *  0 = nothing recorded, < amountDue = partially paid, >= amountDue = fully settled.
+     *  May exceed amountDue when the user over-pays; that excess is never silently discarded. */
+    @ColumnInfo(defaultValue = "0")
+    val paidAmountMinorUnits: Long = 0L
+)
+
+/**
+ * One recorded payment against one bill occurrence. Partial payments are separate rows whose
+ * sum drives the instance's cached aggregate ([BillInstanceEntity.paidAmountMinorUnits]) and
+ * settled flag. A null [transactionId] is an explicit cash/out-of-band payment; when the
+ * linked ledger transaction is deleted the row cascades away and the occurrence is recomputed
+ * back to its unpaid/partially-paid state.
+ *
+ * The unique [transactionId] index guarantees one transaction can never be counted as payment
+ * for two different bills (or twice on the same one). SQLite unique indexes permit many NULLs,
+ * so cash payments are unaffected.
+ */
+@Entity(
+    tableName = "bill_payment_allocations",
+    foreignKeys = [
+        ForeignKey(
+            entity = BillInstanceEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["billInstanceId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = TransactionEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["transactionId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index("billInstanceId"),
+        Index(value = ["transactionId"], unique = true)
+    ]
+)
+data class BillPaymentAllocationEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val billInstanceId: Long,
+    /** Null only for explicit cash/out-of-band payments. */
+    val transactionId: Long? = null,
+    /** The full amount that moved, even when it exceeds the remaining due (over-payment is
+     *  recorded honestly and surfaced as an extra credit, never dropped). */
+    val amountMinorUnits: Long,
+    val paidAtEpochMillis: Long,
+    val note: String? = null,
+    val createdAtEpochMillis: Long
 )

@@ -203,7 +203,9 @@ fun DashboardBreakdownScreen(
                                     )
                                 }
                                 Text(
-                                    MoneyFormat.rupeesNoDecimals(Money(line.instance.amountDueMinorUnits)),
+                                    MoneyFormat.rupeesNoDecimals(
+                                        Money(line.instance.amountDueMinorUnits - line.instance.paidAmountMinorUnits)
+                                    ),
                                     style = MmType.amountRow,
                                     color = MmColors.textPrimary
                                 )

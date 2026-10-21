@@ -65,14 +65,15 @@ import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.formatFullDate
-import com.moneymanager.app.ui.theme.MMGreenDark
 import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 
-private val cardHeaderColor = Color(0xFF1B4D8F)
-private val bankHeaderColor = MMGreenDark
+@Composable
+private fun accountHeaderBrush(isCard: Boolean) = androidx.compose.ui.graphics.Brush.verticalGradient(
+    if (isCard) MmColors.cardHeaderGradient else MmColors.brandGradient
+)
 
 @Composable
 fun AccountDetailScreen(
@@ -269,12 +270,12 @@ private fun AccountHeader(
 ) {
     val isCard = state.isCreditCard
     val account = state.account
-    val headerColor = if (isCard) cardHeaderColor else bankHeaderColor
+    val headerBrush = accountHeaderBrush(isCard)
 
     Column(
         Modifier
             .fillMaxWidth()
-            .background(headerColor)
+            .background(headerBrush)
             .statusBarsPadding()
             .padding(bottom = MmSpacing.lg)
     ) {
@@ -428,7 +429,7 @@ private fun CreditCardTabs(selected: Int, onSelect: (Int) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(cardHeaderColor)
+            .background(MmColors.cardHeaderGradient.last())
     ) {
         labels.forEachIndexed { index, label ->
             val active = selected == index

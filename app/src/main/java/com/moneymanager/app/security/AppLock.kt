@@ -40,7 +40,10 @@ class AppLock @Inject constructor(
     fun isEnabled(): Boolean {
         if (!prefs.getBoolean(KEY_ENABLED, false)) return false
         return when (method()) {
-            LockMethod.IN_APP_PIN -> hasPin()
+            // Fail-closed: if the enabled flag is set, the gate stays up regardless of whether
+            // the credential is still usable. A PIN method with a missing/corrupt hash must show
+            // the recovery screen (which can reset the lock), never silently open the ledger.
+            LockMethod.IN_APP_PIN -> true
             // The system prompt is provided by Android itself, so the method works without any
             // app-side secret. If the device later loses its screen lock AND no recovery PIN was
             // set, the lock stays engaged (fail-closed, never silently unprotected): the gate
@@ -72,6 +75,9 @@ class AppLock @Inject constructor(
             // The unlock screen draws one dot per digit, so it needs the real length.
             putInt(KEY_PIN_LENGTH, pin.length)
             putBoolean(KEY_ENABLED, true)
+            // A freshly set credential starts from a clean slate.
+            remove(KEY_FAILURES)
+            remove(KEY_LOCKED_UNTIL)
         }
         return true
     }
@@ -85,6 +91,38 @@ class AppLock @Inject constructor(
         val salt = prefs.getString(KEY_SALT, null) ?: return false
         val hash = prefs.getString(KEY_HASH, null) ?: return false
         return PinHasher.verify(pin, salt, hash)
+    }
+
+    // --- Failed-attempt policy (persisted so it survives an activity/process restart) ---
+
+    /** The persisted failure count / active cooldown. */
+    fun failedAttemptState(): FailedAttemptPolicy.State = FailedAttemptPolicy.State(
+        failures = prefs.getInt(KEY_FAILURES, 0),
+        lockedUntilMillis = prefs.getLong(KEY_LOCKED_UNTIL, 0L)
+    )
+
+    /** True while unlock attempts must be refused; the caller surfaces [lockoutRemainingMillis]. */
+    fun isLockedOut(nowMillis: Long): Boolean =
+        FailedAttemptPolicy.isLockedOut(failedAttemptState(), nowMillis)
+
+    fun lockoutRemainingMillis(nowMillis: Long): Long =
+        FailedAttemptPolicy.remainingLockoutMillis(failedAttemptState(), nowMillis)
+
+    /** Records one failed unlock and persists the (possibly armed) cooldown. */
+    fun recordFailedAttempt(nowMillis: Long) {
+        val next = FailedAttemptPolicy.onFailure(failedAttemptState(), nowMillis)
+        prefs.edit {
+            putInt(KEY_FAILURES, next.failures)
+            putLong(KEY_LOCKED_UNTIL, next.lockedUntilMillis)
+        }
+    }
+
+    /** Clears the failure counter and any cooldown after a successful verification. */
+    fun clearFailedAttempts() {
+        prefs.edit {
+            remove(KEY_FAILURES)
+            remove(KEY_LOCKED_UNTIL)
+        }
     }
 
     /** True when the system prompt can be used: a device screen lock is enrolled. */
@@ -111,6 +149,8 @@ class AppLock @Inject constructor(
             remove(KEY_HASH)
             remove(KEY_METHOD)
             remove(KEY_PIN_LENGTH)
+            remove(KEY_FAILURES)
+            remove(KEY_LOCKED_UNTIL)
             putBoolean(KEY_ENABLED, false)
         }
     }
@@ -124,6 +164,8 @@ class AppLock @Inject constructor(
         const val KEY_HASH = "pin_hash"
         const val KEY_METHOD = "lock_method"
         const val KEY_PIN_LENGTH = "pin_length"
+        const val KEY_FAILURES = "failed_attempts"
+        const val KEY_LOCKED_UNTIL = "locked_until_millis"
         const val LOCK_AFTER_BACKGROUND_MILLIS = 30_000L
     }
 }

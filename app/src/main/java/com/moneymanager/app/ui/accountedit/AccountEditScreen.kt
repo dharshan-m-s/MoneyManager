@@ -152,7 +152,8 @@ fun AccountEditScreen(
                         }
                     } else {
                         Text(
-                            "Your balance is calculated from your transactions.",
+                            "Your balance is calculated from your transactions" +
+                                " (currently ${state.calculatedBalance}).",
                             style = MmType.caption,
                             color = MmColors.textSecondary
                         )

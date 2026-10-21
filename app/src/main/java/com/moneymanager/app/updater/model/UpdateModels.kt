@@ -32,8 +32,17 @@ data class ReleaseUpdate(
     val apkUrl: String,
     val apkName: String,
     val expectedSha256: String?,
-    val mandatory: Boolean = false
-)
+    val mandatory: Boolean = false,
+    /**
+     * Where [expectedSha256] came from, so the app never claims a checksum was verified when none
+     * was available to check. Null/blank means "no checksum published"; download then proceeds
+     * with package/version/signature verification only.
+     */
+    val checksumSource: String? = null
+) {
+    /** True when a checksum was published and therefore will actually be verified on download. */
+    val hasChecksum: Boolean get() = expectedSha256?.startsWith("sha256:") == true
+}
 
 data class UpdateDiagnostics(
     val repository: String = "",

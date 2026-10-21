@@ -187,11 +187,13 @@ fun CashScreen(
                 verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)
             ) {
                 grouped.entries.sortedByDescending { it.key }.forEach { (month, rows) ->
+                    // Canonical per-month totals from the ViewModel (transaction semantics, not a
+                    // raw debit/credit sign test) so this header reconciles with the monthly
+                    // figures above and with the rest of the app.
+                    val totals = state.monthTotals[month]
+                    val monthSpend = totals?.spendMinor ?: 0L
+                    val monthIncome = totals?.incomeMinor ?: 0L
                     val realRows = rows.filterNot { it.txnSubType.name.contains("CASH_FORWARD") }
-                    val monthSpend = realRows.filter { it.debitMinorUnits > it.creditMinorUnits }
-                        .sumOf { it.debitMinorUnits - it.creditMinorUnits }
-                    val monthIncome = realRows.filter { it.creditMinorUnits > it.debitMinorUnits }
-                        .sumOf { it.creditMinorUnits - it.debitMinorUnits }
                     val forward = rows.firstOrNull { it.txnSubType.name == "CREDIT_CASH_FORWARD" }
 
                     item(key = "header-$month") {

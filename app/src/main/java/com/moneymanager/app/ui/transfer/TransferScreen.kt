@@ -173,6 +173,7 @@ fun TransferScreen(
 
             Button(
                 onClick = viewModel::save,
+                enabled = !state.saving && !state.saved,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(MmSpacing.radiusRow),
                 colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
