@@ -107,7 +107,7 @@ dependencies {
     ksp("com.google.dagger:hilt-android-compiler:2.60.1")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     // room-migration 2.8.4 deserializes exported schema JSON with serialization 1.8.1; the
     // lifecycle-* transitive pin of 1.7.3 would otherwise break on-device migration tests.
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
