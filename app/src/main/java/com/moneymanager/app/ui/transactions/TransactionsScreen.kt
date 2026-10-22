@@ -1,7 +1,6 @@
 package com.moneymanager.app.ui.transactions
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,6 +62,8 @@ import com.moneymanager.app.ui.theme.MmType
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.components.MmPrimaryButton
 
 private val txnZone: ZoneId = ZoneId.of("Asia/Kolkata")
 
@@ -222,7 +223,7 @@ fun TransactionsScreen(
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(MmSpacing.radiusRow))
-                        .clickable { sort = option.name; showSort = false }
+                        .pressableClick { sort = option.name; showSort = false }
                         .padding(vertical = MmSpacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -383,14 +384,11 @@ private fun TransactionFilterSheet(
                 onClick = { draft = TxnFilters() },
                 modifier = Modifier.weight(1f)
             ) { Text("Clear all") }
-            Button(
+            MmPrimaryButton(
+                text = "Apply",
                 onClick = { onApply(draft) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(MmSpacing.radiusRow),
-                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-            ) {
-                Text("Apply", color = MmColors.onAccent)
-            }
+                modifier = Modifier.weight(1f)
+            )
         }
         if (resultCount == 0) {
             Text(

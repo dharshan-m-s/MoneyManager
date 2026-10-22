@@ -1,7 +1,6 @@
 package com.moneymanager.app.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,6 +20,7 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.automirrored.filled.CallReceived
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.moneymanager.app.data.local.entity.CategoryEntity
 import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.model.Money
+import com.moneymanager.app.domain.model.TxnKind
 import com.moneymanager.app.domain.model.TxnSubType
 import com.moneymanager.app.ui.categories.categoryIcon
 import com.moneymanager.app.ui.theme.MmColors
@@ -119,6 +120,9 @@ fun MmTransactionRow(
 ) {
     val amount = mmSignedAmount(txn)
     val isTransfer = txn.txnSubType == TxnSubType.TRANSFER_IN || txn.txnSubType == TxnSubType.TRANSFER_OUT
+    // A card refund comes back as money in, but it is NOT income: it cancels what the card
+    // already owed, so it must never borrow the income treatment (green, "Income" badge).
+    val isRefund = txn.txnKind == TxnKind.REFUND_REVERSAL
     val title = mmDisplayTitle(txn)
     val tint = category?.let { mmCategoryTint(it.name) } ?: mmCategoryTint(txn.rawCategoryName ?: title)
     val icon = when {
@@ -133,10 +137,12 @@ fun MmTransactionRow(
         amountColor = when {
             isTransfer -> MmColors.textPrimary
             amount.isNegative -> MmColors.expense
+            isRefund -> MmColors.accent
             else -> MmColors.income
         },
         signed = !isTransfer && !hideAmounts,
         isIncome = !amount.isNegative,
+        isRefund = isRefund,
         onClick = onClick,
         modifier = modifier,
         showDivider = showDivider
@@ -183,6 +189,7 @@ private fun MmTransactionRowContent(
     amountColor: Color,
     signed: Boolean,
     isIncome: Boolean,
+    isRefund: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     showDivider: Boolean = true
@@ -191,7 +198,7 @@ private fun MmTransactionRowContent(
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
+                .pressableClick(onClick = onClick)
                 .padding(horizontal = MmSpacing.lg, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -223,8 +230,16 @@ private fun MmTransactionRowContent(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (signed) {
                         Icon(
-                            if (isIncome) Icons.AutoMirrored.Filled.CallReceived else Icons.AutoMirrored.Filled.CallMade,
-                            contentDescription = if (isIncome) "Income" else "Expense",
+                            when {
+                                isRefund -> Icons.AutoMirrored.Filled.Undo
+                                isIncome -> Icons.AutoMirrored.Filled.CallReceived
+                                else -> Icons.AutoMirrored.Filled.CallMade
+                            },
+                            contentDescription = when {
+                                isRefund -> "Refund"
+                                isIncome -> "Income"
+                                else -> "Expense"
+                            },
                             tint = amountColor,
                             modifier = Modifier.size(13.dp)
                         )

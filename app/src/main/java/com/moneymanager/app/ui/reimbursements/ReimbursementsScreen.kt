@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
@@ -36,6 +35,9 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.revealOnAppear
+import androidx.compose.foundation.lazy.itemsIndexed
 
 /**
  * Money you are owed back. Each pending item keeps the canonical transaction row (so it still
@@ -98,8 +100,11 @@ fun ReimbursementsScreen(
                 }
             }
 
-            items(pending, key = { it.id }) { txn ->
-                MmCard(contentPadding = PaddingValues(0.dp)) {
+            itemsIndexed(pending, key = { _, txn -> txn.id }) { index, txn ->
+                MmCard(
+                    modifier = Modifier.revealOnAppear(index = index),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
                     MmTransactionRow(
                         txn = txn,
                         onClick = { onTransactionClick(txn.id) },
@@ -111,14 +116,11 @@ fun ReimbursementsScreen(
                             .padding(start = MmSpacing.lg, end = MmSpacing.lg, bottom = MmSpacing.md),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Button(
+                        MmPrimaryButton(
+                            text = "Mark reimbursed",
                             onClick = { viewModel.markReimbursed(txn.id) },
-                            modifier = Modifier.height(40.dp),
-                            shape = RoundedCornerShape(MmSpacing.radiusRow),
-                            colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-                        ) {
-                            Text("Mark reimbursed", color = MmColors.onAccent, style = MmType.caption)
-                        }
+                            modifier = Modifier.height(40.dp)
+                        )
                         Spacer(Modifier.width(MmSpacing.md))
                         Text(
                             "Only marks this transaction — nothing else changes.",

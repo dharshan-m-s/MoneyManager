@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
+import com.moneymanager.app.domain.model.TxnKind
 import com.moneymanager.app.domain.model.TxnSubType
 import com.moneymanager.app.ui.categories.CategoryVisual
 import com.moneymanager.app.ui.categories.categoryIcon
@@ -57,10 +58,13 @@ import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmInfoRow
 import com.moneymanager.app.ui.components.MmLoadingState
+import com.moneymanager.app.ui.components.MmAnimatedAmount
+import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmReceiptAttachSection
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.mmCategoryTint
+import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -113,6 +117,9 @@ fun TransactionDetailScreen(
                     val isTransfer = txn.txnSubType == TxnSubType.TRANSFER_IN ||
                         txn.txnSubType == TxnSubType.TRANSFER_OUT
                     val isIncome = amount.isNegative.not()
+                    // A card refund is money in, but it cancels an earlier charge - it is not
+                    // income, so it gets its own label and tint instead of the income green.
+                    val isRefund = txn.txnKind == TxnKind.REFUND_REVERSAL
                     val title = txn.merchantReceiverSender?.takeIf { it.isNotBlank() }
                         ?: txn.rawCategoryName?.takeIf { it.isNotBlank() }
                         ?: "Transaction"
@@ -136,16 +143,19 @@ fun TransactionDetailScreen(
                             amount = amount,
                             amountColor = when {
                                 isTransfer -> MmColors.textPrimary
+                                isRefund -> MmColors.accent
                                 isIncome -> MmColors.income
                                 else -> MmColors.expense
                             },
                             statusLabel = when {
                                 isTransfer -> "Transfer"
+                                isRefund -> "Refund"
                                 isIncome -> "Income"
                                 else -> "Expense"
                             },
                             statusTint = when {
                                 isTransfer -> MmColors.accent
+                                isRefund -> MmColors.accent
                                 isIncome -> MmColors.income
                                 else -> MmColors.expense
                             },
@@ -172,7 +182,7 @@ fun TransactionDetailScreen(
                         }
 
                         // --- Payment group: only meaningful facts, empty rows never rendered ---
-                        DetailCard(title = if (isTransfer) "Transfer" else "Payment") {
+                        DetailCard(title = if (isTransfer) "Transfer" else "Payment", index = 1) {
                             MmInfoRow("Account", accountName ?: "Account #${txn.accountId}")
                             MmInfoRow("Category", categoryName)
                             MmInfoRow("Method", txn.rawPaymentType ?: txn.paymentType.displayLabel())
@@ -188,7 +198,7 @@ fun TransactionDetailScreen(
 
                         val hasExtra = txn.notes?.isNotBlank() == true || txn.reimbursable
                         if (hasExtra) {
-                            DetailCard(title = "Additional information") {
+                            DetailCard(title = "Additional information", index = 2) {
                                 MmInfoRow("Reimbursable", if (txn.reimbursable) "Yes" else "No")
                                 if (txn.reimbursable) {
                                     MmInfoRow("Reimbursed", if (txn.reimbursed) "Yes" else "Not yet")
@@ -200,7 +210,7 @@ fun TransactionDetailScreen(
                             }
                         }
 
-                        DetailCard(title = "Bill or receipt") {
+                        DetailCard(title = "Bill or receipt", index = 3) {
                             MmReceiptAttachSection(
                                 transactionId = txn.id,
                                 attachments = attachments,
@@ -210,18 +220,14 @@ fun TransactionDetailScreen(
                             )
                         }
 
-                        Button(
+                        MmPrimaryButton(
+                            text = "Edit transaction",
                             onClick = { onEdit(txn.id) },
+                            icon = Icons.Filled.Edit,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = MmSpacing.screen),
-                            shape = RoundedCornerShape(MmSpacing.radiusRow),
-                            colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-                        ) {
-                            Icon(Icons.Filled.Edit, contentDescription = null, tint = MmColors.onAccent, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.size(MmSpacing.sm))
-                            Text("Edit transaction", color = MmColors.onAccent, style = MmType.label)
-                        }
+                                .padding(horizontal = MmSpacing.screen)
+                        )
 
                         TextButton(
                             onClick = { showDeleteConfirm = true },
@@ -265,7 +271,27 @@ private fun DetailTopBar(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Surface(color = MMGreenDark, elevation = 0.dp) {
+    Surface(color = androidx.compose.ui.graphics.Color.Transparent, elevation = 0.dp) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(androidx.compose.ui.graphics.Brush.verticalGradient(MmColors.brandGradient))
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(
+                                androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f),
+                                androidx.compose.ui.graphics.Color.Transparent
+                            ),
+                            center = androidx.compose.ui.geometry.Offset(700f, 10f),
+                            radius = 480f
+                        )
+                    )
+            )
         Row(
             Modifier
                 .fillMaxWidth()
@@ -293,6 +319,7 @@ private fun DetailTopBar(
                 }
             }
         }
+        }
     }
 }
 
@@ -312,6 +339,7 @@ private fun DetailHero(
     Column(
         Modifier
             .fillMaxWidth()
+            .revealOnAppear(index = 0)
             .background(
                 androidx.compose.ui.graphics.Brush.verticalGradient(
                     listOf(MmColors.surface, MmColors.background)
@@ -339,13 +367,11 @@ private fun DetailHero(
             Text(it, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(MmSpacing.lg))
-        Text(
-            MoneyFormat.rupeesNoDecimals(amount.abs()),
+        MmAnimatedAmount(
+            value = amount.abs().minorUnits,
+            formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
             style = MmType.amountHero,
-            color = amountColor,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis
+            color = amountColor
         )
         Spacer(Modifier.height(MmSpacing.sm))
         MmPill(statusLabel, tint = statusTint, filled = true)
@@ -360,9 +386,11 @@ private fun DetailHero(
 }
 
 @Composable
-private fun DetailCard(title: String, content: @Composable () -> Unit) {
+private fun DetailCard(title: String, index: Int = 0, content: @Composable () -> Unit) {
     MmCard(
-        modifier = Modifier.padding(horizontal = MmSpacing.screen),
+        modifier = Modifier
+            .padding(horizontal = MmSpacing.screen)
+            .revealOnAppear(index = index),
         contentPadding = PaddingValues(MmSpacing.card)
     ) {
         Text(title.uppercase(), style = MmType.caption, fontWeight = FontWeight.SemiBold, color = MmColors.textSecondary)

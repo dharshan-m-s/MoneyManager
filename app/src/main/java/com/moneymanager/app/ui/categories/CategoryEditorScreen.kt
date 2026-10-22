@@ -52,6 +52,8 @@ import com.moneymanager.app.ui.theme.MmPaletteDarkIncome
 import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.revealOnAppear
 
 /**
  * Single editor for both creating and changing a category. Passing [categoryId] switches it into
@@ -185,7 +187,8 @@ fun CategoryEditorScreen(
                 .verticalScroll(rememberScrollState())
                 .imePadding()
                 .padding(MmSpacing.lg)
-                .padding(bottom = MmSpacing.xxl),
+                .padding(bottom = MmSpacing.xxl)
+                .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
         ) {
             if (missing) {
@@ -311,25 +314,16 @@ fun CategoryEditorScreen(
                 }
             }
 
-            Button(
+            MmPrimaryButton(
+                text = when {
+                    saving -> "Saving…"
+                    isEdit -> "Save changes"
+                    else -> "Create category"
+                },
                 onClick = { save() },
                 enabled = !saving,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(MmSpacing.radiusRow),
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = if (saving) MmColors.surfaceMuted else MmColors.accent,
-                    contentColor = if (saving) MmColors.textTertiary else MmColors.onAccent
-                )
-            ) {
-                Text(
-                    when {
-                        saving -> "Saving…"
-                        isEdit -> "Save changes"
-                        else -> "Create category"
-                    },
-                    style = MmType.label
-                )
-            }
+                modifier = Modifier.fillMaxWidth()
+            )
 
             if (isEdit && loaded != null) {
                 OutlinedButton(

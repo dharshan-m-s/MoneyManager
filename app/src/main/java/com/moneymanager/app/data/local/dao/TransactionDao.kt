@@ -176,6 +176,14 @@ interface TransactionDao {
     @Query("SELECT t.* FROM transactions t INNER JOIN accounts a ON a.id = t.accountId WHERE a.accountType = 'CASH' ORDER BY t.occurredAtEpochMillis DESC")
     fun observeAllCashTransactions(): Flow<List<TransactionEntity>>
 
+    /**
+     * Money that reached a credit card (the card-side leg of a card bill payment), newest
+     * first. These are the rows that reduce a card's outstanding; the Bills screen uses them
+     * to tell the user "a payment for this card is already recorded - mark it as paid?".
+     */
+    @Query("SELECT * FROM transactions WHERE isCreditCardBillPayment = 1 ORDER BY occurredAtEpochMillis DESC, id DESC")
+    fun observeCardPaymentLegs(): Flow<List<TransactionEntity>>
+
     @Query(
         "SELECT t.categoryId as categoryId, COALESCE(SUM(t.debitMinorUnits - t.creditMinorUnits), 0) as total " +
             "FROM transactions t INNER JOIN accounts a ON a.id = t.accountId " +

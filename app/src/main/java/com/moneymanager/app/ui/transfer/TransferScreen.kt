@@ -1,7 +1,6 @@
 package com.moneymanager.app.ui.transfer
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,6 +23,7 @@ import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,7 +38,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.ui.components.MmAmountField
+import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmOption
@@ -48,11 +51,13 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.pressableClick
 
 @Composable
 fun TransferScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit,
+    preselectToAccountId: Long? = null,
     viewModel: TransferViewModel = hiltViewModel()
 ) {
     val state by viewModel.ui.collectAsState()
@@ -60,6 +65,9 @@ fun TransferScreen(
     var toSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
+    LaunchedEffect(preselectToAccountId) {
+        preselectToAccountId?.let(viewModel::preselectDestination)
+    }
 
     val options = state.accounts.map {
         MmOption(
@@ -120,7 +128,7 @@ fun TransferScreen(
                             .size(40.dp)
                             .clip(CircleShape)
                             .background(MmColors.surfaceMuted)
-                            .clickable {
+                            .pressableClick {
                                 val from = state.fromAccountId
                                 val to = state.toAccountId
                                 if (from != null && to != null) {
@@ -147,6 +155,43 @@ fun TransferScreen(
                         color = MmColors.textSecondary
                     )
                 }
+                // Cards are not ordinary accounts: money leaving one is a cash advance (it grows
+                // what the card owes) and money arriving at one is a payment (it clears the
+                // balance). The screen says which one this is, so the outcome is never a surprise.
+                val fromIsCard = state.accounts.firstOrNull { it.id == state.fromAccountId }
+                    ?.accountType == AccountType.CREDIT_CARD
+                val toIsCard = state.accounts.firstOrNull { it.id == state.toAccountId }
+                    ?.accountType == AccountType.CREDIT_CARD
+                if (fromIsCard || toIsCard) {
+                    Spacer(Modifier.height(MmSpacing.sm))
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(MmColors.surfaceMuted, RoundedCornerShape(MmSpacing.radiusRow))
+                            .padding(MmSpacing.md),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            Icons.Filled.CreditCard,
+                            contentDescription = null,
+                            tint = MmColors.accent,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(MmSpacing.sm))
+                        Text(
+                            when {
+                                fromIsCard && toIsCard ->
+                                    "Moving money between two cards charges the first card and settles the second."
+                                fromIsCard ->
+                                    "Taking money out of a card is a cash advance - it increases what the card owes."
+                                else ->
+                                    "Paying a card reduces what it owes and is never counted as spending."
+                            },
+                            style = MmType.caption,
+                            color = MmColors.textSecondary
+                        )
+                    }
+                }
             }
 
             MmCard {
@@ -171,15 +216,13 @@ fun TransferScreen(
                 Text(it, color = MmColors.expense, style = MmType.caption)
             }
 
-            Button(
+            MmPrimaryButton(
+                text = "Transfer now",
                 onClick = viewModel::save,
                 enabled = !state.saving && !state.saved,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(MmSpacing.radiusRow),
-                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-            ) {
-                Text("Transfer now", color = MmColors.onAccent, style = MmType.label)
-            }
+                icon = Icons.Filled.SwapVert,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 

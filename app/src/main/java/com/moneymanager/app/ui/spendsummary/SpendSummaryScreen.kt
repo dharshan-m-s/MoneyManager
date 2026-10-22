@@ -2,7 +2,6 @@ package com.moneymanager.app.ui.spendsummary
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +48,7 @@ import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import java.util.Locale
+import com.moneymanager.app.ui.components.pressableClick
 
 /**
  * Spend areas for the selected month only. The month chips re-query Room for that window,
@@ -272,7 +272,7 @@ private fun MonthBarGraph(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
                         .background(if (hasData) MmColors.accent.copy(alpha = 0.14f) else MmColors.surfaceMuted)
-                        .clickable(enabled = true) { onSelect(idx) },
+                        .pressableClick { onSelect(idx) },
                     contentAlignment = Alignment.BottomCenter
                 ) {
                     Box(

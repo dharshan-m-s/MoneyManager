@@ -146,6 +146,17 @@ data class AccountEntity(
     val availableLimitMinorUnits: Long? = null,
     val outstandingMinorUnits: Long? = null,
 
+    /** The credit limit the USER set, when it differs from the one the engine can derive
+     *  from imported statement snapshots (limit = statement outstanding + statement
+     *  available). Without this, an imported card's limit could never be corrected: every
+     *  recalculation re-derived the statement value and threw the user's number away.
+     *
+     *      effective credit limit = creditLimitOverrideMinorUnits ?: derived limit
+     *
+     *  Null means "no user override" - the engine-derived (or previously stored) limit is
+     *  used. Clearing the field in the card form resets it to null. */
+    val creditLimitOverrideMinorUnits: Long? = null,
+
     /** Durable user reconciliation of the current card outstanding, mirroring the manual
      *  balance checkpoint above. The engine-derived outstanding is always the base; the
      *  persisted adjustment records the difference the user observed at save time:

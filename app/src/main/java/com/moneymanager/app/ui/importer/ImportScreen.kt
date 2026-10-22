@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
@@ -48,6 +47,9 @@ import com.moneymanager.app.ui.theme.MmType
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.revealOnAppear
+import androidx.compose.foundation.lazy.itemsIndexed
 
 /**
  * Statement import. Every stage has a visible state - idle, analysing with real progress,
@@ -109,7 +111,8 @@ private fun IdleContent(onPick: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
-            .padding(MmSpacing.screen),
+            .padding(MmSpacing.screen)
+            .revealOnAppear(),
         verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
     ) {
         MmCard {
@@ -142,16 +145,12 @@ private fun IdleContent(onPick: () -> Unit) {
             }
         }
 
-        Button(
+        MmPrimaryButton(
+            text = "Choose CSV file",
             onClick = onPick,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(MmSpacing.radiusRow),
-            colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-        ) {
-            androidx.compose.material.Icon(Icons.Filled.UploadFile, contentDescription = null, tint = MmColors.onAccent)
-            Spacer(Modifier.width(MmSpacing.sm))
-            Text("Choose CSV file", color = MmColors.onAccent, style = MmType.label)
-        }
+            icon = Icons.Filled.UploadFile,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -204,7 +203,8 @@ private fun DoneContent(
     Column(
         Modifier
             .fillMaxSize()
-            .padding(MmSpacing.screen),
+            .padding(MmSpacing.screen)
+            .revealOnAppear(),
         verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
     ) {
         MmCard {
@@ -226,14 +226,11 @@ private fun DoneContent(
                 "${result.rowsWithProblems}".takeIf { result.rowsWithProblems > 0 }
             )
         }
-        Button(
+        MmPrimaryButton(
+            text = "Go to dashboard",
             onClick = onDone,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(MmSpacing.radiusRow),
-            colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-        ) {
-            Text("Go to dashboard", color = MmColors.onAccent, style = MmType.label)
-        }
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -280,7 +277,9 @@ private fun PreviewContent(
         ?.let { dateFmt.format(Instant.ofEpochMilli(it).atZone(zone)) } ?: "—"
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .revealOnAppear(),
         contentPadding = PaddingValues(
             start = MmSpacing.lg,
             end = MmSpacing.lg,
@@ -323,8 +322,11 @@ private fun PreviewContent(
                     subtitle = "These are repaired during import; the amount is preserved"
                 )
             }
-            items(preview.problemRows) { problem ->
-                MmCard(contentPadding = PaddingValues(MmSpacing.md)) {
+            itemsIndexed(preview.problemRows) { index, problem ->
+                MmCard(
+                    modifier = Modifier.revealOnAppear(index = index),
+                    contentPadding = PaddingValues(MmSpacing.md)
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         MmIconBadge(icon = Icons.Filled.ErrorOutline, tint = MmColors.warning, size = 36.dp)
                         Spacer(Modifier.width(MmSpacing.md))
@@ -351,20 +353,11 @@ private fun PreviewContent(
                     color = MmColors.textSecondary
                 )
                 Spacer(Modifier.height(MmSpacing.md))
-                Button(
+                MmPrimaryButton(
+                    text = "Import ${preview.semanticallyValidRows} transactions",
                     onClick = onConfirm,
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    shape = RoundedCornerShape(MmSpacing.radiusRow),
-                    colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-                ) {
-                    Text(
-                        "Import ${preview.semanticallyValidRows} transactions",
-                        color = MmColors.onAccent,
-                        style = MmType.label,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(MmSpacing.sm))
                 OutlinedButton(
                     onClick = onCancel,

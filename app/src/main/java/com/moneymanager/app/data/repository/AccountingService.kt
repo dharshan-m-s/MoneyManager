@@ -26,7 +26,8 @@ import javax.inject.Singleton
 @Singleton
 class AccountingService @Inject constructor(
     private val accountDao: AccountDao,
-    private val transactionDao: TransactionDao
+    private val transactionDao: TransactionDao,
+    private val creditCardBillingService: CreditCardBillingService
 ) {
 
     private fun TransactionEntity.from(accountType: AccountType, seq: Int) =
@@ -67,6 +68,20 @@ class AccountingService @Inject constructor(
             val state = balanceStateFor(account)
             persist(account, state)
         }
+        refreshCreditCardStatements(accounts)
+    }
+
+    /**
+     * A credit card's "current bill amount" IS its current statement, so it is refreshed from
+     * the card's ledger right after the balances moved - and the card's linked bill is
+     * reconciled with it. This is the single funnel every account-changing write goes through,
+     * so no path can leave a card's statement behind the card's transactions.
+     */
+    private suspend fun refreshCreditCardStatements(accounts: List<AccountEntity>) {
+        for (account in accounts) {
+            if (account.accountType != AccountType.CREDIT_CARD) continue
+            runCatching { creditCardBillingService.refreshCard(account.id) }
+        }
     }
 
     /** Repair legacy imported account metadata before any screen reads derived balances. */
@@ -76,9 +91,11 @@ class AccountingService @Inject constructor(
     }
 
     suspend fun recalculateAll() {
-        for (account in accountDao.findAll()) {
+        val accounts = accountDao.findAll()
+        for (account in accounts) {
             persist(account, balanceStateFor(account))
         }
+        refreshCreditCardStatements(accounts)
     }
 
     private suspend fun persist(account: AccountEntity, state: AccountBalanceState) {
@@ -146,7 +163,13 @@ class AccountingService @Inject constructor(
         } else {
             account.outstandingMinorUnits
         }
-        val creditLimit = if (isCard) state.creditLimitMinorUnits ?: account.creditLimitMinorUnits else account.creditLimitMinorUnits
+        // The limit the USER typed wins over the one the engine can derive from imported
+        // statement snapshots - otherwise an imported card's limit could never be corrected.
+        val creditLimit = if (isCard) {
+            account.creditLimitOverrideMinorUnits
+                ?: state.creditLimitMinorUnits
+                ?: account.creditLimitMinorUnits
+        } else account.creditLimitMinorUnits
         val availableLimit = if (isCard && creditLimit != null && effectiveOutstanding != null) {
             creditLimit - effectiveOutstanding
         } else {

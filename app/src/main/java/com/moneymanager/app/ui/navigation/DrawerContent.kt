@@ -1,7 +1,7 @@
 package com.moneymanager.app.ui.navigation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.Switch
@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +45,9 @@ import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
 import com.moneymanager.app.ui.settings.BackupEntryPoint
 import com.moneymanager.app.ui.settings.SettingsEntryPoint
+import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.components.revealOnAppear
+import androidx.compose.foundation.lazy.itemsIndexed
 
 /**
  * Navigation drawer. The previous "Set up your profile" / "Tap to add email & phone" rows were
@@ -71,10 +75,27 @@ fun DrawerContent(
 
     Column(Modifier.fillMaxWidth().background(MmColors.background)) {
         // Honest header: what the app is, not a fake user profile.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(MmColors.brandGradient))
+        ) {
+            // Corner light so the drawer header has the same depth as the dashboard hero.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(Color.White.copy(alpha = 0.12f), Color.Transparent),
+                            center = androidx.compose.ui.geometry.Offset(520f, 20f),
+                            radius = 520f
+                        )
+                    )
+            )
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(MmColors.accent)
                 .padding(start = MmSpacing.screen, end = MmSpacing.screen, top = MmSpacing.xxl, bottom = MmSpacing.xl)
         ) {
             MmIconBadge(icon = Icons.Filled.AccountBalanceWallet, tint = MmColors.onAccent, size = 48.dp)
@@ -90,6 +111,7 @@ fun DrawerContent(
                 color = MmColors.onAccent.copy(alpha = 0.82f),
                 style = MmType.caption
             )
+        }
         }
 
         // Backup state - the toggle is real and the status line reflects actual writes.
@@ -158,18 +180,28 @@ fun DrawerContent(
         Spacer(Modifier.height(MmSpacing.sm))
 
         LazyColumn(Modifier.fillMaxWidth()) {
-            items(Destination.drawerItems) { dest ->
+            itemsIndexed(Destination.drawerItems) { index, dest ->
                 val selected = currentRoute == dest.route
                 Row(
                     Modifier
                         .fillMaxWidth()
+                        .revealOnAppear(index = index)
                         .padding(horizontal = MmSpacing.md, vertical = 2.dp)
                         .clip(RoundedCornerShape(MmSpacing.radiusRow))
                         .background(if (selected) MmColors.accent.copy(alpha = 0.12f) else Color.Transparent)
-                        .clickable { onNavigate(dest) }
+                        .pressableClick { onNavigate(dest) }
                         .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // A slim marker shows where you are without relying on the tint alone.
+                    Box(
+                        Modifier
+                            .width(3.dp)
+                            .height(22.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(if (selected) MmColors.accent else Color.Transparent)
+                    )
+                    Spacer(Modifier.size(MmSpacing.sm))
                     Icon(
                         dest.icon,
                         contentDescription = null,

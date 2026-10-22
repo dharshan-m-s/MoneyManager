@@ -32,6 +32,12 @@ enum class TransactionSemantics {
     /** Payment made to settle a credit-card balance. */
     CARD_PAYMENT,
 
+    /** Money leaving a credit card as CASH - a cash advance, or a balance transfer used to
+     *  pay another card. The card's credit line was used, so the amount owed on THIS card
+     *  grows by exactly what was taken out. Without this, a cash advance would silently
+     *  disappear from the card's position. */
+    CARD_CASH_ADVANCE,
+
     /** SubType = transfer-in. Money moving INTO this account from another account. May be a
      *  regular transfer, a cash carry, a wallet refund, or a credit-card bill payment (kind
      *  cc-bill-payment) that settles outstanding. Never counts as income. */
@@ -89,6 +95,12 @@ object TransactionClassifier {
         // It is not income and must reduce card outstanding without changing an asset balance.
         if (accountType == AccountType.CREDIT_CARD && txnKind == TxnKind.CC_BILL_PAYMENT && subType == TxnSubType.TRANSFER_IN) {
             return TransactionSemantics.CARD_PAYMENT
+        }
+
+        // Money leaving a card (cash advance, or paying another card with this card's credit
+        // line) is money the card now owes: the outstanding grows by the amount taken out.
+        if (accountType == AccountType.CREDIT_CARD && subType == TxnSubType.TRANSFER_OUT) {
+            return TransactionSemantics.CARD_CASH_ADVANCE
         }
 
         return when (subType) {

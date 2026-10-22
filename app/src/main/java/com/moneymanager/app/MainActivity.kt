@@ -16,6 +16,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.moneymanager.app.data.repository.AccountingService
+import com.moneymanager.app.data.repository.CreditCardBillingService
 import com.moneymanager.app.domain.billing.BillRecurrenceService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -28,6 +29,7 @@ import javax.inject.Inject
 class MainActivity : FragmentActivity() {
     @Inject lateinit var accountingService: AccountingService
     @Inject lateinit var billRecurrenceService: BillRecurrenceService
+    @Inject lateinit var creditCardBillingService: CreditCardBillingService
 
     private val settingsPrefsName = "moneymanager_settings"
     private val darkModeKey = "dark_mode"
@@ -87,6 +89,9 @@ class MainActivity : FragmentActivity() {
         // foreground entry; the service is idempotent and the work is cheap when nothing is due.
         lifecycleScope.launch(Dispatchers.IO) {
             runCatching { billRecurrenceService.reconcileAll() }
+            // Card statements follow the card's billing cycle: recompute them from the card's
+            // own transactions so the current bill amount can never lag behind the card.
+            runCatching { creditCardBillingService.refreshAllCards() }
         }
 
         setContent {

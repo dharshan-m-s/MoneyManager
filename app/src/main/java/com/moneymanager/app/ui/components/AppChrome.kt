@@ -2,6 +2,7 @@ package com.moneymanager.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.moneymanager.app.ui.theme.MMGreenDark
 import com.moneymanager.app.ui.theme.MMWhite
+import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 
 /**
@@ -44,14 +46,34 @@ fun MoneyManagerTopBar(
     onNavigationClick: (() -> Unit)? = onBack,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
-    Surface(color = MMGreenDark, elevation = 0.dp) {
+    Surface(color = androidx.compose.ui.graphics.Color.Transparent, elevation = 0.dp) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(androidx.compose.ui.graphics.Brush.verticalGradient(MmColors.brandGradient))
+        ) {
+            // A soft corner light gives the bar depth instead of a flat colour block.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(130.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(
+                                androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f),
+                                androidx.compose.ui.graphics.Color.Transparent
+                            ),
+                            center = androidx.compose.ui.geometry.Offset(760f, 0f),
+                            radius = 520f
+                        )
+                    )
+            )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 // The brand surface runs under the status bar; the content sits below it.
                 .statusBarsPadding()
                 .height(64.dp)
-                .background(MMGreenDark)
                 .padding(horizontal = MmSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -94,6 +116,7 @@ fun MoneyManagerTopBar(
                 modifier = Modifier.padding(end = MmSpacing.xs),
                 content = actions
             )
+        }
         }
     }
 }

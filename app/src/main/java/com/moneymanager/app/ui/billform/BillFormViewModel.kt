@@ -36,7 +36,7 @@ data class BillFormState(
     val dueDay: String = "1",
     val estimatedAmount: String = "",
     val reminderEnabled: Boolean = true,
-    val reminderDaysBefore: String = "3",
+    val reminderDaysBefore: String = "10",
     val autoPay: Boolean = false,
     val inactive: Boolean = false,
     val isBusiness: Boolean = false,

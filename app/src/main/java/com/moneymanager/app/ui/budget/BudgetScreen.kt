@@ -50,6 +50,7 @@ import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import androidx.compose.ui.unit.sp
+import com.moneymanager.app.ui.components.MmPrimaryButton
 
 @Composable
 fun BudgetScreen(
@@ -204,14 +205,11 @@ fun BudgetScreen(
                     color = MmColors.textSecondary
                 )
                 Spacer(Modifier.height(MmSpacing.lg))
-                Button(
+                MmPrimaryButton(
+                    text = "Save budget",
                     onClick = viewModel::save,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(MmSpacing.radiusRow),
-                    colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-                ) {
-                    Text("Save budget", color = MmColors.onAccent, style = MmType.label)
-                }
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

@@ -74,6 +74,30 @@ class AccountRepository @Inject constructor(
         return entity.copy(id = id)
     }
 
+    /** Returns the account cash transactions are bound to, creating a single canonical "Cash"
+     *  account the first time it is needed. Cash is money in hand, not a bank account, so the
+     *  user must never be asked to pick a bank for a cash entry; the app owns this one account.
+     *  Idempotent and non-destructive: an existing cash account (including one created by a CSV
+     *  import) is reused as-is and no transaction history is ever touched. */
+    suspend fun ensureCashAccount(now: Long = System.currentTimeMillis()): AccountEntity {
+        accountDao.findPrimaryCashAccount()?.let { return it }
+        val entity = AccountEntity(
+            sourceAccountId = "cash",
+            institutionName = "Cash",
+            nickname = "Cash",
+            accountType = AccountType.CASH,
+            businessPersonal = BusinessPersonal.PERSONAL,
+            openingBalanceMinorUnits = 0,
+            currentBalanceMinorUnits = 0,
+            balanceSource = AccountBalanceSource.ESTIMATED,
+            createdAtEpochMillis = now,
+            updatedAtEpochMillis = now
+        )
+        val id = accountDao.insert(entity)
+        backupManager.scheduleAfterWrite()
+        return entity.copy(id = id)
+    }
+
     private suspend fun findOrCreateSyntheticUnlinked(type: AccountType, now: Long): AccountEntity {
         accountDao.findSyntheticUnlinkedAccount(type)?.let { return it }
         val entity = AccountEntity(

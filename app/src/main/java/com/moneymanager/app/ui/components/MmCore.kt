@@ -1,8 +1,13 @@
 package com.moneymanager.app.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,9 +32,12 @@ import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,10 +72,16 @@ fun MmCard(
     // One UI 9 surfaces: flat but not harsh. In light mode a whisper of elevation plus a soft
     // tonal edge; in dark mode shadows vanish against a dark background, so the definition comes
     // from a slightly stronger hairline + a marginally lifted surface instead.
+    val interactionSource = remember { MutableInteractionSource() }
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+            .then(
+                if (onClick != null) Modifier
+                    .pressScale(interactionSource)
+                    .clickable(interactionSource = interactionSource, onClick = onClick)
+                else Modifier
+            ),
         shape = RoundedCornerShape(MmSpacing.radiusCard),
         elevation = if (MmIsLight) 1.dp else 0.dp,
         backgroundColor = MmColors.surface,
@@ -90,10 +104,16 @@ fun MmPlainCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+            .then(
+                if (onClick != null) Modifier
+                    .pressScale(interactionSource)
+                    .clickable(interactionSource = interactionSource, onClick = onClick)
+                else Modifier
+            ),
         shape = RoundedCornerShape(MmSpacing.radiusCard),
         elevation = 0.dp,
         backgroundColor = MmColors.surface
@@ -131,7 +151,7 @@ fun MmSectionHeader(
                 style = MmType.label,
                 modifier = Modifier
                     .clip(RoundedCornerShape(MmSpacing.radiusRow))
-                    .clickable(onClick = onAction)
+                    .pressableClick(onClick = onAction)
                     .padding(horizontal = MmSpacing.md, vertical = MmSpacing.sm)
             )
         }
@@ -190,16 +210,26 @@ fun MmChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val background by animateColorAsState(
+        targetValue = if (selected) MmColors.accent.copy(alpha = 0.16f) else MmColors.surfaceMuted,
+        animationSpec = tween(180),
+        label = "chipBackground"
+    )
+    val content by animateColorAsState(
+        targetValue = if (selected) MmColors.accent else MmColors.textSecondary,
+        animationSpec = tween(180),
+        label = "chipContent"
+    )
     Box(
         modifier = modifier
             .clip(CircleShape)
-            .background(if (selected) MmColors.accent.copy(alpha = 0.16f) else MmColors.surfaceMuted)
-            .clickable(onClick = onClick)
+            .background(background)
+            .pressableClick(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Text(
             label,
-            color = if (selected) MmColors.accent else MmColors.textSecondary,
+            color = content,
             style = MmType.caption,
             maxLines = 1
         )
@@ -224,19 +254,29 @@ fun MmSegmentedControl(
     ) {
         options.forEachIndexed { index, label ->
             val active = index == selectedIndex
+            val background by animateColorAsState(
+                targetValue = if (active) MmColors.surface else Color.Transparent,
+                animationSpec = tween(180),
+                label = "segmentBackground"
+            )
+            val content by animateColorAsState(
+                targetValue = if (active) MmColors.accent else MmColors.textSecondary,
+                animationSpec = tween(180),
+                label = "segmentContent"
+            )
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(MmSpacing.radiusField - 3.dp))
-                    .background(if (active) MmColors.surface else Color.Transparent)
-                    .clickable { onSelect(index) }
+                    .background(background)
+                    .pressableClick { onSelect(index) }
                     .padding(vertical = 9.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     label,
                     style = MmType.label,
-                    color = if (active) MmColors.accent else MmColors.textSecondary,
+                    color = content,
                     maxLines = 1
                 )
             }
@@ -257,7 +297,7 @@ fun MmSwitchRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .pressableClick { onCheckedChange(!checked) }
             .padding(vertical = MmSpacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -297,14 +337,22 @@ fun MmProgressBar(
             .clip(CircleShape)
             .background(MmColors.surfaceMuted)
     ) {
-        val clamped = fraction.coerceIn(0f, 1f)
+        val clamped by animateFloatAsState(
+            targetValue = fraction.coerceIn(0f, 1f),
+            animationSpec = tween(420, easing = FastOutSlowInEasing),
+            label = "progress"
+        )
         if (clamped > 0f) {
             Box(
                 Modifier
                     .fillMaxWidth(clamped)
                     .height(height)
                     .clip(CircleShape)
-                    .background(color)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            listOf(color.copy(alpha = 0.75f), color)
+                        )
+                    )
             )
         }
     }
@@ -367,7 +415,27 @@ fun MmEmptyState(
             .padding(horizontal = MmSpacing.xl, vertical = MmSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        MmIconBadge(icon = icon, tint = MmColors.accent, size = 56.dp)
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(RoundedCornerShape(26.dp))
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(
+                            MmColors.accent.copy(alpha = 0.22f),
+                            MmColors.accent.copy(alpha = 0.08f)
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MmColors.accent,
+                modifier = Modifier.size(30.dp)
+            )
+        }
         Spacer(Modifier.height(MmSpacing.md))
         Text(title, style = MmType.sectionTitle, color = MmColors.textPrimary, textAlign = TextAlign.Center)
         message?.takeIf { it.isNotBlank() }?.let {
@@ -376,13 +444,11 @@ fun MmEmptyState(
         }
         if (actionLabel != null && onAction != null) {
             Spacer(Modifier.height(MmSpacing.lg))
-            androidx.compose.material.Button(
+            MmPrimaryButton(
+                text = actionLabel,
                 onClick = onAction,
-                shape = RoundedCornerShape(MmSpacing.radiusRow),
-                colors = androidx.compose.material.ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-            ) {
-                Text(actionLabel, color = MmColors.onAccent)
-            }
+                icon = Icons.Filled.ArrowForward
+            )
         }
     }
 }
@@ -440,7 +506,7 @@ fun MmQuickAction(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(MmSpacing.radiusRow))
-            .clickable(onClick = onClick)
+            .pressableClick(onClick = onClick)
             .padding(vertical = MmSpacing.sm, horizontal = MmSpacing.xs),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

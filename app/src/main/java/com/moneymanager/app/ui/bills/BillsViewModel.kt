@@ -25,7 +25,11 @@ import javax.inject.Inject
 data class BillRow(
     val bill: BillEntity,
     val nextInstance: BillInstanceEntity?,
-    val latestPaid: BillInstanceEntity?
+    val latestPaid: BillInstanceEntity?,
+    /** A recorded payment that already reached this bill's credit card but is not yet
+     *  allocated to any bill. Surfaced so the user can confirm it with one tap instead of
+     *  hunting for the transaction. */
+    val detectedPayment: TransactionEntity? = null
 )
 
 data class BillPaymentCandidate(
@@ -57,19 +61,60 @@ class BillsViewModel @Inject constructor(
     private val billRepository: BillRepository
 ) : ViewModel() {
 
+    /**
+     * Bills in the order the user has to act on them: the occurrence that must be paid soonest
+     * comes first (a bill due in 3 days before one due in 10 days), and already-settled bills
+     * follow, sorted by the due date of the occurrence that was paid.
+     */
     val bills = combine(
         billDao.observeActive(),
         billDao.observeUpcomingUnpaid(),
-        billDao.observePaid()
-    ) { bills, unpaid, paid ->
+        billDao.observePaid(),
+        transactionDao.observeCardPaymentLegs()
+    ) { bills, unpaid, paid, cardPayments ->
+        val allocated = billDao.findAllocatedTransactionIds().filterNotNull().toSet()
+        val unallocatedCardPayments = cardPayments.filter { it.id !in allocated }
         bills.map { bill ->
+            val next = unpaid.filter { it.billId == bill.id }.minByOrNull { it.dueDateEpochMillis }
+            val settled = paid.filter { it.billId == bill.id }.maxByOrNull { it.paidAtEpochMillis ?: 0L }
             BillRow(
                 bill = bill,
-                nextInstance = unpaid.filter { it.billId == bill.id }.minByOrNull { it.dueDateEpochMillis },
-                latestPaid = paid.filter { it.billId == bill.id }.maxByOrNull { it.paidAtEpochMillis ?: 0L }
+                nextInstance = next,
+                latestPaid = settled,
+                detectedPayment = next?.let { instance ->
+                    detectCardPayment(bill, instance, unallocatedCardPayments)
+                }
             )
-        }
+        }.sortedWith(
+            // Open occurrences first (soonest due date at the top), settled bills afterwards.
+            compareBy<BillRow> { if (it.nextInstance != null) 0 else 1 }
+                .thenBy {
+                    it.nextInstance?.dueDateEpochMillis
+                        ?: it.latestPaid?.dueDateEpochMillis
+                        ?: it.bill.nextDueDateEpochMillis
+                }
+                .thenBy { it.bill.billerName.lowercase() }
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Finds a recorded payment that already reached this bill's credit card and covers (at
+     * least most of) the amount still due. Only unallocated card payments qualify, so a
+     * payment that already settles another bill is never offered twice.
+     */
+    private fun detectCardPayment(
+        bill: BillEntity,
+        instance: BillInstanceEntity,
+        candidates: List<TransactionEntity>
+    ): TransactionEntity? {
+        val cardId = bill.linkedAccountId ?: return null
+        val remaining = (instance.amountDueMinorUnits - instance.paidAmountMinorUnits).coerceAtLeast(0L)
+        return candidates.asSequence()
+            .filter { it.accountId == cardId }
+            .filter { it.creditMinorUnits > 0L }
+            .filter { it.creditMinorUnits >= remaining || remaining == 0L }
+            .maxByOrNull { it.occurredAtEpochMillis }
+    }
 
     private val _paymentSearch = MutableStateFlow(BillPaymentSearchState())
     val paymentSearch = _paymentSearch
@@ -234,6 +279,28 @@ class BillsViewModel @Inject constructor(
                         saving = false
                     )
                 }
+        }
+    }
+
+    /** Links a payment that has already been recorded against the card (the "payment detected"
+     *  path). The money already moved and the card's outstanding already fell, so this only
+     *  records that the bill occurrence is settled. */
+    fun markDetectedPaymentPaid(row: BillRow) {
+        val instance = row.nextInstance ?: return
+        val payment = row.detectedPayment ?: return
+        if (_paymentSearch.value.saving) return
+        _paymentSearch.value = _paymentSearch.value.copy(saving = true, error = null)
+        viewModelScope.launch {
+            runCatching {
+                billRepository.markCardBillPaidWithRecordedPayment(instance, payment.id)
+            }.onSuccess { result ->
+                _paymentSearch.value = BillPaymentSearchState(message = paymentMessage(result))
+            }.onFailure {
+                _paymentSearch.value = _paymentSearch.value.copy(
+                    saving = false,
+                    error = it.message ?: "Could not mark bill as paid"
+                )
+            }
         }
     }
 

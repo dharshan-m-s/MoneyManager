@@ -47,6 +47,19 @@ class TransferViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Pre-selects the destination, e.g. when the user taps "Pay this card". The source is
+     * chosen as the first account that is not the destination, so the two sides can never
+     * start out identical.
+     */
+    fun preselectDestination(accountId: Long) {
+        val current = _ui.value
+        if (current.toAccountId == accountId) return
+        val from = current.fromAccountId?.takeIf { it != accountId }
+            ?: current.accounts.firstOrNull { it.id != accountId }?.id
+        _ui.value = current.copy(toAccountId = accountId, fromAccountId = from)
+    }
+
     fun onFromSelected(id: Long) { _ui.value = _ui.value.copy(fromAccountId = id) }
     fun onToSelected(id: Long) { _ui.value = _ui.value.copy(toAccountId = id) }
     fun onAmountChange(text: String) { _ui.value = _ui.value.copy(amountText = text) }

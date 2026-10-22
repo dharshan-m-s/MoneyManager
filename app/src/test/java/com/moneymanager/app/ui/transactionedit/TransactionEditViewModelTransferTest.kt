@@ -39,6 +39,8 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.LocalDate
+import com.moneymanager.app.data.accountingService
+import com.moneymanager.app.data.billRecurrenceService
 
 /**
  * Section 4 driven through the REAL [TransactionEditViewModel]: what the edit screen sends is
@@ -64,7 +66,7 @@ class TransactionEditViewModelTransferTest {
         appContext = context
         db = Room.inMemoryDatabaseBuilder(context, MoneyManagerDatabase::class.java)
             .allowMainThreadQueries().build()
-        accounting = AccountingService(db.accountDao(), db.transactionDao())
+        accounting = db.accountingService()
         backupManager = BackupManager(
             context, db, db.transactionDao(), db.accountDao(), db.categoryDao()
         )
@@ -74,7 +76,7 @@ class TransactionEditViewModelTransferTest {
             transactionDao = db.transactionDao(),
             accountDao = db.accountDao(),
             accountingService = accounting,
-            billRecurrenceService = BillRecurrenceService(db.billDao()),
+            billRecurrenceService = db.billRecurrenceService(),
             backupManager = backupManager
         )
         transactionRepository = TransactionRepository(

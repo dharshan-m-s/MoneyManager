@@ -153,6 +153,19 @@ class BillRepository @Inject constructor(
                 }
             } else {
                 moneyMoved = amountMinorUnits ?: remaining
+                if (cardId != null) {
+                    // Settling a card bill outside the app (cash at the issuer, net banking in
+                    // another app) still clears what the card owes. The card-side leg is
+                    // recorded so the card's outstanding falls by the amount that was paid -
+                    // without it the user would have to re-type the outstanding by hand after
+                    // every single card payment.
+                    effectivePaymentId = createOutOfBandCardPayment(
+                        cardAccountId = cardId,
+                        amountMinorUnits = moneyMoved,
+                        occurredAtEpochMillis = paidAt,
+                        cardName = bill?.billerName ?: "Credit card"
+                    )
+                }
             }
 
             if (amountMinorUnits != null && paymentTransactionId != null) {
@@ -224,6 +237,12 @@ class BillRepository @Inject constructor(
             val source = requireNotNull(accountDao.findById(sourceAccountId)) {
                 "Payment account no longer exists"
             }
+            // A card bill is settled from OUTSIDE the cards. Paying one card with another is a
+            // balance transfer, not a bill payment - and it would shrink the total card debt
+            // by the payment amount instead of settling anything.
+            require(source.accountType != AccountType.CREDIT_CARD) {
+                "A credit card does not pay another credit card's bill. Choose a bank account."
+            }
             val remaining =
                 (instance.amountDueMinorUnits - instance.paidAmountMinorUnits).coerceAtLeast(0L)
             val amount = when {
@@ -275,6 +294,64 @@ class BillRepository @Inject constructor(
         settledBillId?.let { billRecurrenceService.reconcileBill(it) }
         backupManager.scheduleAfterWrite()
         return result
+    }
+
+    /**
+     * Settles a credit-card bill occurrence with a payment that has ALREADY been recorded as
+     * money reaching that card (the card-side leg of a transfer to the card, for example).
+     *
+     * This is the "I already paid - confirm it" path: the money already left the user's bank
+     * account and the card's outstanding already fell, so the only thing left is to record
+     * that the bill occurrence is settled. Nothing is created and nothing is duplicated - the
+     * existing card-side leg becomes the allocation, and the card's outstanding is left exactly
+     * where the payment left it.
+     */
+    suspend fun markCardBillPaidWithRecordedPayment(
+        instance: BillInstanceEntity,
+        cardPaymentTransactionId: Long
+    ): BillInstanceEntity {
+        var settledBillId: Long? = null
+        val updated = database.withTransaction {
+            val current = billDao.findInstanceById(instance.id)
+                ?: return@withTransaction instance
+            if (current.paid) return@withTransaction current
+            val bill = requireNotNull(billDao.findById(current.billId)) {
+                "Bill no longer exists"
+            }
+            val cardId = requireNotNull(bill.linkedAccountId) {
+                "This bill is not linked to a credit card"
+            }
+            val payment = requireNotNull(transactionDao.findById(cardPaymentTransactionId)) {
+                "Payment transaction no longer exists"
+            }
+            require(payment.accountId == cardId) {
+                "That payment did not go to this card"
+            }
+            require(payment.isCreditCardBillPayment) {
+                "That transaction is not a card payment"
+            }
+            require(!isAllocatedAnywhere(payment.id)) {
+                "This payment is already recorded as a payment for another bill"
+            }
+            val amount = payment.creditMinorUnits
+            require(amount > 0L) { "That payment has no amount" }
+
+            billDao.insertAllocation(
+                BillPaymentAllocationEntity(
+                    billInstanceId = current.id,
+                    transactionId = payment.id,
+                    amountMinorUnits = amount,
+                    paidAtEpochMillis = payment.occurredAtEpochMillis,
+                    createdAtEpochMillis = System.currentTimeMillis()
+                )
+            )
+            val newState = requireNotNull(syncInstancePaymentState(current.id))
+            if (newState.paid) settledBillId = current.billId
+            newState
+        }
+        settledBillId?.let { billRecurrenceService.reconcileBill(it) }
+        backupManager.scheduleAfterWrite()
+        return updated
     }
 
     /**
@@ -370,6 +447,32 @@ class BillRepository @Inject constructor(
         transactionDao.update(current.copy(linkedTransferTransactionId = cardTransactionId))
         accountingService.recalculateAccounts(setOf(cardAccountId))
         return cardTransactionId
+    }
+
+    /**
+     * Records the card-side leg of a payment that happened outside the app (cash at the
+     * issuer, net banking in another app). There is no bank-side leg because no app account
+     * paid - but the card really was paid, so its outstanding has to come down.
+     */
+    private suspend fun createOutOfBandCardPayment(
+        cardAccountId: Long,
+        amountMinorUnits: Long,
+        occurredAtEpochMillis: Long,
+        cardName: String
+    ): Long {
+        require(amountMinorUnits > 0L) { "Enter a payment amount" }
+        val id = transactionDao.insert(
+            paymentLeg(
+                accountId = cardAccountId,
+                isCardLeg = true,
+                amountMinorUnits = amountMinorUnits,
+                occurredAtEpochMillis = occurredAtEpochMillis,
+                merchant = cardName,
+                notes = "Credit card bill payment (paid outside the app)"
+            )
+        )
+        accountingService.recalculateAccounts(setOf(cardAccountId))
+        return id
     }
 
     private fun paymentLeg(

@@ -1,7 +1,6 @@
 package com.moneymanager.app.ui.cash
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,11 +41,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
+import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmSearchField
@@ -61,6 +62,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.components.revealOnAppear
 
 /**
  * Cash in hand. The balance is shown on the brand header because that is the number the user
@@ -100,7 +103,24 @@ fun CashScreen(
         Column(Modifier.fillMaxSize()) {
 
             // Brand header doubles as the balance hero.
-            Column(Modifier.fillMaxWidth().background(MMGreenDark).statusBarsPadding()) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Brush.verticalGradient(MmColors.brandGradient))
+                    .statusBarsPadding()
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(Color.White.copy(alpha = 0.10f), Color.Transparent),
+                                center = androidx.compose.ui.geometry.Offset(720f, 20f),
+                                radius = 520f
+                            )
+                        )
+                )
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = MmSpacing.sm, vertical = MmSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically
@@ -130,12 +150,11 @@ fun CashScreen(
                 Column(Modifier.padding(horizontal = MmSpacing.screen).padding(bottom = MmSpacing.lg)) {
                     Text("Live balance from your ledger", color = MMWhite.copy(alpha = 0.78f), style = MmType.caption)
                     Spacer(Modifier.height(MmSpacing.xs))
-                    Text(
-                        MoneyFormat.rupeesNoDecimals(state.cashInHand),
-                        color = MMWhite,
+                    MmAnimatedAmount(
+                        value = state.cashInHand.minorUnits,
+                        formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
                         style = MmType.amountHero,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        color = MMWhite
                     )
                 }
             }
@@ -197,7 +216,12 @@ fun CashScreen(
                     val forward = rows.firstOrNull { it.txnSubType.name == "CREDIT_CASH_FORWARD" }
 
                     item(key = "header-$month") {
-                        CashMonthHeader(month, Money(monthIncome), Money(monthSpend))
+                        CashMonthHeader(
+                            month,
+                            Money(monthIncome),
+                            Money(monthSpend),
+                            modifier = Modifier.revealOnAppear(index = 0)
+                        )
                     }
                     if (forward != null) {
                         item(key = "forward-$month") {
@@ -265,7 +289,7 @@ private fun AddOption(
             .padding(bottom = MmSpacing.sm)
             .clip(RoundedCornerShape(MmSpacing.touchTarget / 2))
             .background(MmColors.surface)
-            .clickable(onClick = onClick)
+            .pressableClick(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
@@ -302,9 +326,14 @@ private fun CashMetric(
 }
 
 @Composable
-private fun CashMonthHeader(month: LocalDate, income: Money, spend: Money) {
+private fun CashMonthHeader(
+    month: LocalDate,
+    income: Money,
+    spend: Money,
+    modifier: Modifier = Modifier
+) {
     Row(
-        Modifier.fillMaxWidth().padding(top = MmSpacing.md, bottom = MmSpacing.xs),
+        modifier.fillMaxWidth().padding(top = MmSpacing.md, bottom = MmSpacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(

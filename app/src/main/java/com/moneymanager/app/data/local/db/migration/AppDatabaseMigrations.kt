@@ -251,6 +251,29 @@ object AppDatabaseMigrations {
     }
 
     /**
+     * Migration 11 -> 12: the bill's reminder lead time becomes the single lead-time dial,
+     * and a credit card's limit becomes user-overridable.
+     *
+     * `bills.reminderDaysBefore` ("days before the due date") now drives BOTH the reminder
+     * notification and the window in which an occurrence may be marked as paid. The previous
+     * default was 3 days, which is too short to settle a card statement; the new default is
+     * 10 days - one statement cycle.
+     *
+     * Only rows still holding the LEGACY default (3) are raised. A row the user deliberately
+     * set to another value is left exactly as it is - their explicit choice wins.
+     *
+     * `accounts.creditLimitOverrideMinorUnits` stores the limit the user typed for a card.
+     * Without it, the engine re-derived the limit from imported statement snapshots on every
+     * recalculation and silently discarded the user's number.
+     */
+    val MIGRATION_11_12 = object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("UPDATE `bills` SET `reminderDaysBefore` = 10 WHERE `reminderDaysBefore` = 3")
+            db.execSQL("ALTER TABLE `accounts` ADD COLUMN `creditLimitOverrideMinorUnits` INTEGER")
+        }
+    }
+
+    /**
      * Add new migrations above this line. Each migration must:
      * 1. Be backward-safe (can't drop columns used by older code)
      * 2. Preserve all existing data
@@ -267,12 +290,13 @@ object AppDatabaseMigrations {
         MIGRATION_7_8,
         MIGRATION_8_9,
         MIGRATION_9_10,
-        MIGRATION_10_11
+        MIGRATION_10_11,
+        MIGRATION_11_12
     )
 
     /**
      * Returns the latest database version. Used by DatabaseModule to set the version
      * parameter dynamically so it stays in sync with migrations.
      */
-    fun latestVersion(): Int = 11
+    fun latestVersion(): Int = 12
 }

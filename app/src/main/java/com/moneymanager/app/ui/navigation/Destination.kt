@@ -46,7 +46,10 @@ sealed class Destination(val route: String, val label: String, val icon: ImageVe
     // Not drawer items - reached via FAB, "See All" links, or Settings.
     data object Import : Destination("import", "Import Statement", Icons.Filled.Description)
     data object Search : Destination("search", "Search", Icons.Filled.Info)
-    data object Transfer : Destination("transfer", "Transfer", Icons.Filled.SwapHoriz)
+    data object Transfer : Destination("transfer?toAccountId={toAccountId}", "Transfer", Icons.Filled.SwapHoriz) {
+        /** [toAccountId] pre-selects the destination, e.g. "pay this credit card". */
+        fun route(toAccountId: Long? = null) = "transfer?toAccountId=${toAccountId ?: -1L}"
+    }
     data object Budget : Destination("budget", "Monthly Budget", Icons.Filled.MonetizationOn)
     data object AddTransaction : Destination(
         "add_transaction/{entryPoint}?accountId={accountId}",

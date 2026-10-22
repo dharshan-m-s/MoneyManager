@@ -63,7 +63,7 @@ class LinkedTransferEditingTest {
         appContext = context
         db = Room.inMemoryDatabaseBuilder(context, MoneyManagerDatabase::class.java)
             .allowMainThreadQueries().build()
-        accounting = AccountingService(db.accountDao(), db.transactionDao())
+        accounting = db.accountingService()
         backupManager = BackupManager(
             context, db, db.transactionDao(), db.accountDao(), db.categoryDao()
         )
@@ -73,7 +73,7 @@ class LinkedTransferEditingTest {
             transactionDao = db.transactionDao(),
             accountDao = db.accountDao(),
             accountingService = accounting,
-            billRecurrenceService = BillRecurrenceService(db.billDao()),
+            billRecurrenceService = db.billRecurrenceService(),
             backupManager = backupManager
         )
         transactionRepository = TransactionRepository(

@@ -55,6 +55,8 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.revealOnAppear
+import com.moneymanager.app.ui.components.MmPrimaryButton
 
 /**
  * Add/edit a bill or EMI. Rows are grouped by the question they answer (what is it, when is it
@@ -98,7 +100,8 @@ fun BillFormScreen(
                 .verticalScroll(rememberScrollState())
                 .imePadding()
                 .navigationBarsPadding()
-                .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg),
+                .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg)
+                .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
         ) {
             MmSectionHeader(title = "What is it")
@@ -182,21 +185,21 @@ fun BillFormScreen(
             MmCard(contentPadding = PaddingValues(horizontal = MmSpacing.card, vertical = MmSpacing.xs)) {
                 MmSwitchRow(
                     title = "Remind me before it's due",
-                    subtitle = "Get notified so a bill never slips past",
+                    subtitle = "Get a notification so a bill never slips past",
                     checked = state.reminderEnabled,
                     onCheckedChange = { viewModel.onField { copy(reminderEnabled = it) } }
                 )
-                if (state.reminderEnabled) {
-                    MmCard(contentPadding = PaddingValues(vertical = MmSpacing.xs)) {
-                        MmTextField(
-                            value = state.reminderDaysBefore,
-                            onValueChange = { viewModel.onField { copy(reminderDaysBefore = it) } },
-                            label = "Days before the due date",
-                            keyboardType = KeyboardType.Number
-                        )
-                    }
-                    Spacer(Modifier.height(MmSpacing.sm))
+                Spacer(Modifier.height(MmSpacing.sm))
+                MmCard(contentPadding = PaddingValues(vertical = MmSpacing.xs)) {
+                    MmTextField(
+                        value = state.reminderDaysBefore,
+                        onValueChange = { viewModel.onField { copy(reminderDaysBefore = it) } },
+                        label = "Days before the due date",
+                        supportingText = "The bill becomes payable, and \"Mark as paid\" appears, this many days before it's due",
+                        keyboardType = KeyboardType.Number
+                    )
                 }
+                Spacer(Modifier.height(MmSpacing.sm))
                 MmSwitchRow(
                     title = "Auto-pay",
                     subtitle = "Marks the bill paid when the matching transaction is recorded",
@@ -241,25 +244,12 @@ fun BillFormScreen(
                 }
             }
 
-            Button(
+            MmPrimaryButton(
+                text = if (editingBillId == null) "Add bill" else "Save changes",
                 onClick = viewModel::save,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(MmSpacing.radiusRow),
-                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-            ) {
-                Icon(
-                    Icons.Filled.Receipt,
-                    contentDescription = null,
-                    tint = MmColors.onAccent,
-                    modifier = Modifier.width(18.dp)
-                )
-                Spacer(Modifier.width(MmSpacing.sm))
-                Text(
-                    if (editingBillId == null) "Add bill" else "Save changes",
-                    color = MmColors.onAccent,
-                    style = MmType.label
-                )
-            }
+                icon = Icons.Filled.Receipt,
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            )
 
             if (state.reminderEnabled) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

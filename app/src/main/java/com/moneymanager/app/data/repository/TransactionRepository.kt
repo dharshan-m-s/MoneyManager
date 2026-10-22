@@ -7,6 +7,7 @@ import com.moneymanager.app.data.local.dao.CategoryDao
 import com.moneymanager.app.data.local.dao.TransactionDao
 import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.local.entity.TransactionEntity
+import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.BusinessPersonal
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.model.PaymentType
@@ -65,14 +66,21 @@ class TransactionRepository @Inject constructor(
                 input.merchantReceiverSender, input.rawCategoryName
             )
 
+            val isCard = accountDao.findById(input.accountId)?.accountType == AccountType.CREDIT_CARD
             val entity = TransactionEntity(
                 occurredAtEpochMillis = input.occurredAtEpochMillis,
                 rawDateString = "",
                 txnType = if (input.isIncome) TxnType.CREDIT_TRANSACTION else TxnType.DEBIT_TRANSACTION,
                 txnSubType = if (input.isIncome) TxnSubType.INCOME else TxnSubType.EXPENSE,
-                txnKind = if (input.paymentType == PaymentType.CASH) {
-                    if (input.isIncome) TxnKind.CASH_INCOME else TxnKind.CASH_SPEND
-                } else TxnKind.REGULAR,
+                // Money credited BACK to a credit card is a refund, not income: it reduces
+                // what the card owes and must never inflate the app's income totals. The
+                // refund-reversal kind is exactly that meaning in the engine's decision table.
+                txnKind = when {
+                    isCard && input.isIncome -> TxnKind.REFUND_REVERSAL
+                    input.paymentType == PaymentType.CASH ->
+                        if (input.isIncome) TxnKind.CASH_INCOME else TxnKind.CASH_SPEND
+                    else -> TxnKind.REGULAR
+                },
                 paymentType = input.paymentType,
                 rawPaymentType = input.paymentType.raw,
                 businessPersonal = input.businessPersonal,
@@ -152,6 +160,18 @@ class TransactionRepository @Inject constructor(
                     "A transfer cannot move into the account that receives its other side"
                 )
             }
+            // Re-pointing a leg that SETTLES a bill would desynchronise the bill from the
+            // card it pays, so it is refused outright rather than silently half-applied.
+            // A card payment that was never linked to a bill may still be moved - the card's
+            // outstanding is restored by the re-derivation below.
+            if (accountId != null && isBillPaymentPair) {
+                val settlesBill = billRepository.instanceIdsReferencingTransactions(
+                    setOfNotNull(existing.id, peer?.id)
+                ).isNotEmpty()
+                require(!settlesBill) {
+                    "A payment that settles a bill cannot be moved to another account - edit the payment on the bill instead"
+                }
+            }
             val currentMagnitude = if (existing.creditMinorUnits != 0L) {
                 kotlin.math.abs(existing.creditMinorUnits)
             } else {
@@ -192,6 +212,19 @@ class TransactionRepository @Inject constructor(
             val newAccountId = accountId ?: existing.accountId
             val newDate = occurredAtEpochMillis ?: existing.occurredAtEpochMillis
             val newPaymentType = paymentType ?: existing.paymentType
+            // Card semantics belong to the ACCOUNT the leg lives on, not to the row: a leg
+            // re-pointed onto a card becomes a card payment, and a card leg moved to a bank
+            // stops being one. Re-deriving here keeps the card's outstanding correct even
+            // though the edit UI does not (yet) expose re-pointing.
+            val cardSemantics = if (isTransfer && newAccountId != existing.accountId) {
+                deriveCardSemantics(newAccountId, newTxnSubType)
+            } else null
+            if (cardSemantics != null) {
+                newTxnKind = cardSemantics.txnKind
+            }
+            val isCardBillPayment = cardSemantics?.isCreditCardBillPayment ?: existing.isCreditCardBillPayment
+            val paysOffAccountId = cardSemantics?.paysOffAccountId
+                ?: if (cardSemantics == null) existing.paysOffAccountId else null
             val fingerprint = fingerprint(newDate, newAccountId, credit, debit, merchantReceiverSender ?: existing.merchantReceiverSender, categoryName)
             transactionDao.update(existing.copy(
                 occurredAtEpochMillis = newDate,
@@ -209,6 +242,8 @@ class TransactionRepository @Inject constructor(
                 businessPersonal = businessPersonal ?: existing.businessPersonal,
                 reimbursable = reimbursable ?: existing.reimbursable,
                 includeInStatistics = includeInStatistics ?: existing.includeInStatistics,
+                isCreditCardBillPayment = isCardBillPayment,
+                paysOffAccountId = paysOffAccountId,
                 dedupeFingerprint = fingerprint,
                 updatedAtEpochMillis = now
             ))
@@ -310,7 +345,12 @@ class TransactionRepository @Inject constructor(
      *  source account and a transfer-in on the destination account - rather than a single row.
      *  This is what keeps a transfer from inflating income/expense analytics: both legs use
      *  TxnSubType.TRANSFER_OUT / TRANSFER_IN, which the spend/income queries deliberately
-     *  exclude (see TransactionDao.observeTotalSpendInRange, which filters on EXPENSE only). */
+     *  exclude (see TransactionDao.observeTotalSpendInRange, which filters on EXPENSE only).
+     *
+     *  When the destination IS a credit card, the incoming leg is a card bill payment: money
+     *  reaching a card settles what the card owes. Recording it that way is what makes the
+     *  card's outstanding fall by the amount the user just paid, instead of the user having to
+     *  re-type the outstanding by hand afterwards. */
     suspend fun createTransfer(
         occurredAtEpochMillis: Long,
         fromAccountId: Long,
@@ -320,6 +360,8 @@ class TransactionRepository @Inject constructor(
     ): Pair<Long, Long> {
         return database.withTransaction {
             val now = System.currentTimeMillis()
+            val destination = accountDao.findById(toAccountId)
+            val paysOffCard = destination?.accountType == AccountType.CREDIT_CARD
             val outFingerprint = fingerprint(occurredAtEpochMillis, fromAccountId, 0, amount.minorUnits, "Transfer", "A/c to A/c")
             val inFingerprint = fingerprint(occurredAtEpochMillis, toAccountId, amount.minorUnits, 0, "Transfer", "A/c to A/c")
 
@@ -355,11 +397,16 @@ class TransactionRepository @Inject constructor(
                 id = 0,
                 txnType = TxnType.CREDIT_TRANSACTION,
                 txnSubType = TxnSubType.TRANSFER_IN,
+                // Money arriving on a credit card settles card debt; the classifier turns this
+                // into a card payment (outstanding falls, no balance movement).
+                txnKind = if (paysOffCard) TxnKind.CC_BILL_PAYMENT else TxnKind.REGULAR,
                 accountId = toAccountId,
                 creditMinorUnits = amount.minorUnits,
                 debitMinorUnits = 0,
                 dedupeFingerprint = inFingerprint,
-                linkedTransferTransactionId = outId
+                linkedTransferTransactionId = outId,
+                isCreditCardBillPayment = paysOffCard,
+                paysOffAccountId = if (paysOffCard) toAccountId else null
             )
             val inId = transactionDao.insert(inEntity)
 
@@ -373,6 +420,39 @@ class TransactionRepository @Inject constructor(
             outId to inId
         }.also { backupManager.scheduleAfterWrite() }
     }
+
+    /**
+     * The card semantics a transfer leg must carry on a given account.
+     *
+     *  - money arriving on a card settles card debt: a card payment (kind cc-bill-payment),
+     *  - money leaving a card is a cash advance: the classifier turns the plain transfer-out
+     *    into a CARD_CASH_ADVANCE, so the leg keeps the neutral kind here,
+     *  - anything on a non-card account is an ordinary transfer.
+     */
+    private suspend fun deriveCardSemantics(
+        accountId: Long,
+        subType: TxnSubType
+    ): CardSemantics {
+        val isCard = accountDao.findById(accountId)?.accountType == AccountType.CREDIT_CARD
+        return when {
+            isCard && subType == TxnSubType.TRANSFER_IN -> CardSemantics(
+                txnKind = TxnKind.CC_BILL_PAYMENT,
+                isCreditCardBillPayment = true,
+                paysOffAccountId = accountId
+            )
+            else -> CardSemantics(
+                txnKind = TxnKind.REGULAR,
+                isCreditCardBillPayment = false,
+                paysOffAccountId = null
+            )
+        }
+    }
+
+    private data class CardSemantics(
+        val txnKind: TxnKind,
+        val isCreditCardBillPayment: Boolean,
+        val paysOffAccountId: Long?
+    )
 
     private fun fingerprint(
         epochMillis: Long, accountId: Long, credit: Long, debit: Long,

@@ -61,6 +61,8 @@ import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.revealOnAppear
 
 @Composable
 fun CreditCardFormScreen(
@@ -125,7 +127,8 @@ fun CreditCardFormScreen(
                 .verticalScroll(rememberScrollState())
                 .imePadding()
                 .padding(MmSpacing.screen)
-                .padding(bottom = MmSpacing.xxl),
+                .padding(bottom = MmSpacing.xxl)
+                .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
         ) {
             // --- Card identity preview ---
@@ -217,28 +220,12 @@ fun CreditCardFormScreen(
                 }
                 val availableLimit = limitValue?.let { it - outstandingValue }
                 val availableLimitText = availableLimit?.let { com.moneymanager.app.domain.model.Money(it).toBigDecimal().stripTrailingZeros().toPlainString() } ?: ""
-                Column(Modifier.fillMaxWidth()) {
-                    Text("Available limit (calculated)", style = MmType.label, color = MmColors.textSecondary, modifier = Modifier.padding(start = 3.dp, bottom = 5.dp))
-                    androidx.compose.foundation.layout.Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(mmFieldShape)
-                            .background(MmColors.surfaceMuted)
-                            .padding(horizontal = MmSpacing.md, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("₹", fontWeight = FontWeight.SemiBold, color = MmColors.textSecondary)
-                        Spacer(Modifier.width(MmSpacing.md))
-                        Text(
-                            if (availableLimitText.isBlank()) "0.00" else availableLimitText,
-                            style = MmType.amountRow,
-                            color = if (availableLimit != null && availableLimit < 0) MmColors.expense else MmColors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
+                MmReadOnlyAmountRow(
+                    label = "Available limit (calculated)",
+                    value = availableLimitText.ifBlank { "0.00" },
+                    supporting = null,
+                    emphasiseNegative = availableLimit != null && availableLimit < 0
+                )
             }
 
             // --- Billing settings ---
@@ -248,7 +235,7 @@ fun CreditCardFormScreen(
                 MmStepper(
                     label = "Billing cycle starts on",
                     value = if (state.billingCycleSet) state.billingCycleStartDay else null,
-                    onChange = { day -> viewModel.onField { copy(billingCycleStartDay = day, billingCycleSet = true) } },
+                    onChange = { day -> viewModel.onBillingCycleStartDayChange(day) },
                     supportingText = "Your statement runs from day ${state.billingCycleStartDay} of each month to the day before it next month."
                 )
                 Spacer(Modifier.height(MmSpacing.md))
@@ -258,12 +245,23 @@ fun CreditCardFormScreen(
                     onChange = viewModel::onDueDateChange
                 )
                 Spacer(Modifier.height(MmSpacing.md))
+                // The statement of the cycle that is running right now is COMPUTED from the
+                // card's own transactions - a purchase, a refund or a payment moves it
+                // immediately. It can never be typed in, so it can never disagree with the
+                // outstanding the card screen shows.
+                MmReadOnlyAmountRow(
+                    label = "This cycle's statement",
+                    value = state.currentStatement.ifBlank { "0" },
+                    supporting = state.currentCycleLabel.takeIf { it.isNotBlank() }
+                )
+                Spacer(Modifier.height(MmSpacing.md))
                 MmAmountField(
                     value = state.billAmount,
                     onValueChange = viewModel::onBillAmountChange,
-                    label = "Current bill amount",
+                    label = "Estimated statement",
                     isError = state.billAmountError != null,
-                    supportingText = state.billAmountError ?: "Used until the actual statement is recorded."
+                    supportingText = state.billAmountError
+                        ?: "Only used for a cycle that has not closed yet - the real amount is computed from this card's transactions."
                 )
                 Spacer(Modifier.height(MmSpacing.md))
                 MmSwitchRow(
@@ -306,23 +304,16 @@ fun CreditCardFormScreen(
                 )
             }
 
-            Button(
+            MmPrimaryButton(
+                text = when {
+                    state.saving -> "Saving…"
+                    editingAccountId != null -> "Save changes"
+                    else -> "Add credit card"
+                },
                 onClick = { viewModel.save() },
                 enabled = !state.saving,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(MmSpacing.radiusRow),
-                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-            ) {
-                Text(
-                    when {
-                        state.saving -> "Saving…"
-                        editingAccountId != null -> "Save changes"
-                        else -> "Add credit card"
-                    },
-                    color = MmColors.onAccent,
-                    style = MmType.label
-                )
-            }
+                modifier = Modifier.fillMaxWidth()
+            )
 
             if (editingAccountId != null) {
                 TextButton(
@@ -357,5 +348,53 @@ fun CreditCardFormScreen(
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") } }
         )
+    }
+}
+
+/**
+ * A field that is calculated, not typed: it shows a derived amount the same way every other
+ * read-only amount in the app does, with an optional supporting line underneath.
+ */
+@Composable
+private fun MmReadOnlyAmountRow(
+    label: String,
+    value: String,
+    supporting: String?,
+    emphasiseNegative: Boolean = false
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(
+            label,
+            style = MmType.label,
+            color = MmColors.textSecondary,
+            modifier = Modifier.padding(start = 3.dp, bottom = 5.dp)
+        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(mmFieldShape)
+                .background(MmColors.surfaceMuted)
+                .padding(horizontal = MmSpacing.md, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("₹", fontWeight = FontWeight.SemiBold, color = MmColors.textSecondary)
+            Spacer(Modifier.width(MmSpacing.md))
+            Text(
+                value,
+                style = MmType.amountRow,
+                color = if (emphasiseNegative) MmColors.expense else MmColors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        supporting?.takeIf { it.isNotBlank() }?.let {
+            Text(
+                it,
+                style = MmType.caption,
+                color = MmColors.textSecondary,
+                modifier = Modifier.padding(start = 3.dp, top = 5.dp)
+            )
+        }
     }
 }

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -30,6 +29,8 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.revealOnAppear
+import androidx.compose.foundation.lazy.itemsIndexed
 
 /**
  * Global transaction search. The field lives under the app bar rather than inside it, so the
@@ -91,8 +92,12 @@ fun SearchScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(MmSpacing.xxs)
             ) {
-                items(results, key = { it.id }) { txn ->
-                    MmTransactionRow(txn = txn, onClick = { onTransactionClick(txn.id) })
+                itemsIndexed(results, key = { _, txn -> txn.id }) { index, txn ->
+                    MmTransactionRow(
+                        txn = txn,
+                        onClick = { onTransactionClick(txn.id) },
+                        modifier = Modifier.revealOnAppear(index = index)
+                    )
                 }
             }
         }

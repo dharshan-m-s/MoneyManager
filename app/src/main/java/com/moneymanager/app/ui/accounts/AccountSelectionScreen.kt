@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
@@ -58,6 +57,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import com.moneymanager.app.ui.components.MmAnimatedAmount
+import com.moneymanager.app.ui.components.revealOnAppear
+import androidx.compose.foundation.lazy.itemsIndexed
 
 @HiltViewModel
 class AccountSelectionViewModel @Inject constructor(
@@ -156,8 +158,12 @@ fun AccountSelectionScreen(
                             )
                         )
                     }
-                    items(rows, key = { it.id }) { account ->
-                        AccountChoiceRow(account, onClick = { onAccountSelected(account.id) })
+                    itemsIndexed(rows, key = { _, account -> account.id }) { index, account ->
+                        AccountChoiceRow(
+                            account = account,
+                            onClick = { onAccountSelected(account.id) },
+                            modifier = Modifier.revealOnAppear(index = index)
+                        )
                     }
                 }
             }
@@ -190,7 +196,11 @@ private fun accountTypeLabel(type: AccountType): String = when (type) {
 }
 
 @Composable
-private fun AccountChoiceRow(account: AccountEntity, onClick: () -> Unit) {
+private fun AccountChoiceRow(
+    account: AccountEntity,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val title = account.nickname.ifBlank { account.institutionName }.ifBlank { "Unnamed account" }
     val subtitle = listOf(
         account.institutionName.takeIf { it.isNotBlank() && it != title },
@@ -200,7 +210,7 @@ private fun AccountChoiceRow(account: AccountEntity, onClick: () -> Unit) {
     val balance = if (isCard) account.outstandingMinorUnits ?: 0L else account.currentBalanceMinorUnits
 
     MmCard(
-        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+        modifier = modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
         onClick = onClick,
         contentPadding = PaddingValues(MmSpacing.md)
     ) {
@@ -226,13 +236,11 @@ private fun AccountChoiceRow(account: AccountEntity, onClick: () -> Unit) {
             }
             Spacer(Modifier.width(MmSpacing.sm))
             Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    MoneyFormat.rupeesNoDecimals(Money(balance)),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isCard) MmColors.expense else MmColors.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                MmAnimatedAmount(
+                    value = balance,
+                    formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
+                    style = MmType.amountRow,
+                    color = if (isCard) MmColors.expense else MmColors.textPrimary
                 )
                 Text(
                     if (isCard) "Outstanding" else "Balance",

@@ -30,6 +30,12 @@ interface AccountDao {
     @Query("SELECT * FROM accounts WHERE accountType = :type AND isSyntheticUnlinkedAccount = 1 LIMIT 1")
     suspend fun findSyntheticUnlinkedAccount(type: AccountType): AccountEntity?
 
+    /** The user's working cash account: the first non-deleted CASH account, preferring the
+     *  Moneyview `cash` singleton if present, then the oldest by id. Used to bind cash
+     *  transactions to a real account without asking the user to pick one. */
+    @Query("SELECT * FROM accounts WHERE accountType = 'CASH' AND deleted = 0 ORDER BY (lower(sourceAccountId) = 'cash') DESC, id ASC LIMIT 1")
+    suspend fun findPrimaryCashAccount(): AccountEntity?
+
     @Query("SELECT * FROM accounts ORDER BY accountType, nickname")
     fun observeAll(): Flow<List<AccountEntity>>
 
@@ -62,12 +68,6 @@ interface AccountDao {
 
     @Query("SELECT COALESCE(SUM(currentBalanceMinorUnits), 0) FROM accounts WHERE accountType = 'LOAN' AND active = 1 AND deleted = 0 AND hide = 0")
     fun observeTotalLoanBalance(): Flow<Long>
-
-    @Query("SELECT COALESCE(SUM(outstandingMinorUnits), 0) FROM accounts WHERE accountType = 'CREDIT_CARD' AND active = 1 AND deleted = 0 AND hide = 0")
-    fun observeTotalCreditCardOutstanding(): Flow<Long>
-
-    @Query("UPDATE accounts SET outstandingMinorUnits = :outstanding, availableLimitMinorUnits = :availableLimit, updatedAtEpochMillis = :now WHERE id = :accountId")
-    suspend fun updateCreditCardState(accountId: Long, outstanding: Long, availableLimit: Long?, now: Long)
 
     @Query("UPDATE accounts SET deleted = 1, active = 0, hide = 1, updatedAtEpochMillis = :now WHERE id = :id")
     suspend fun softDeleteById(id: Long, now: Long)

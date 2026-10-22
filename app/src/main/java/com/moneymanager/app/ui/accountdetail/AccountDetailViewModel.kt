@@ -3,11 +3,13 @@ package com.moneymanager.app.ui.accountdetail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.moneymanager.app.data.local.dao.AccountDao
+import com.moneymanager.app.data.local.dao.BillDao
 import com.moneymanager.app.data.local.dao.TransactionDao
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.accounting.AccountingEngine
 import com.moneymanager.app.domain.accounting.AccountingEngine.BillingCycleWindow
+import com.moneymanager.app.domain.billing.CreditCardStatement
 import com.moneymanager.app.domain.model.AccountType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -42,7 +44,11 @@ data class AccountDetailUiState(
     val cycleGroups: List<CycleGroup> = emptyList(),
     val currentCycle: CycleGroup? = null,
     val loadedCount: Int = 0,
-    val canLoadMore: Boolean = false
+    val canLoadMore: Boolean = false,
+    /** The card's current statement - what this cycle's bill will be for. */
+    val currentStatementMinorUnits: Long = 0L,
+    /** When the statement of the running cycle falls due. */
+    val statementDueDateEpochMillis: Long? = null
 )
 
 private const val PAGE_SIZE = 300
@@ -56,7 +62,8 @@ private const val PAGE_SIZE = 300
 @HiltViewModel
 class AccountDetailViewModel @Inject constructor(
     private val accountDao: AccountDao,
-    private val transactionDao: TransactionDao
+    private val transactionDao: TransactionDao,
+    private val billDao: BillDao
 ) : ViewModel() {
 
     private val zone = ZoneId.of("Asia/Kolkata")
@@ -139,6 +146,30 @@ class AccountDetailViewModel @Inject constructor(
         } else {
             null
         }
+        // The card's statement for the cycle that is running right now, and the day that
+        // statement falls due. The amount is kept in step with the card's ledger by the
+        // billing service, so the number here is the same one the linked bill carries. The
+        // due date is the day the bill occurrence that SETTLES this very cycle falls due -
+        // not simply the next due date on the bill's schedule.
+        val currentStatement = if (isCard) {
+            account?.billAmountMinorUnits ?: account?.outstandingMinorUnits ?: 0L
+        } else {
+            0L
+        }
+        val statementDueDate = if (isCard && account != null) {
+            val bill = billDao.findByLinkedAccountId(account.id)
+            val settling = bill?.let { linked ->
+                billDao.findInstancesForBill(linked.id).firstOrNull { instance ->
+                    CreditCardStatement.cycleSettledByDueDate(cycleStartDay, instance.dueDateEpochMillis)
+                        .startInclusive == nowWindow.startInclusive
+                }?.dueDateEpochMillis
+            }
+            settling
+                ?: account.dueDate
+                ?: CreditCardStatement.defaultDueDate(cycleStartDay, System.currentTimeMillis())
+        } else {
+            null
+        }
         AccountDetailUiState(
             account = account,
             isCreditCard = isCard,
@@ -147,7 +178,9 @@ class AccountDetailViewModel @Inject constructor(
             cycleGroups = cycleGroups,
             currentCycle = currentCycle,
             loadedCount = txns.size,
-            canLoadMore = txns.size >= limitFlow.value
+            canLoadMore = txns.size >= limitFlow.value,
+            currentStatementMinorUnits = currentStatement,
+            statementDueDateEpochMillis = statementDueDate
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AccountDetailUiState())
 

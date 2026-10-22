@@ -10,12 +10,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
@@ -42,6 +42,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,17 +56,21 @@ import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.reporting.FinancialSummary
 import com.moneymanager.app.ui.components.AccountsFab
+import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmChip
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.formatDayMonth
+import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.theme.MMGreenDark
 import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import androidx.compose.foundation.lazy.itemsIndexed
 
 @Composable
 fun AccountsScreen(
@@ -81,21 +87,41 @@ fun AccountsScreen(
     val accounts by viewModel.accounts.collectAsState()
     var selectedTab by remember { mutableIntStateOf(AccountsTab.entries.indexOf(initialTab).coerceAtLeast(0)) }
     var editMode by remember { mutableStateOf(false) }
+    var showInactive by remember { mutableStateOf(false) }
     val tab = AccountsTab.entries[selectedTab]
     val filtered = accounts.filter { it.accountType in tab.types && !it.deleted }
     val visible = filtered.filter { !it.hide }
+    // A disabled account is kept, not deleted - so it stays reachable. But it is kept on its
+    // OWN screen, reached through the Active/Inactive switch: mixing disabled accounts into
+    // the live list is what makes finding "my card" impossible once a few old cards pile up.
+    val activeAccounts = visible.filter { it.active }
+    val inactiveAccounts = visible.filter { !it.active }
+    // With nothing inactive to show, the inactive view can never be the one on screen.
+    val inactiveView = showInactive && inactiveAccounts.isNotEmpty()
+    val shown = if (inactiveView) inactiveAccounts else activeAccounts
     // Total uses the same inclusion rule as every other combined total (FinancialSummary),
     // so the Accounts tab header reconciles with the dashboard: exclude accounts hidden from
-    // statistics and child accounts (their money is represented by the parent).
-    val total = filtered
-        .filter { FinancialSummary.isIncluded(it) }
-        .sumOf { account ->
+    // statistics and child accounts (their money is represented by the parent). Inactive
+    // accounts are outside the statistics by definition, so their view sums them directly.
+    val total = if (inactiveView) {
+        inactiveAccounts.sumOf { account ->
             if (account.accountType == AccountType.CREDIT_CARD) {
                 account.outstandingMinorUnits ?: 0L
             } else {
                 account.currentBalanceMinorUnits
             }
         }
+    } else {
+        filtered
+            .filter { FinancialSummary.isIncluded(it) }
+            .sumOf { account ->
+                if (account.accountType == AccountType.CREDIT_CARD) {
+                    account.outstandingMinorUnits ?: 0L
+                } else {
+                    account.currentBalanceMinorUnits
+                }
+            }
+    }
 
     Scaffold(
         backgroundColor = MmColors.background,
@@ -113,36 +139,88 @@ fun AccountsScreen(
             AccountsHeader(
                 tabLabel = tab.label,
                 isCreditCard = tab == AccountsTab.CREDIT_CARDS,
-                count = visible.size,
+                count = shown.size,
                 total = Money(total),
+                showingInactive = inactiveView,
                 editMode = editMode,
                 onBack = onBack,
                 onSettings = onAccountSettings,
                 onToggleEdit = { editMode = !editMode }
             )
 
-            AccountsTabs(selected = selectedTab, onSelect = { selectedTab = it })
+            // Every tab opens on the live accounts; the inactive view is a deliberate detour,
+            // never a state you can land in by accident after switching tab.
+            AccountsTabs(selected = selectedTab, onSelect = {
+                selectedTab = it
+                showInactive = false
+            })
 
-            if (visible.isEmpty()) {
-                MmEmptyState(
-                    icon = tab.icon,
-                    title = "No ${tab.label.lowercase()} yet",
-                    message = when (tab) {
+            // The switch between the live accounts and the ones the user has switched off.
+            // It only appears when there is something inactive to switch to.
+            if (inactiveAccounts.isNotEmpty()) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                ) {
+                    MmChip(
+                        label = "Active (${activeAccounts.size})",
+                        selected = !inactiveView,
+                        onClick = { showInactive = false }
+                    )
+                    MmChip(
+                        label = "Inactive (${inactiveAccounts.size})",
+                        selected = inactiveView,
+                        onClick = { showInactive = true }
+                    )
+                }
+            }
+
+            if (shown.isEmpty()) {
+                val hasInactive = inactiveAccounts.isNotEmpty()
+                val emptyTitle: String
+                val emptyMessage: String
+                val emptyActionLabel: String?
+                val emptyAction: (() -> Unit)?
+                if (inactiveView) {
+                    emptyTitle = "No inactive accounts"
+                    emptyMessage = "Accounts you switch off are kept here, out of your live list."
+                    emptyActionLabel = null
+                    emptyAction = null
+                } else if (hasInactive) {
+                    emptyTitle = "No active accounts"
+                    emptyMessage = "Your ${inactiveAccounts.size} switched-off " +
+                            "${if (inactiveAccounts.size == 1) "account is" else "accounts are"} " +
+                            "in the Inactive view."
+                    emptyActionLabel = "Show inactive"
+                    emptyAction = { showInactive = true }
+                } else {
+                    emptyTitle = "No ${tab.label.lowercase()} yet"
+                    emptyMessage = when (tab) {
                         AccountsTab.CREDIT_CARDS -> "Add a card to track outstanding, limits and billing cycles."
                         AccountsTab.LOANS -> "Add a loan to keep track of what is left to pay."
                         AccountsTab.WALLETS -> "Add a wallet to track prepaid balances."
                         AccountsTab.BANK -> "Add a bank account to track your balance and transactions."
-                    },
-                    actionLabel = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account",
-                    onAction = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                    }
+                    emptyActionLabel = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account"
+                    emptyAction = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                }
+                MmEmptyState(
+                    icon = tab.icon,
+                    title = emptyTitle,
+                    message = emptyMessage,
+                    actionLabel = emptyActionLabel,
+                    onAction = emptyAction
                 )
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 112.dp)) {
-                    items(visible, key = { it.id }) { account ->
+                    itemsIndexed(shown, key = { _, account -> account.id }) { index, account ->
                         AccountCard(
                             account = account,
                             isCreditCard = account.accountType == AccountType.CREDIT_CARD,
                             editMode = editMode,
+                            modifier = Modifier.revealOnAppear(index = index),
                             onClick = { onAccountClick(account.id) },
                             onEdit = {
                                 if (account.accountType == AccountType.CREDIT_CARD) onEditCreditCard(account.id)
@@ -170,12 +248,31 @@ private fun AccountsHeader(
     isCreditCard: Boolean,
     count: Int,
     total: Money,
+    showingInactive: Boolean,
     editMode: Boolean,
     onBack: () -> Unit,
     onSettings: () -> Unit,
     onToggleEdit: () -> Unit
 ) {
-    Surface(color = MMGreenDark, elevation = 0.dp) {
+    Surface(color = Color.Transparent, elevation = 0.dp) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(MmColors.brandGradient))
+        ) {
+            // Soft corner light so the header reads as a lit surface, not a flat colour block.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(Color.White.copy(alpha = 0.10f), Color.Transparent),
+                            center = androidx.compose.ui.geometry.Offset(760f, 30f),
+                            radius = 560f
+                        )
+                    )
+            )
         Column(Modifier.fillMaxWidth()) {
             Row(
                 Modifier.fillMaxWidth().statusBarsPadding()
@@ -205,26 +302,31 @@ private fun AccountsHeader(
             }
             Column(Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm)) {
                 Text(
-                    if (isCreditCard) "Total outstanding" else "Total balance",
+                    when {
+                        showingInactive && isCreditCard -> "Inactive outstanding"
+                        showingInactive -> "Inactive balance"
+                        isCreditCard -> "Total outstanding"
+                        else -> "Total balance"
+                    },
                     color = MMWhite.copy(alpha = 0.8f),
                     style = MmType.caption
                 )
-                Text(
-                    MoneyFormat.rupeesNoDecimals(total),
-                    color = MMWhite,
+                MmAnimatedAmount(
+                    value = total.minorUnits,
+                    formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
                     style = MmType.amountHero,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis
+                    color = MMWhite
                 )
                 Spacer(Modifier.size(MmSpacing.xs))
                 Text(
-                    "$count ${if (count == 1) "account" else "accounts"}",
+                    "$count ${if (count == 1) "account" else "accounts"}" +
+                            if (showingInactive) " • switched off" else "",
                     color = MMWhite.copy(alpha = 0.75f),
                     style = MmType.caption
                 )
             }
             Spacer(Modifier.size(MmSpacing.sm))
+        }
         }
     }
 }
@@ -260,7 +362,8 @@ private fun AccountCard(
     isCreditCard: Boolean,
     editMode: Boolean,
     onClick: () -> Unit,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val amount = if (isCreditCard) account.outstandingMinorUnits ?: 0L else account.currentBalanceMinorUnits
     val subtitle = when {
@@ -269,12 +372,15 @@ private fun AccountCard(
         account.manualBalanceOverrideMinorUnits != null -> "Manual balance checkpoint"
         account.balanceSource == AccountBalanceSource.REPORTED && account.lastReportedAtEpochMillis != null ->
             "Reported ${formatDayMonth(account.lastReportedAtEpochMillis)}"
+        // A card that already has a live statement shows the real outstanding; only a card
+        // whose statement has not been computed yet still shows an estimate.
+        isCreditCard && account.billAmountMinorUnits != null -> "Outstanding"
         isCreditCard -> "Estimated outstanding"
         else -> "Estimated balance"
     }
 
     MmCard(
-        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+        modifier = modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
         onClick = onClick
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -313,19 +419,20 @@ private fun AccountCard(
         Spacer(Modifier.size(MmSpacing.sm))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(
-                    MoneyFormat.rupeesNoDecimals(Money(amount)),
+                MmAnimatedAmount(
+                    value = amount,
+                    formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
                     style = MmType.amountLarge,
-                    color = MmColors.textPrimary,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis
+                    color = MmColors.textPrimary
                 )
                 Text(subtitle, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1)
             }
-            if (isCreditCard && (account.creditLimitMinorUnits ?: 0L) > 0L) {
+            // A limit the user typed wins over the derived one, so the pill can never
+            // contradict the limit shown on the card's own screen.
+            val effectiveLimit = account.creditLimitOverrideMinorUnits ?: account.creditLimitMinorUnits
+            if (isCreditCard && (effectiveLimit ?: 0L) > 0L) {
                 MmPill(
-                    "Limit ${MoneyFormat.rupeesNoDecimals(Money(account.creditLimitMinorUnits!!))}",
+                    "Limit ${MoneyFormat.rupeesNoDecimals(Money(effectiveLimit!!))}",
                     tint = MmColors.textSecondary
                 )
             } else if (isCreditCard) {

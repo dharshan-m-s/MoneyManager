@@ -3,7 +3,6 @@ package com.moneymanager.app.ui.navigation
 import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,9 +11,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.DrawerValue
 import androidx.compose.material.ExtendedFloatingActionButton
@@ -45,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -66,6 +70,8 @@ import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.components.revealOnAppear
 
 /**
  * Root shell: navigation host + drawer + the dashboard FAB speed dial, wrapped in the real
@@ -248,40 +254,83 @@ fun MoneyManagerRoot() {
                 modifier = Modifier.fillMaxSize().navigationBarsPadding()
             )
             if (currentRoute == Destination.Dashboard.route) {
-                Column(
-                    horizontalAlignment = Alignment.End,
+                Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .navigationBarsPadding()
                         .padding(MmSpacing.lg)
                 ) {
                     if (fabExpanded) {
-                        SpeedDialOption("Cash spend", Icons.Filled.Payments, MmColors.expense) { openAddTransaction("CASH_SPEND") }
-                        SpeedDialOption("Cash income", Icons.Filled.Savings, MmColors.income) { openAddTransaction("CASH_INCOME") }
-                        SpeedDialOption("Account spend", Icons.AutoMirrored.Filled.TrendingDown, MmColors.expense) { openAddTransaction("ACCOUNT_SPEND") }
-                        SpeedDialOption("Account income", Icons.AutoMirrored.Filled.TrendingUp, MmColors.income) { openAddTransaction("ACCOUNT_INCOME") }
-                        Spacer(Modifier.height(MmSpacing.sm))
-                    }
-                    ExtendedFloatingActionButton(
-                        onClick = { fabExpanded = !fabExpanded },
-                        backgroundColor = MmColors.accent,
-                        contentColor = MmColors.onAccent,
-                        shape = RoundedCornerShape(18.dp),
-                        text = {
-                            Text(
-                                if (fabExpanded) "Close" else "Add",
-                                style = MmType.label,
-                                color = MmColors.onAccent
-                            )
-                        },
-                        icon = {
-                            Icon(
-                                if (fabExpanded) Icons.Filled.Close else Icons.Filled.Add,
-                                contentDescription = null,
-                                tint = MmColors.onAccent
-                            )
+                        // The options sit ON the button, not in the middle of the screen: the
+                        // stack is anchored to the bottom with only the button's own height
+                        // reserved, so opening the dial never leaves them floating and never
+                        // shifts them.
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(bottom = 64.dp)
+                        ) {
+                            SpeedDialOption("Cash spend", Icons.Filled.Payments, MmColors.expense, index = 3) { openAddTransaction("CASH_SPEND") }
+                            SpeedDialOption("Cash income", Icons.Filled.Savings, MmColors.income, index = 2) { openAddTransaction("CASH_INCOME") }
+                            SpeedDialOption("Account spend", Icons.AutoMirrored.Filled.TrendingDown, MmColors.expense, index = 1) { openAddTransaction("ACCOUNT_SPEND") }
+                            SpeedDialOption("Account income", Icons.AutoMirrored.Filled.TrendingUp, MmColors.income, index = 0) { openAddTransaction("ACCOUNT_INCOME") }
                         }
-                    )
+                    }
+                    // The FAB and its halo are one object: the glow is drawn BEHIND the button,
+                    // centred on it, and never occupies a band of its own above it. (A separate
+                    // layer here used to paint a green blob over the speed-dial options and
+                    // pushed them up when the menu opened.)
+                    Box(
+                        modifier = Modifier.align(Alignment.BottomEnd),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Box(
+                            Modifier
+                                .size(88.dp)
+                                .offset(y = 16.dp)
+                                .background(
+                                    androidx.compose.ui.graphics.Brush.radialGradient(
+                                        colors = listOf(
+                                            MmColors.accent.copy(alpha = 0.20f),
+                                            androidx.compose.ui.graphics.Color.Transparent
+                                        )
+                                    )
+                                )
+                        )
+                        ExtendedFloatingActionButton(
+                            onClick = { fabExpanded = !fabExpanded },
+                            backgroundColor = MmColors.accent,
+                            contentColor = MmColors.onAccent,
+                            shape = RoundedCornerShape(18.dp),
+                            elevation = androidx.compose.material.FloatingActionButtonDefaults.elevation(
+                                defaultElevation = 8.dp,
+                                pressedElevation = 8.dp
+                            ),
+                            text = {
+                                Text(
+                                    if (fabExpanded) "Close" else "Add",
+                                    style = MmType.label,
+                                    color = MmColors.onAccent
+                                )
+                            },
+                            icon = {
+                                // The add/close glyph morphs instead of swapping, so the control
+                                // feels like one object that changes state.
+                                val rotation by animateFloatAsState(
+                                    targetValue = if (fabExpanded) 180f else 0f,
+                                    animationSpec = tween(240, easing = FastOutSlowInEasing),
+                                    label = "fabIcon"
+                                )
+                                Icon(
+                                    if (fabExpanded) Icons.Filled.Close else Icons.Filled.Add,
+                                    contentDescription = null,
+                                    tint = MmColors.onAccent,
+                                    modifier = Modifier.graphicsLayer { rotationZ = rotation }
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -347,15 +396,17 @@ private fun SpeedDialOption(
     label: String,
     icon: ImageVector,
     tint: androidx.compose.ui.graphics.Color,
+    index: Int = 0,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
+            .revealOnAppear(index = index, delayPerItemMillis = 45)
             .padding(bottom = MmSpacing.sm)
             .clip(RoundedCornerShape(MmSpacing.touchTarget / 2))
             .background(MmColors.surface)
             .border(1.dp, MmColors.outline, RoundedCornerShape(MmSpacing.touchTarget / 2))
-            .clickable(onClick = onClick)
+            .pressableClick(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)

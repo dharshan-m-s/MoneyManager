@@ -4,7 +4,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,6 +58,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.dao.CategoryTotal
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.model.TxnSubType
+import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmBottomSheet
 import com.moneymanager.app.ui.components.MmQuickAction
 import com.moneymanager.app.ui.components.MmCard
@@ -74,6 +74,8 @@ import com.moneymanager.app.ui.components.MmSectionHeader
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.mmCategoryTint
+import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.home.HomePreferences
 import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
@@ -183,7 +185,8 @@ fun DashboardScreen(
                     onAddExpense = onAddAccountSpend,
                     onAddIncome = onAddAccountIncome,
                     onCash = onOpenCash,
-                    onBills = onSeeAllBills
+                    onBills = onSeeAllBills,
+                    modifier = Modifier.revealOnAppear(index = 0)
                 )
             }
 
@@ -202,11 +205,21 @@ fun DashboardScreen(
             }
 
             item {
-                BudgetCard(state = state, onOpenBudget = onOpenBudget, hideAmounts = hideAmounts)
+                BudgetCard(
+                    state = state,
+                    onOpenBudget = onOpenBudget,
+                    hideAmounts = hideAmounts,
+                    modifier = Modifier.revealOnAppear(index = 1)
+                )
             }
 
             item {
-                SafeToSpendCard(state = state, hideAmounts = hideAmounts, onOpenBudget = onOpenBudget)
+                SafeToSpendCard(
+                    state = state,
+                    hideAmounts = hideAmounts,
+                    onOpenBudget = onOpenBudget,
+                    modifier = Modifier.revealOnAppear(index = 2)
+                )
             }
 
             item {
@@ -288,7 +301,7 @@ fun DashboardScreen(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(MmSpacing.radiusRow))
                                 .background(MmColors.surfaceMuted)
-                                .clickable { onOpenBreakdown(DashboardBreakdownKind.BILLS) }
+                                .pressableClick { onOpenBreakdown(DashboardBreakdownKind.BILLS) }
                                 .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md)
                         ) {
                             Column(Modifier.weight(1f)) {
@@ -399,6 +412,20 @@ private fun DashboardHero(
                 Brush.verticalGradient(MmColors.brandGradient)
             )
     ) {
+        // A single soft light source in the top-right corner gives the brand band depth
+        // without adding a second colour or any hard edges.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(220.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.10f), Color.Transparent),
+                        center = androidx.compose.ui.geometry.Offset(760f, 40f),
+                        radius = 620f
+                    )
+                )
+        )
         Column(
             Modifier
                 .fillMaxWidth()
@@ -440,18 +467,27 @@ private fun DashboardHero(
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .clickable { onOpenBreakdown(DashboardBreakdownKind.NET_WORTH) }
+                        .pressableClick { onOpenBreakdown(DashboardBreakdownKind.NET_WORTH) }
                         .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
                 ) {
                     Text("Net worth", color = MMWhite.copy(alpha = 0.72f), style = MmType.caption)
-                    Text(
-                        if (hideAmounts) "••••••" else MoneyFormat.rupeesNoDecimals(state.netWorth),
-                        style = MmType.amountHero,
-                        color = MMWhite,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    if (hideAmounts) {
+                        Text(
+                            "••••••",
+                            style = MmType.amountHero,
+                            color = MMWhite,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    } else {
+                        MmAnimatedAmount(
+                            value = state.netWorth.minorUnits,
+                            formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
+                            style = MmType.amountHero,
+                            color = MMWhite
+                        )
+                    }
                     Spacer(Modifier.height(MmSpacing.lg))
                     Row(
                         Modifier.fillMaxWidth(),
@@ -505,19 +541,28 @@ private fun HeroTile(
         modifier
             .clip(RoundedCornerShape(MmSpacing.radiusRow))
             .background(Color.White.copy(alpha = 0.14f))
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.pressableClick(onClick = onClick) else Modifier)
             .padding(horizontal = MmSpacing.md, vertical = MmSpacing.sm)
     ) {
         Text(label, color = MMWhite.copy(alpha = 0.72f), style = MmType.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(2.dp))
-        Text(
-            if (hidden) "••••" else MoneyFormat.rupeesNoDecimals(amount),
-            style = MmType.amountTile,
-            color = MMWhite,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis
-        )
+        if (hidden) {
+            Text(
+                "••••",
+                style = MmType.amountTile,
+                color = MMWhite,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+        } else {
+            MmAnimatedAmount(
+                value = amount.minorUnits,
+                formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
+                style = MmType.amountTile,
+                color = MMWhite
+            )
+        }
     }
 }
 
@@ -536,10 +581,11 @@ private fun QuickActions(
     onAddExpense: () -> Unit,
     onAddIncome: () -> Unit,
     onCash: () -> Unit,
-    onBills: () -> Unit
+    onBills: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
         horizontalArrangement = Arrangement.SpaceBetween
@@ -554,8 +600,13 @@ private fun QuickActions(
 
 /** Budget ring + remaining summary, or the set-up call to action when no budget exists. */
 @Composable
-private fun BudgetCard(state: DashboardUiState, onOpenBudget: () -> Unit, hideAmounts: Boolean = false) {
-    MmCard(modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
+private fun BudgetCard(
+    state: DashboardUiState,
+    onOpenBudget: () -> Unit,
+    hideAmounts: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    MmCard(modifier = modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
         val hasBudget = state.budget.minorUnits > 0L
         val progress = state.budgetProgress
         val ringColor = when {
@@ -650,14 +701,19 @@ private fun BudgetCard(state: DashboardUiState, onOpenBudget: () -> Unit, hideAm
  * set, otherwise liquid cash after scheduled bills.
  */
 @Composable
-private fun SafeToSpendCard(state: DashboardUiState, hideAmounts: Boolean, onOpenBudget: () -> Unit) {
+private fun SafeToSpendCard(
+    state: DashboardUiState,
+    hideAmounts: Boolean,
+    onOpenBudget: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val hasBudget = state.safeToSpendMode == SafeToSpendMode.BUDGET_REMAINING
     val caption = if (hasBudget) {
         "Remaining of your ${MoneyFormat.rupeesNoDecimals(state.budget)} budget"
     } else {
         "Cash left after ${MoneyFormat.rupeesNoDecimals(state.upcomingBillsTotal)} of scheduled bills"
     }
-    MmCard(modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
+    MmCard(modifier = modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MmIconBadge(icon = Icons.Filled.Savings, tint = MmColors.accent)
             Spacer(Modifier.width(MmSpacing.md))

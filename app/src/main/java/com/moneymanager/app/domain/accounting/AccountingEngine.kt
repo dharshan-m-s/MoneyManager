@@ -63,6 +63,7 @@ object AccountingEngine {
      *   EXPENSE, REIMBURSE -> -debit                    (money out)
      *   CARD_PURCHASE     -> 0 ledger, outstanding += debit
      *   CARD_PAYMENT      -> 0 ledger, outstanding -= credit
+     *   CARD_CASH_ADVANCE -> 0 ledger, outstanding += debit  (cash taken out of a card)
      *   TRANSFER_IN        -> +credit                    (money in from another account)
      *   TRANSFER_OUT       -> -debit                     (money out to another account)
      *   CASH_FORWARD_CARRY -> -debit                     (month-end cash roll marker)
@@ -102,6 +103,14 @@ object AccountingEngine {
             countsAsTransferOrCashMovement = true
         )
 
+        /** Cash taken OUT of a card. The card's credit line was used, so what the card owes
+         *  grows by the amount taken out - exactly the mirror image of a card payment. */
+        fun cardCashAdvance(): AccountMovement = AccountMovement(
+            semantics, creditMinorUnits = credit, debitMinorUnits = debit,
+            ledgerDeltaMinorUnits = 0, cardOutstandingDeltaMinorUnits = debit,
+            countsAsTransferOrCashMovement = true
+        )
+
         fun reversal(): AccountMovement = AccountMovement(
             semantics, creditMinorUnits = credit, debitMinorUnits = debit,
             ledgerDeltaMinorUnits = credit - debit, cardOutstandingDeltaMinorUnits = -(credit - debit),
@@ -113,6 +122,7 @@ object AccountingEngine {
             TransactionSemantics.EXPENSE -> expense()
             TransactionSemantics.CARD_PURCHASE -> cardPurchase()
             TransactionSemantics.CARD_PAYMENT -> cardPayment()
+            TransactionSemantics.CARD_CASH_ADVANCE -> cardCashAdvance()
             TransactionSemantics.REIMBURSEMENT -> expense()
             TransactionSemantics.TRANSFER_IN,
             TransactionSemantics.TRANSFER_OUT,

@@ -34,7 +34,7 @@ class BillRecurrenceServiceTest {
             RuntimeEnvironment.getApplication(),
             MoneyManagerDatabase::class.java
         ).allowMainThreadQueries().build()
-        service = BillRecurrenceService(db.billDao())
+        service = db.billRecurrenceService()
     }
 
     @After

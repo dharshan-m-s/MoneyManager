@@ -2,7 +2,6 @@ package com.moneymanager.app.ui.categories
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,6 +67,7 @@ import com.moneymanager.app.ui.components.MmPickerSheet
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.pressableClick
 
 /** One selectable category icon. [key] is persisted in [CategoryEntity.iconKey]. */
 data class CategoryIconOption(val key: String, val label: String, val icon: ImageVector)
@@ -131,7 +131,7 @@ fun CategoryIconPicker(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .clip(RoundedCornerShape(MmSpacing.radiusRow))
-                        .clickable { onSelect(option) }
+                        .pressableClick { onSelect(option) }
                         .padding(horizontal = 6.dp, vertical = 6.dp)
                 ) {
                     Box(
@@ -194,7 +194,7 @@ fun CategoryColorPicker(
                         if (selected) Modifier.border(2.dp, MmColors.textPrimary, CircleShape)
                         else Modifier
                     )
-                    .clickable { onSelect(hex) },
+                    .pressableClick { onSelect(hex) },
                 contentAlignment = Alignment.Center
             ) {
                 if (selected) {

@@ -75,7 +75,12 @@ data class BillEntity(
 
     val autoPay: Boolean = false,
     val reminderEnabled: Boolean = true,
-    val reminderDaysBefore: Int = 3,
+
+    /** "Days before the due date" - the single lead-time dial of a bill. It drives the
+     *  reminder notification AND the window in which the occurrence may be marked as paid
+     *  (see [com.moneymanager.app.domain.billing.BillPaymentWindow]). Default 10 days: a bill
+     *  becomes actionable and is announced one statement cycle before it is due. */
+    val reminderDaysBefore: Int = 10,
 
     val businessPersonal: BusinessPersonal = BusinessPersonal.PERSONAL,
     val active: Boolean = true,

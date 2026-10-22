@@ -256,7 +256,7 @@ fun MoneyManagerNavHost(
                 },
                 onTransferSelected = {
                     safeBack()
-                    go(Destination.Transfer.route)
+                    go(Destination.Transfer.route())
                 },
                 onCreateCategory = { go(Destination.CategoryEditor.route()) }
             )
@@ -323,10 +323,15 @@ fun MoneyManagerNavHost(
             BudgetScreen(onClose = { safeBack() })
         }
 
-        composable(Destination.Transfer.route) {
+        composable(
+            route = Destination.Transfer.route,
+            arguments = listOf(navArgument("toAccountId") { type = NavType.LongType; defaultValue = -1L })
+        ) { backStackEntry ->
+            val toAccountId = backStackEntry.arguments?.getLong("toAccountId") ?: -1L
             TransferScreen(
                 onBack = { safeBack() },
-                onSaved = { safeBack() }
+                onSaved = { safeBack() },
+                preselectToAccountId = toAccountId.takeIf { it >= 0 }
             )
         }
 
@@ -384,6 +389,9 @@ fun MoneyManagerNavHost(
                 },
                 onAddCashSpend = {
                     go(Destination.AddTransaction.route("CASH_SPEND", null))
+                },
+                onPayCard = {
+                    go(Destination.Transfer.route(accountId))
                 }
             )
         }
@@ -467,7 +475,7 @@ fun MoneyManagerNavHost(
                         safeBack()
                     }
                 },
-                onNavigateToTransfer = { go(Destination.Transfer.route) },
+                onNavigateToTransfer = { go(Destination.Transfer.route()) },
                 onMoreCategories = { go(Destination.CategoryPicker.route) },
                 selectedCategoryIdFromPicker = selectedCategoryId,
                 onConsumeCategorySelection = { backStackEntry.savedStateHandle["categorySelection"] = null }

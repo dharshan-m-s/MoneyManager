@@ -96,6 +96,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
+import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.revealOnAppear
+import com.moneymanager.app.ui.components.MmSecondaryButton
 
 /** Kept for the updater screen, which shares this chrome. */
 @Composable
@@ -464,11 +467,16 @@ fun SettingsScreen(
                         }
                     }
                     Spacer(Modifier.height(MmSpacing.md))
-                    Button(
+                    MmPrimaryButton(
+                        text = when {
+                            backupBusy -> "Creating backup…"
+                            backupFolder == null -> "Choose folder & back up"
+                            else -> "Back up now"
+                        },
                         onClick = {
                             if (backupFolder == null) {
                                 backupFolderLauncher.launch(null)
-                                return@Button
+                                return@MmPrimaryButton
                             }
                             backupBusy = true
                             scope.launch {
@@ -482,37 +490,16 @@ fun SettingsScreen(
                             }
                         },
                         enabled = !backupBusy,
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = RoundedCornerShape(MmSpacing.radiusRow),
-                        colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-                    ) {
-                        if (backupBusy) {
-                            CircularProgressIndicator(color = MmColors.onAccent, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                        } else {
-                            Icon(Icons.Filled.CloudUpload, contentDescription = null, tint = MmColors.onAccent, modifier = Modifier.size(18.dp))
-                        }
-                        Spacer(Modifier.width(MmSpacing.sm))
-                        Text(
-                            when {
-                                backupBusy -> "Creating backup…"
-                                backupFolder == null -> "Choose folder & back up"
-                                else -> "Back up now"
-                            },
-                            color = MmColors.onAccent,
-                            style = MmType.label
-                        )
-                    }
+                        loading = backupBusy,
+                        icon = Icons.Filled.CloudUpload,
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    )
                     Spacer(Modifier.height(MmSpacing.sm))
-                    OutlinedButton(
+                    MmSecondaryButton(
+                        text = if (backupFolder == null) "Choose backup folder" else "Change backup folder",
                         onClick = { backupFolderLauncher.launch(null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(MmSpacing.radiusRow)
-                    ) {
-                        Text(
-                            if (backupFolder == null) "Choose backup folder" else "Change backup folder",
-                            style = MmType.label
-                        )
-                    }
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Spacer(Modifier.height(MmSpacing.sm))
                     OutlinedButton(
                         onClick = { restoreLauncher.launch(arrayOf("*/*")) },
@@ -838,7 +825,11 @@ fun FeedbackScreen(onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(title = "Help & feedback", onBack = onBack)
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(MmSpacing.lg),
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(MmSpacing.lg)
+                .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
         ) {
             MmCard {
@@ -897,7 +888,11 @@ fun OpenSourceScreen(onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(title = "Open source", onBack = onBack)
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(MmSpacing.lg),
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(MmSpacing.lg)
+                .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
         ) {
             MmCard {
@@ -909,16 +904,12 @@ fun OpenSourceScreen(onBack: () -> Unit) {
                     color = MmColors.textSecondary
                 )
                 Spacer(Modifier.height(MmSpacing.md))
-                Button(
+                MmPrimaryButton(
+                    text = "Open the repository",
                     onClick = { openUrl(context, repoUrl) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(MmSpacing.radiusRow),
-                    colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-                ) {
-                    Icon(Icons.Filled.Code, contentDescription = null, tint = MmColors.onAccent, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(MmSpacing.sm))
-                    Text("Open the repository", color = MmColors.onAccent, style = MmType.label)
-                }
+                    icon = Icons.Filled.Code,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             MmCard {
@@ -946,7 +937,11 @@ fun AboutScreen(onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(title = "About", onBack = onBack)
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(MmSpacing.lg),
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(MmSpacing.lg)
+                .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
         ) {
             MmCard {

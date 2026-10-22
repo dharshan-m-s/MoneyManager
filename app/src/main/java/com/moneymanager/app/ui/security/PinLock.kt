@@ -1,7 +1,6 @@
 package com.moneymanager.app.ui.security
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +49,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.moneymanager.app.security.PinHasher
+import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.mmBrandWash
 import com.moneymanager.app.ui.theme.MmColors
@@ -460,7 +460,7 @@ private fun RowScope.KeyCap(
             .aspectRatio(1.5f)
             .clip(RoundedCornerShape(MmSpacing.radiusRow))
             .background(if (enabled) MmColors.surface else MmColors.surfaceMuted)
-            .clickable(enabled = enabled, onClick = onClick),
+            .pressableClick(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         content()

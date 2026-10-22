@@ -41,6 +41,8 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.revealOnAppear
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 
 data class BillTypeOption(
     val type: BillerType,
@@ -82,16 +84,25 @@ fun BillTypeSelectionScreen(
             verticalArrangement = Arrangement.spacedBy(MmSpacing.md),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(BILL_TYPES, key = { it.type.name }) { option ->
-                BillTypeCard(option) { onBillTypeSelected(option.type) }
+            itemsIndexed(BILL_TYPES, key = { _, option -> option.type.name }) { index, option ->
+                BillTypeCard(
+                    option = option,
+                    onClick = { onBillTypeSelected(option.type) },
+                    modifier = Modifier.revealOnAppear(index = index)
+                )
             }
         }
     }
 }
 
 @Composable
-private fun BillTypeCard(option: BillTypeOption, onClick: () -> Unit) {
+private fun BillTypeCard(
+    option: BillTypeOption,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     MmCard(
+        modifier = modifier,
         onClick = onClick,
         contentPadding = PaddingValues(MmSpacing.md)
     ) {

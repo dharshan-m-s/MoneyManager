@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -37,10 +38,10 @@ import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.RadioButton
-import androidx.compose.foundation.clickable
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Home
@@ -64,6 +65,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +73,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.moneymanager.app.domain.billing.BillPaymentWindow
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.AddBillerFab
 import com.moneymanager.app.ui.components.MmAmountField
@@ -79,8 +82,11 @@ import com.moneymanager.app.ui.components.MmDateField
 import com.moneymanager.app.ui.components.MmOption
 import com.moneymanager.app.ui.components.MmPickerSheet
 import com.moneymanager.app.ui.components.MmEmptyState
+import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPill
+import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -93,6 +99,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import com.moneymanager.app.ui.components.MmSecondaryButton
 
 @Composable
 fun BillsScreen(
@@ -140,11 +147,13 @@ fun BillsScreen(
                 )
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 112.dp)) {
-                    items(bills) { row ->
+                    itemsIndexed(bills, key = { _, row -> row.bill.id }) { index, row ->
                         BillCard(
                             row = row,
+                            modifier = Modifier.revealOnAppear(index = index),
                             onClick = { onEditBiller(row.bill.id) },
-                            onMarkPaid = { if (row.nextInstance != null) viewModel.findPaymentTransactions(row) }
+                            onMarkPaid = { if (row.nextInstance != null) viewModel.findPaymentTransactions(row) },
+                            onConfirmDetectedPayment = { viewModel.markDetectedPaymentPaid(row) }
                         )
                     }
                 }
@@ -414,15 +423,12 @@ private fun BillPaymentDialog(
                             includeTime = true
                         )
                         Spacer(Modifier.height(MmSpacing.sm))
-                        Button(
+                        MmPrimaryButton(
+                            text = if (state.saving) "Recording…" else "Record payment",
                             onClick = onRecordPayment,
                             enabled = !state.saving && state.recordSourceAccountId != null,
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent, contentColor = MmColors.onAccent)
-                        ) {
-                            Text(if (state.saving) "Recording…" else "Record payment", fontWeight = FontWeight.Bold)
-                        }
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        )
                     }
                 }
 
@@ -462,32 +468,20 @@ private fun BillPaymentDialog(
 
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     if (isCreditCard) {
-                        Button(
+                        MmPrimaryButton(
+                            text = if (showRecordPayment) "Hide payment form" else "Record a new payment",
                             onClick = { showRecordPayment = !showRecordPayment },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent, contentColor = MmColors.onAccent)
-                        ) {
-                            Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(19.dp))
-                            Text(
-                                if (showRecordPayment) "Hide payment form" else "Record a new payment",
-                                modifier = Modifier.padding(start = 8.dp),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                            icon = Icons.Filled.Payments,
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        )
                     }
                     if (!showRecent) {
-                        Button(
+                        MmSecondaryButton(
+                            text = "Choose from Recent Transactions",
                             onClick = { showRecent = true },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.surface, contentColor = MmColors.accent),
-                            border = BorderStroke(1.dp, MmColors.outline),
-                            elevation = null
-                        ) {
-                            Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(19.dp))
-                            Text("Choose from Recent Transactions", modifier = Modifier.padding(start = 8.dp), fontWeight = FontWeight.Bold)
-                        }
+                            icon = Icons.Filled.Search,
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        )
                     } else {
                         TextButton(onClick = { showRecent = false }, modifier = Modifier.fillMaxWidth()) {
                             Text("Back to Best Matches", color = MmColors.accent, fontWeight = FontWeight.SemiBold)
@@ -505,21 +499,12 @@ private fun BillPaymentDialog(
                                 label = "Amount paid now"
                             )
                             Spacer(Modifier.height(MmSpacing.sm))
-                            Button(
+                            MmPrimaryButton(
+                                text = if (state.saving) "Recording…" else "Confirm cash payment",
                                 onClick = { onPaidByCash(cashMinor) },
                                 enabled = !state.saving && cashMinor > 0L,
-                                modifier = Modifier.fillMaxWidth().height(48.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    backgroundColor = MmColors.accent,
-                                    contentColor = MmColors.onAccent
-                                )
-                            ) {
-                                Text(
-                                    if (state.saving) "Recording…" else "Confirm cash payment",
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            )
                             TextButton(
                                 onClick = { showCashPayment = false },
                                 modifier = Modifier.fillMaxWidth()
@@ -528,7 +513,8 @@ private fun BillPaymentDialog(
                             }
                         }
                     } else {
-                    Button(
+                    MmSecondaryButton(
+                        text = if (isCreditCard) "Already recorded — settle by cash" else "Paid by Cash",
                         onClick = {
                             cashAmount = occurrence
                                 ?.let { (it.amountDueMinorUnits - it.paidAmountMinorUnits).coerceAtLeast(0L) }
@@ -537,30 +523,17 @@ private fun BillPaymentDialog(
                             showCashPayment = true
                         },
                         enabled = !state.saving,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.surface, contentColor = MmColors.accent)
-                    ) {
-                        Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(19.dp))
-                        Text(
-                            if (isCreditCard) "Already recorded — settle by cash" else "Paid by Cash",
-                            modifier = Modifier.padding(start = 8.dp),
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                        icon = Icons.Filled.Payments,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp)
+                    )
                     }
 
-                    Button(
+                    MmSecondaryButton(
+                        text = "Link Selected Payment",
                         onClick = onConfirm,
                         enabled = !state.loading && !state.saving && state.selectedTransactionId != null,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.surface, contentColor = MmColors.accent),
-                        border = BorderStroke(1.dp, MmColors.outline),
-                        elevation = null
-                    ) {
-                        Text("Link Selected Payment", fontWeight = FontWeight.Bold)
-                    }
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp)
+                    )
                 }
             }
         }
@@ -603,7 +576,7 @@ private fun BillPaymentCandidateRow(
     val accountText = candidate.account?.nickname?.ifBlank { candidate.account.institutionName }.orEmpty()
 
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onSelectTransaction(tx.id) },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).pressableClick { onSelectTransaction(tx.id) },
         shape = RoundedCornerShape(16.dp),
         elevation = if (selectedTransactionId == tx.id) 3.dp else 1.dp,
         backgroundColor = if (selectedTransactionId == tx.id) MmColors.accent.copy(alpha = .08f) else MmColors.surface
@@ -645,7 +618,9 @@ private fun BillPaymentCandidateRow(
 private fun BillCard(
     row: BillRow,
     onClick: () -> Unit,
-    onMarkPaid: () -> Unit
+    onMarkPaid: () -> Unit,
+    onConfirmDetectedPayment: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val now = System.currentTimeMillis()
     val next = row.nextInstance
@@ -661,6 +636,12 @@ private fun BillCard(
     val partial = next != null && next.paidAmountMinorUnits in 1L until next.amountDueMinorUnits
     val dateFormat = DateTimeFormatter.ofPattern("dd MMM")
     val zone = ZoneId.of("Asia/Kolkata")
+
+    // "Mark as paid" only makes sense once the payment date is near: an occurrence that is
+    // months away has nothing to settle yet. Overdue bills and partially paid ones stay
+    // actionable.
+    val payable = BillPaymentWindow.isPayableNow(row.bill, next, now)
+    val detected = row.detectedPayment
 
     val statusText: String
     val statusColor: Color
@@ -697,7 +678,7 @@ private fun BillCard(
         ?: row.bill.estimatedAmountMinorUnits
 
     MmCard(
-        modifier = Modifier
+        modifier = modifier
             .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)
             .then(
                 if (overdue) Modifier.border(
@@ -774,16 +755,73 @@ private fun BillCard(
             Text(displayDate, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1)
         }
 
-        if (next != null) {
+        if (detected != null && next != null) {
+            // The money already reached this card. Tell the user and let them settle the
+            // bill in one tap instead of hunting for the transaction themselves.
             Spacer(Modifier.height(MmSpacing.md))
-            Button(
-                onClick = onMarkPaid,
-                modifier = Modifier.fillMaxWidth().height(44.dp),
-                shape = RoundedCornerShape(MmSpacing.radiusRow),
-                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(MmSpacing.radiusRow))
+                    .background(
+                        androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            listOf(
+                                MmColors.income.copy(alpha = 0.18f),
+                                MmColors.income.copy(alpha = 0.08f)
+                            )
+                        )
+                    )
+                    .pressableClick(onClick = onConfirmDetectedPayment)
+                    .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Mark as paid", color = MmColors.onAccent, style = MmType.label)
+                androidx.compose.material.Icon(
+                    Icons.Filled.CheckCircle,
+                    contentDescription = null,
+                    tint = MmColors.income,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(MmSpacing.sm))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Payment of " + MoneyFormat.rupeesNoDecimals(Money(detected.creditMinorUnits)) + " detected",
+                        style = MmType.label,
+                        color = MmColors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "Tap to mark this bill paid",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
+        } else if (next != null && payable) {
+            Spacer(Modifier.height(MmSpacing.md))
+            MmPrimaryButton(
+                text = "Mark as paid",
+                onClick = onMarkPaid,
+                icon = Icons.Filled.CheckCircle,
+                modifier = Modifier.fillMaxWidth()
+            )
+        } else if (next != null) {
+            // Still ahead of the payment window: say when the action appears instead of
+            // offering a button the user cannot use meaningfully yet.
+            Spacer(Modifier.height(MmSpacing.md))
+            val lead = BillPaymentWindow.leadDays(row.bill)
+            Text(
+                when {
+                    daysUntilDue <= 0L -> "Mark as paid available"
+                    else -> "Mark as paid appears " +
+                        "$lead day${if (lead == 1) "" else "s"} before the due date" +
+                        " (${daysUntilDue} to go)"
+                },
+                style = MmType.caption,
+                color = MmColors.textSecondary
+            )
         }
     }
 }

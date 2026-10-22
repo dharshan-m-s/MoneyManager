@@ -47,6 +47,7 @@ import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.MmPrimaryButton
 
 @Composable
 fun BankLinkingScreen(
@@ -150,19 +151,12 @@ fun BankLinkingScreen(
 
             state.error?.let { Text(it, color = MmColors.expense, style = MmType.caption) }
 
-            Button(
+            MmPrimaryButton(
+                text = if (state.saving) "Adding…" else "Add this account",
                 onClick = { save() },
                 enabled = !state.saving && accountNumber.isNotBlank(),
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(MmSpacing.radiusRow),
-                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-            ) {
-                Text(
-                    if (state.saving) "Adding…" else "Add this account",
-                    color = MmColors.onAccent,
-                    style = MmType.label
-                )
-            }
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

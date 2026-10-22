@@ -1,7 +1,6 @@
 package com.moneymanager.app.ui.accountdetail
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +35,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.runtime.Composable
@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.model.Money
+import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPill
@@ -65,6 +66,7 @@ import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.formatFullDate
+import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -86,6 +88,7 @@ fun AccountDetailScreen(
     onAddAccountSpend: () -> Unit = {},
     onAddCashIncome: () -> Unit = {},
     onAddCashSpend: () -> Unit = {},
+    onPayCard: () -> Unit = {},
     viewModel: AccountDetailViewModel = hiltViewModel()
 ) {
     val state by remember(accountId) { viewModel.stateFor(accountId) }.collectAsState()
@@ -107,13 +110,31 @@ fun AccountDetailScreen(
                 modifier = Modifier.navigationBarsPadding().padding(bottom = MmSpacing.sm)
             ) {
                 if (addExpanded) {
-                    AccountAddOption("Add spend", Icons.Filled.Add, MmColors.expense, accent = false) {
-                        addExpanded = false
-                        onAddAccountSpend()
-                    }
-                    AccountAddOption("Add income", Icons.AutoMirrored.Filled.CallReceived, MmColors.income, accent = true) {
-                        addExpanded = false
-                        onAddAccountIncome()
+                    // On a credit card the same two gestures mean different things: a purchase
+                    // grows the balance, and money coming back is a refund that clears it. The
+                    // labels say so, so nobody records a card refund expecting income.
+                    if (state.isCreditCard) {
+                        AccountAddOption("Pay this card", Icons.Filled.Payments, MmColors.accent, accent = true) {
+                            addExpanded = false
+                            onPayCard()
+                        }
+                        AccountAddOption("Record a refund", Icons.AutoMirrored.Filled.CallReceived, MmColors.income, accent = false) {
+                            addExpanded = false
+                            onAddAccountIncome()
+                        }
+                        AccountAddOption("Add a purchase", Icons.Filled.Add, MmColors.expense, accent = false) {
+                            addExpanded = false
+                            onAddAccountSpend()
+                        }
+                    } else {
+                        AccountAddOption("Add spend", Icons.Filled.Add, MmColors.expense, accent = false) {
+                            addExpanded = false
+                            onAddAccountSpend()
+                        }
+                        AccountAddOption("Add income", Icons.AutoMirrored.Filled.CallReceived, MmColors.income, accent = true) {
+                            addExpanded = false
+                            onAddAccountIncome()
+                        }
                     }
                     Spacer(Modifier.height(MmSpacing.sm))
                 }
@@ -172,7 +193,6 @@ fun AccountDetailScreen(
                 )
                 state.isCreditCard && tab == 0 -> CurrentCycleList(
                     state = state,
-                    billingDay = account.billingCycleStartDay ?: 1,
                     onTransactionClick = onTransactionClick,
                     matches = matches
                 )
@@ -251,7 +271,7 @@ private fun AccountAddOption(
             .padding(bottom = MmSpacing.sm)
             .clip(RoundedCornerShape(MmSpacing.touchTarget / 2))
             .background(MmColors.surface)
-            .clickable(onClick = onClick)
+            .pressableClick(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
@@ -345,16 +365,28 @@ private fun AccountHeader(
                     style = MmType.caption,
                     modifier = Modifier.padding(horizontal = MmSpacing.screen)
                 )
-                Text(
-                    MoneyFormat.rupeesNoDecimals(Money(account.outstandingMinorUnits ?: 0L)),
-                    color = MMWhite,
+                MmAnimatedAmount(
+                    value = account.outstandingMinorUnits ?: 0L,
+                    formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
                     style = MmType.amountHero,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis,
+                    color = MMWhite,
                     modifier = Modifier.padding(horizontal = MmSpacing.screen)
                 )
-                val limit = account.creditLimitMinorUnits
+                // The statement of the cycle that is running right now and the day it falls
+                // due - the number the card's bill is generated from.
+                if (state.statementDueDateEpochMillis != null) {
+                    Spacer(Modifier.height(MmSpacing.xs))
+                    Text(
+                        "Statement ${state.currentCycle?.label.orEmpty()} • " +
+                                "Due ${formatFullDate(state.statementDueDateEpochMillis)}",
+                        color = MMWhite.copy(alpha = 0.78f),
+                        style = MmType.caption,
+                        modifier = Modifier.padding(horizontal = MmSpacing.screen)
+                    )
+                }
+                // A limit the user typed must win over the limit the engine derived, otherwise
+                // the progress bar would contradict what the card screen says the limit is.
+                val limit = account.creditLimitOverrideMinorUnits ?: account.creditLimitMinorUnits
                 val outstanding = account.outstandingMinorUnits ?: 0L
                 if (limit != null && limit > 0L) {
                     Spacer(Modifier.height(MmSpacing.sm))
@@ -436,7 +468,7 @@ private fun CreditCardTabs(selected: Int, onSelect: (Int) -> Unit) {
             Column(
                 Modifier
                     .weight(1f)
-                    .clickable { onSelect(index) }
+                    .pressableClick { onSelect(index) }
                     .padding(vertical = MmSpacing.sm),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -462,7 +494,6 @@ private fun CreditCardTabs(selected: Int, onSelect: (Int) -> Unit) {
 @Composable
 private fun CurrentCycleList(
     state: AccountDetailUiState,
-    billingDay: Int,
     onTransactionClick: (Long) -> Unit,
     matches: (List<TransactionEntity>) -> List<TransactionEntity>
 ) {
@@ -481,7 +512,6 @@ private fun CurrentCycleList(
         item {
             CycleSummaryCard(
                 label = "${cycle.label} • Current",
-                billingDay = billingDay,
                 income = Money(cycle.income),
                 expense = Money(cycle.expense)
             )
@@ -580,7 +610,11 @@ private fun PeriodHeaderBlock(
 }
 
 @Composable
-private fun CycleSummaryCard(label: String, billingDay: Int, income: Money, expense: Money) {
+private fun CycleSummaryCard(
+    label: String,
+    income: Money,
+    expense: Money
+) {
     Column(Modifier.fillMaxWidth().padding(MmSpacing.lg)) {
         Text(label, style = MmType.sectionTitle, color = MmColors.textPrimary)
         Spacer(Modifier.height(MmSpacing.sm))
@@ -594,12 +628,6 @@ private fun CycleSummaryCard(label: String, billingDay: Int, income: Money, expe
                 Modifier.weight(1f)
             )
         }
-        Spacer(Modifier.height(MmSpacing.sm))
-        Text(
-            "This statement cycle starts on day $billingDay of each month.",
-            style = MmType.caption,
-            color = MmColors.textSecondary
-        )
     }
     Divider(color = MmColors.divider)
 }

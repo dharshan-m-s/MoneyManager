@@ -4,7 +4,6 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +55,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.moneymanager.app.ui.components.pressableClick
 
 val mmFieldShape = RoundedCornerShape(MmSpacing.radiusField)
 internal val mmZone: ZoneId = ZoneId.of("Asia/Kolkata")
@@ -167,7 +167,7 @@ fun MmPickerField(
                 .fillMaxWidth()
                 .clip(mmFieldShape)
                 .background(MmColors.surfaceMuted)
-                .clickable(onClick = onClick)
+                .pressableClick(onClick = onClick)
                 .padding(horizontal = MmSpacing.md, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -259,7 +259,7 @@ private fun PickerRow(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(MmSpacing.radiusRow))
-            .clickable(onClick = onClick)
+            .pressableClick(onClick = onClick)
             .padding(horizontal = MmSpacing.sm, vertical = MmSpacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -300,7 +300,7 @@ fun MmDateField(
                 .fillMaxWidth()
                 .clip(mmFieldShape)
                 .background(MmColors.surfaceMuted)
-                .clickable {
+                .pressableClick {
                     showDatePicker(context, epochMillis, includeTime) { picked -> onChange(picked) }
                 }
                 .padding(horizontal = MmSpacing.md, vertical = 14.dp),
@@ -392,7 +392,7 @@ private fun StepButton(enabled: Boolean, icon: androidx.compose.ui.graphics.vect
             .size(36.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(if (enabled) MmColors.surface else MmColors.surfaceMuted)
-            .clickable(enabled = enabled, onClick = onClick),
+            .pressableClick(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(

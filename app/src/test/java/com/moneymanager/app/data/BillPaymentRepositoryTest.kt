@@ -48,7 +48,7 @@ class BillPaymentRepositoryTest {
         appContext = context
         db = Room.inMemoryDatabaseBuilder(context, MoneyManagerDatabase::class.java)
             .allowMainThreadQueries().build()
-        accounting = AccountingService(db.accountDao(), db.transactionDao())
+        accounting = db.accountingService()
         backupManager = BackupManager(
             context, db, db.transactionDao(), db.accountDao(), db.categoryDao()
         )
@@ -58,7 +58,7 @@ class BillPaymentRepositoryTest {
             transactionDao = db.transactionDao(),
             accountDao = db.accountDao(),
             accountingService = accounting,
-            billRecurrenceService = BillRecurrenceService(db.billDao()),
+            billRecurrenceService = db.billRecurrenceService(),
             backupManager = backupManager
         )
     }
@@ -750,5 +750,113 @@ class BillPaymentRepositoryTest {
         assertEquals(firstLeg, retried)
         assertEquals(2, db.transactionDao().findByAccount(bankId).size)
         assertEquals(2, db.transactionDao().findByAccount(cardId).size)
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Credit-card outstanding updates directly from the ledger (no manual re-entry)
+    // ---------------------------------------------------------------------------------------------
+
+    private fun transactionRepository() = TransactionRepository(
+        db, db.transactionDao(), db.accountDao(), db.categoryDao(), db.billDao(),
+        accounting, backupManager,
+        com.moneymanager.app.data.repository.AttachmentRepository(
+            appContext, db.transactionAttachmentDao()
+        ),
+        repository
+    )
+
+    @Test
+    fun transferToACreditCardReducesItsOutstanding() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK, current = 20_000)
+        val cardId = insertAccount(AccountType.CREDIT_CARD, outstanding = 5_000)
+        db.accountDao().update(
+            db.accountDao().findById(cardId)!!.copy(
+                creditLimitMinorUnits = 100_000,
+                availableLimitMinorUnits = 95_000
+            )
+        )
+
+        transactionRepository().createTransfer(
+            occurredAtEpochMillis = at(19),
+            fromAccountId = bankId,
+            toAccountId = cardId,
+            amount = com.moneymanager.app.domain.model.Money(5_000),
+            notes = null
+        )
+
+        // The card received money, so what it owes must fall - automatically.
+        assertEquals(0L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
+        // And the payment must never be counted as ordinary spending.
+        val byId = com.moneymanager.app.domain.reporting.FinancialSummary.accountMap(db.accountDao().findAll())
+        val month = com.moneymanager.app.domain.reporting.FinancialSummary.Period(at(1), at(31))
+        val spend = com.moneymanager.app.domain.reporting.FinancialSummary.spendRows(
+            db.transactionDao().findInRange(at(1), at(31)), byId, month
+        )
+        assertTrue("a card payment is a transfer, not spending", spend.isEmpty())
+        // Exactly one card-side leg, flagged as a card bill payment.
+        val cardLegs = db.transactionDao().findByAccount(cardId).filter { it.isCreditCardBillPayment }
+        assertEquals(1, cardLegs.size)
+    }
+
+    @Test
+    fun settlingACardBillOutOfBandReducesTheOutstanding() = runBlocking {
+        val cardId = insertAccount(AccountType.CREDIT_CARD, outstanding = 5_000)
+        val billId = insertBill("HDFC Card", 5_000, linkedAccountId = cardId)
+        val instanceId = insertInstance(billId, 5_000)
+
+        // No app account paid: the user paid at the issuer / in another app. The bill is still
+        // settled (by cash), and the card's outstanding has to come down by the paid amount.
+        val result = repository.markAsPaid(
+            db.billDao().findInstanceById(instanceId)!!, null, amountMinorUnits = 5_000
+        )
+
+        assertEquals(true, result.paid)
+        assertEquals(0L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
+        val cardLegs = db.transactionDao().findByAccount(cardId).filter { it.isCreditCardBillPayment }
+        assertEquals(1, cardLegs.size)
+        assertEquals(5_000L, cardLegs.single().creditMinorUnits)
+    }
+
+    @Test
+    fun confirmingARecordedCardPaymentSettlesTheBillWithoutDuplicating() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK, current = 20_000)
+        val cardId = insertAccount(AccountType.CREDIT_CARD, outstanding = 5_000)
+        val billId = insertBill("HDFC Card", 5_000, linkedAccountId = cardId)
+        val instanceId = insertInstance(billId, 5_000)
+
+        // The user recorded a transfer to the card (money already moved, outstanding already
+        // fell). Now they confirm the bill occurrence from the detected-payment banner.
+        val (_, incomingId) = transactionRepository().createTransfer(
+            occurredAtEpochMillis = at(19),
+            fromAccountId = bankId,
+            toAccountId = cardId,
+            amount = com.moneymanager.app.domain.model.Money(5_000),
+            notes = null
+        )
+        assertEquals(0L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
+        val cardLegsBefore = db.transactionDao().findByAccount(cardId).size
+
+        val settled = repository.markCardBillPaidWithRecordedPayment(
+            db.billDao().findInstanceById(instanceId)!!, incomingId
+        )
+
+        assertEquals(true, settled.paid)
+        assertEquals(5_000L, settled.paidAmountMinorUnits)
+        // Nothing was created: the existing card-side leg became the allocation.
+        assertEquals(cardLegsBefore, db.transactionDao().findByAccount(cardId).size)
+        assertEquals(1, db.billDao().findAllocationsForInstance(instanceId).size)
+        assertEquals(incomingId, db.billDao().findAllocationsForInstance(instanceId).single().transactionId)
+        // Outstanding is unchanged by the confirmation (it fell when the transfer was made).
+        assertEquals(0L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
+
+        // Confirming the same payment for another bill is impossible - it is already allocated.
+        val billB = insertBill("Other Card", 5_000, linkedAccountId = cardId)
+        val instanceB = insertInstance(billB, 5_000)
+        val failure = runCatching {
+            repository.markCardBillPaidWithRecordedPayment(
+                db.billDao().findInstanceById(instanceB)!!, incomingId
+            )
+        }.exceptionOrNull()
+        assertNotNull(failure)
     }
 }

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
@@ -33,6 +32,8 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.revealOnAppear
+import androidx.compose.foundation.lazy.itemsIndexed
 
 data class BankInfo(val name: String, val iconRes: String = "")
 
@@ -130,16 +131,24 @@ fun BankSelectionScreen(
                     item(key = "popular-header") {
                         BankSectionHeader("Popular banks")
                     }
-                    items(filteredPopular, key = { "p-${it.name}" }) { bank ->
-                        BankRow(bank) { onBankSelected(bank.name) }
+                    itemsIndexed(filteredPopular, key = { _, bank -> "p-${bank.name}" }) { index, bank ->
+                        BankRow(
+                            bank = bank,
+                            onClick = { onBankSelected(bank.name) },
+                            modifier = Modifier.revealOnAppear(index = index)
+                        )
                     }
                 }
                 if (filteredOther.isNotEmpty()) {
                     item(key = "other-header") {
                         BankSectionHeader("Other banks")
                     }
-                    items(filteredOther, key = { "o-${it.name}" }) { bank ->
-                        BankRow(bank) { onBankSelected(bank.name) }
+                    itemsIndexed(filteredOther, key = { _, bank -> "o-${bank.name}" }) { index, bank ->
+                        BankRow(
+                            bank = bank,
+                            onClick = { onBankSelected(bank.name) },
+                            modifier = Modifier.revealOnAppear(index = index)
+                        )
                     }
                 }
             }
@@ -163,9 +172,9 @@ private fun BankSectionHeader(title: String) {
 }
 
 @Composable
-private fun BankRow(bank: BankInfo, onClick: () -> Unit) {
+private fun BankRow(bank: BankInfo, onClick: () -> Unit, modifier: Modifier = Modifier) {
     MmCard(
-        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+        modifier = modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
         onClick = onClick,
         contentPadding = PaddingValues(MmSpacing.md)
     ) {

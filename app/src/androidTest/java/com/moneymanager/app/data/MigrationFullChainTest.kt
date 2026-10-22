@@ -14,7 +14,7 @@ import org.junit.runner.RunWith
 
 /**
  * End-to-end migration coverage for every schema version that has an exported schema file:
- * 1 -> 11, 4 -> 11 and 8 -> 11. Each test seeds user data at the source version, runs the
+ * 1 -> 12, 4 -> 12 and 8 -> 12. Each test seeds user data at the source version, runs the
  * real migration chain, lets Room validate the resulting schema against the compiled v10
  * entities, and then asserts the data and the per-step contracts:
  *  - 2 -> 3: includeInStatistics defaults to 1 (existing rows keep counting);
@@ -25,7 +25,9 @@ import org.junit.runner.RunWith
  *  - 9 -> 10: bill-instance dedupe happens only through MIGRATION_9_10 (covered by the
  *    dedicated Migration9To10Test),
  *  - 10 -> 11: payment allocations table created and every legacy paid occurrence backfilled
- *    as exactly one full-settlement allocation (detail covered by Migration10To11Test).
+ *    as exactly one full-settlement allocation (detail covered by Migration10To11Test),
+ *  - 11 -> 12: bills still holding the legacy 3-day reminder default are raised to the new
+ *    10-day default, which is also the window in which "Mark as paid" unlocks.
  *
  * NOTE: exported schemas 5.json/6.json/7.json do not exist, so starting states 5, 6 and 7
  * cannot be reproduced with MigrationTestHelper. Those exact starting versions are NOT
@@ -76,7 +78,7 @@ class MigrationFullChainTest {
 
     @Test
     fun chainFromVersion1PreservesEveryTableAndBackfills() {
-        helper.createDatabase("migration-full-1-11.db", 1).use { db ->
+        helper.createDatabase("migration-full-1-12.db", 1).use { db ->
             insertAccount(db, 1)
             insertTransaction(db, 1, 1)
             insertBill(db, 1)
@@ -98,8 +100,8 @@ class MigrationFullChainTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            "migration-full-1-11.db",
-            11,
+            "migration-full-1-12.db",
+            12,
             true,
             *AppDatabaseMigrations.ALL_MIGRATIONS
         )
@@ -199,6 +201,12 @@ class MigrationFullChainTest {
             it.moveToFirst()
             assertEquals(50000, it.getInt(0))
         }
+        // 11 -> 12: the bill still carried the legacy 3-day reminder default, so it is raised
+        // to the new 10-day default (the same window that unlocks "Mark as paid").
+        db.query("SELECT reminderDaysBefore FROM bills WHERE id = 1").use {
+            it.moveToFirst()
+            assertEquals(10, it.getInt(0))
+        }
         // One transaction can only ever back one payment allocation.
         val duplicateAllocationRejected = runCatching {
             db.execSQL(
@@ -213,7 +221,7 @@ class MigrationFullChainTest {
 
     @Test
     fun chainFromVersion4AppliesAllLaterMigrations() {
-        helper.createDatabase("migration-full-4-11.db", 4).use { db ->
+        helper.createDatabase("migration-full-4-12.db", 4).use { db ->
             insertAccount(db, 1)
             insertTransaction(db, 1, 1)
             insertBill(db, 1)
@@ -226,8 +234,8 @@ class MigrationFullChainTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            "migration-full-4-11.db",
-            11,
+            "migration-full-4-12.db",
+            12,
             true,
             AppDatabaseMigrations.MIGRATION_4_5,
             AppDatabaseMigrations.MIGRATION_5_6,
@@ -235,7 +243,8 @@ class MigrationFullChainTest {
             AppDatabaseMigrations.MIGRATION_7_8,
             AppDatabaseMigrations.MIGRATION_8_9,
             AppDatabaseMigrations.MIGRATION_9_10,
-            AppDatabaseMigrations.MIGRATION_10_11
+            AppDatabaseMigrations.MIGRATION_10_11,
+            AppDatabaseMigrations.MIGRATION_11_12
         )
 
         db.query("SELECT currentBalanceMinorUnits FROM accounts WHERE id = 1").use {
@@ -264,7 +273,7 @@ class MigrationFullChainTest {
 
     @Test
     fun chainFromVersion8CreatesAttachmentsAndCheckpoints() {
-        helper.createDatabase("migration-full-8-11.db", 8).use { db ->
+        helper.createDatabase("migration-full-8-12.db", 8).use { db ->
             insertAccount(db, 1)
             insertTransaction(db, 1, 1)
             insertBill(db, 1)
@@ -275,12 +284,13 @@ class MigrationFullChainTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            "migration-full-8-11.db",
-            11,
+            "migration-full-8-12.db",
+            12,
             true,
             AppDatabaseMigrations.MIGRATION_8_9,
             AppDatabaseMigrations.MIGRATION_9_10,
-            AppDatabaseMigrations.MIGRATION_10_11
+            AppDatabaseMigrations.MIGRATION_10_11,
+            AppDatabaseMigrations.MIGRATION_11_12
         )
 
         db.execSQL(

@@ -1,8 +1,11 @@
 package com.moneymanager.app.domain.billing
 
+import com.moneymanager.app.data.local.dao.AccountDao
 import com.moneymanager.app.data.local.dao.BillDao
 import com.moneymanager.app.data.local.entity.BillEntity
 import com.moneymanager.app.data.local.entity.BillInstanceEntity
+import com.moneymanager.app.data.repository.CreditCardStatementService
+import com.moneymanager.app.domain.model.AccountType
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,10 +25,15 @@ import javax.inject.Singleton
  *  - Paid instances and instances with a linked payment are never deleted or regenerated.
  *  - The next due date is advanced from the schedule, never from the date a bill was marked
  *    paid.
+ *  - A CREDIT-CARD biller's occurrence amounts come from the card's own statement for the
+ *    cycle that occurrence settles (see [CreditCardStatement]); a cycle that has not started
+ *    yet has no statement yet and falls back to an estimate.
  */
 @Singleton
 class BillRecurrenceService @Inject constructor(
-    private val billDao: BillDao
+    private val billDao: BillDao,
+    private val accountDao: AccountDao,
+    private val statementService: CreditCardStatementService
 ) {
 
     suspend fun reconcileAll(now: Long = System.currentTimeMillis()) {
@@ -85,7 +93,7 @@ class BillRecurrenceService @Inject constructor(
 
         // The template's current occurrence always exists. This keeps the manual workflow
         // (where adding a bill immediately showed its first occurrence) intact.
-        ensureInstance(bill, headDue, updateAmount = true)
+        ensureInstance(bill, headDue, updateAmount = true, now = now)
 
         if (!bill.autoGenerateBills) {
             if (headDue != BillSchedule.startOfDay(bill.nextDueDateEpochMillis) ||
@@ -106,7 +114,7 @@ class BillRecurrenceService @Inject constructor(
         while (guard++ < MAX_GENERATION_STEPS) {
             val next = BillSchedule.nextOccurrence(cursor, bill.billingCycle, anchor)
             if (next > windowEnd) break
-            ensureInstance(bill, next, updateAmount = false)
+            ensureInstance(bill, next, updateAmount = false, now = now)
             cursor = next
         }
 
@@ -120,15 +128,21 @@ class BillRecurrenceService @Inject constructor(
         }
     }
 
-    private suspend fun ensureInstance(bill: BillEntity, dueEpochMillis: Long, updateAmount: Boolean) {
+    private suspend fun ensureInstance(
+        bill: BillEntity,
+        dueEpochMillis: Long,
+        updateAmount: Boolean,
+        now: Long
+    ) {
         val due = BillSchedule.startOfDay(dueEpochMillis)
+        val amount = amountDueFor(bill, due, now)
         val existing = billDao.findInstance(bill.id, due)
         if (existing == null) {
             billDao.insertInstanceIgnore(
                 BillInstanceEntity(
                     billId = bill.id,
                     dueDateEpochMillis = due,
-                    amountDueMinorUnits = bill.estimatedAmountMinorUnits
+                    amountDueMinorUnits = amount
                 )
             )
             return
@@ -137,10 +151,39 @@ class BillRecurrenceService @Inject constructor(
         // occurrence and only while that occurrence has no recorded payments at all - once a
         // (partial) payment exists the amount due is history and must not move under it.
         if (updateAmount && !existing.paid && existing.paidAmountMinorUnits == 0L &&
-            existing.amountDueMinorUnits != bill.estimatedAmountMinorUnits
+            existing.amountDueMinorUnits != amount
         ) {
-            billDao.updateInstance(existing.copy(amountDueMinorUnits = bill.estimatedAmountMinorUnits))
+            billDao.updateInstance(existing.copy(amountDueMinorUnits = amount))
         }
+    }
+
+    /**
+     * The amount one occurrence is due.
+     *
+     * A credit-card biller takes its amount from the card's own statement: the occurrence that
+     * falls due on [dueEpochMillis] settles the statement cycle that closed
+     * [CreditCardStatement.DUE_LAG_DAYS] earlier, and that cycle's statement is a fact once
+     * the cycle closed. While the cycle is still running the statement is what the card owes
+     * right now, so the amount keeps moving with the card. A cycle that has not started yet
+     * has no statement - the previous cycle's statement (the "previous month's bill") is used
+     * as the estimate, falling back to the user's stored estimate.
+     *
+     * Every other biller keeps its stored estimate.
+     */
+    private suspend fun amountDueFor(bill: BillEntity, dueEpochMillis: Long, now: Long): Long {
+        val cardId = bill.linkedAccountId ?: return bill.estimatedAmountMinorUnits
+        val card = accountDao.findById(cardId) ?: return bill.estimatedAmountMinorUnits
+        if (card.accountType != AccountType.CREDIT_CARD) return bill.estimatedAmountMinorUnits
+
+        val cycleStartDay = card.billingCycleStartDay ?: 1
+        val cycle = CreditCardStatement.cycleSettledByDueDate(cycleStartDay, dueEpochMillis)
+        val statement = statementService.statementForCycle(card, cycle, now)
+        if (statement != null) return statement
+
+        // The cycle has not started: estimate from the most recent statement that exists -
+        // the bill is expected to be about last month's statement.
+        val previous = statementService.estimateStatementForCycle(card, cycle, now)
+        return previous ?: bill.estimatedAmountMinorUnits
     }
 
     private companion object {

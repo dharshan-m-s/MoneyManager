@@ -36,7 +36,7 @@ class AccountingPersistenceTest {
             RuntimeEnvironment.getApplication(),
             MoneyManagerDatabase::class.java
         ).allowMainThreadQueries().build()
-        service = AccountingService(db.accountDao(), db.transactionDao())
+        service = db.accountingService()
     }
 
     @After
@@ -132,7 +132,7 @@ class AccountingPersistenceTest {
         assertEquals(4_800L, db.accountDao().findById(accountId)!!.currentBalanceMinorUnits)
 
         // Process restart: a brand-new service instance over the same database.
-        val restarted = AccountingService(db.accountDao(), db.transactionDao())
+        val restarted = db.accountingService()
         restarted.recalculateAccounts(setOf(accountId))
         val persisted = db.accountDao().findById(accountId)!!
         assertEquals(4_800L, persisted.currentBalanceMinorUnits)

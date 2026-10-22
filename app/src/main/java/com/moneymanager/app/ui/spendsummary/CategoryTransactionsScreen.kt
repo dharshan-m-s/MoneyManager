@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -37,6 +36,8 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.revealOnAppear
+import androidx.compose.foundation.lazy.itemsIndexed
 
 /**
  * Transactions for one category within the SELECTED Spend Areas month (never all-time). Uses the
@@ -104,8 +105,12 @@ fun CategoryTransactionsScreen(
                 Spacer(Modifier.height(MmSpacing.sm))
             }
 
-            items(rows, key = { it.id }) { txn ->
-                MmTransactionRow(txn = txn, onClick = { onTransactionClick(txn.id) })
+            itemsIndexed(rows, key = { _, txn -> txn.id }) { index, txn ->
+                MmTransactionRow(
+                    txn = txn,
+                    onClick = { onTransactionClick(txn.id) },
+                    modifier = Modifier.revealOnAppear(index = index)
+                )
             }
         }
     }

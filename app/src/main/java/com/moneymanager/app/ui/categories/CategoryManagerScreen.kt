@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.DropdownMenu
 import androidx.compose.material.DropdownMenuItem
@@ -52,6 +51,8 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.revealOnAppear
+import androidx.compose.foundation.lazy.itemsIndexed
 
 @Composable
 fun CategoryManagerScreen(
@@ -126,9 +127,10 @@ fun CategoryManagerScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {
-                    items(visible, key = { it.id }) { category ->
+                    itemsIndexed(visible, key = { _, item -> item.id }) { index, category ->
                         CategoryRow(
                             category = category,
+                            modifier = Modifier.revealOnAppear(index = index),
                             selectionMode = selectionMode,
                             onSelect = {
                                 if (category.name.equals("A/c to A/c", ignoreCase = true) && onTransferSelected != null) {
@@ -183,6 +185,7 @@ fun CategoryManagerScreen(
 private fun CategoryRow(
     category: CategoryEntity,
     selectionMode: Boolean,
+    modifier: Modifier = Modifier,
     onSelect: () -> Unit,
     onUp: () -> Unit,
     onDown: () -> Unit,

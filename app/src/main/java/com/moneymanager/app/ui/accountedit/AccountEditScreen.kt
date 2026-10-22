@@ -45,6 +45,8 @@ import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.revealOnAppear
 
 @Composable
 fun AccountEditScreen(
@@ -91,7 +93,8 @@ fun AccountEditScreen(
                 .verticalScroll(rememberScrollState())
                 .imePadding()
                 .padding(MmSpacing.lg)
-                .padding(bottom = MmSpacing.xxl),
+                .padding(bottom = MmSpacing.xxl)
+                .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
         ) {
             MmCard {
@@ -225,15 +228,12 @@ fun AccountEditScreen(
                 Text(it, color = MmColors.expense, style = MmType.caption)
             }
 
-            Button(
+            MmPrimaryButton(
+                text = if (state.saving) "Saving…" else "Save changes",
                 onClick = viewModel::save,
                 enabled = !state.saving,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(MmSpacing.radiusRow),
-                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-            ) {
-                Text(if (state.saving) "Saving…" else "Save changes", color = MmColors.onAccent, style = MmType.label)
-            }
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

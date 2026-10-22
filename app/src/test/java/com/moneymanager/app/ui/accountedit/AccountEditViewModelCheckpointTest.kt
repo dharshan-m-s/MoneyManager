@@ -31,6 +31,8 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.LocalDate
+import com.moneymanager.app.data.accountingService
+import com.moneymanager.app.data.billRecurrenceService
 
 /**
  * Regression tests for the durable manual-balance checkpoint as driven through the REAL
@@ -55,7 +57,7 @@ class AccountEditViewModelCheckpointTest {
             context,
             MoneyManagerDatabase::class.java
         ).allowMainThreadQueries().build()
-        service = AccountingService(db.accountDao(), db.transactionDao())
+        service = db.accountingService()
         viewModel = AccountEditViewModel(
             db.accountDao(),
             service,
@@ -206,7 +208,7 @@ class AccountEditViewModelCheckpointTest {
         assertEquals(599_800L, db.accountDao().findById(accountId)!!.currentBalanceMinorUnits)
 
         // Restart-equivalent: a fresh service instance recalculates to the same value.
-        AccountingService(db.accountDao(), db.transactionDao())
+        db.accountingService()
             .recalculateAccounts(setOf(accountId))
         val persisted = db.accountDao().findById(accountId)!!
         assertEquals(599_800L, persisted.currentBalanceMinorUnits)

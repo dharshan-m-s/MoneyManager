@@ -6,6 +6,7 @@ import androidx.room.Room
 import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.repository.AccountingService
+import com.moneymanager.app.data.repository.AccountRepository
 import com.moneymanager.app.data.repository.AttachmentRepository
 import com.moneymanager.app.data.repository.BackupManager
 import com.moneymanager.app.data.repository.BillRepository
@@ -26,6 +27,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import com.moneymanager.app.data.accountingService
+import com.moneymanager.app.data.billRecurrenceService
 
 /**
  * Date/time contract for manual transaction entry:
@@ -50,7 +53,7 @@ class AddTransactionDateTest {
             context,
             MoneyManagerDatabase::class.java
         ).allowMainThreadQueries().build()
-        val accountingService = AccountingService(db.accountDao(), db.transactionDao())
+        val accountingService = db.accountingService()
         val backupManager = BackupManager(context, db, db.transactionDao(), db.accountDao(), db.categoryDao())
         val repository = TransactionRepository(
             db,
@@ -67,14 +70,15 @@ class AddTransactionDateTest {
                 transactionDao = db.transactionDao(),
                 accountDao = db.accountDao(),
                 accountingService = accountingService,
-                billRecurrenceService = BillRecurrenceService(db.billDao()),
+                billRecurrenceService = db.billRecurrenceService(),
                 backupManager = backupManager
             )
         )
         viewModel = AddTransactionViewModel(
             db.accountDao(),
             db.categoryDao(),
-            repository
+            repository,
+            AccountRepository(db.accountDao(), backupManager)
         )
         accountId = runBlocking {
             db.accountDao().insert(
@@ -177,5 +181,71 @@ class AddTransactionDateTest {
         assertEquals(1, rows.size)
         assertEquals(chosen, rows.single().occurredAtEpochMillis)
         assertEquals(accountId, rows.single().accountId)
+    }
+
+    // --- Cash entries: bound to the app-owned Cash account, never a bank pick ---
+
+    @Test
+    fun cashEntryAutoCreatesAndBindsTheCashAccount() = runBlocking {
+        assertTrue(db.accountDao().findAll().none { it.accountType == AccountType.CASH })
+
+        viewModel.initialize(AddTransactionEntryPoint.CASH_SPEND, null)
+        pumpUntil("cash account bound") { viewModel.ui.value.selectedAccountId != null }
+
+        val cashId = viewModel.ui.value.selectedAccountId!!
+        val cashAccount = db.accountDao().findById(cashId)!!
+        assertEquals(AccountType.CASH, cashAccount.accountType)
+        assertTrue("cash account must be flagged as cash", viewModel.ui.value.isCash)
+
+        viewModel.onAmountChange("120")
+        viewModel.save(AddTransactionEntryPoint.CASH_SPEND)
+        pumpUntil("cash save completes") { viewModel.ui.value.saved }
+
+        val rows = db.transactionDao().findAllForExport()
+        assertEquals(1, rows.size)
+        assertEquals(cashId, rows.single().accountId)
+    }
+
+    @Test
+    fun cashEntryNeverOffersBankAccounts() {
+        viewModel.initialize(AddTransactionEntryPoint.CASH_INCOME, null)
+        pumpUntil("cash account bound") { viewModel.ui.value.selectedAccountId != null }
+
+        val accounts = viewModel.ui.value.accounts
+        assertTrue("cash form must not list a bank account", accounts.none { it.accountType == AccountType.BANK })
+        assertTrue("cash form must list exactly the cash account", accounts.all { it.accountType == AccountType.CASH })
+    }
+
+    @Test
+    fun cashEntryReusesAnExistingCashAccount() = runBlocking {
+        val existingId = db.accountDao().insert(
+            AccountEntity(
+                sourceAccountId = "cash",
+                institutionName = "Cash",
+                nickname = "Cash",
+                accountType = AccountType.CASH,
+                businessPersonal = BusinessPersonal.PERSONAL,
+                openingBalanceMinorUnits = 0,
+                currentBalanceMinorUnits = 0,
+                createdAtEpochMillis = 0,
+                updatedAtEpochMillis = 0
+            )
+        )
+
+        viewModel.initialize(AddTransactionEntryPoint.CASH_SPEND, null)
+        pumpUntil("cash account bound") { viewModel.ui.value.selectedAccountId != null }
+
+        assertEquals(existingId, viewModel.ui.value.selectedAccountId)
+        assertEquals(1, db.accountDao().findAll().count { it.accountType == AccountType.CASH })
+    }
+
+    @Test
+    fun accountEntryDoesNotOfferTheCashAccount() {
+        viewModel.initialize(AddTransactionEntryPoint.ACCOUNT_SPEND, accountId)
+        awaitAccountsLoaded()
+        assertTrue(
+            "account form must not list the cash account",
+            viewModel.ui.value.accounts.none { it.accountType == AccountType.CASH }
+        )
     }
 }

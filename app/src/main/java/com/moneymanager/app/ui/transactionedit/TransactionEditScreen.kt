@@ -63,6 +63,8 @@ import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
+import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.revealOnAppear
 
 @Composable
 fun TransactionEditScreen(
@@ -131,7 +133,8 @@ fun TransactionEditScreen(
                         .verticalScroll(rememberScrollState())
                         .imePadding()
                         .padding(MmSpacing.screen)
-                        .padding(bottom = MmSpacing.xxl),
+                        .padding(bottom = MmSpacing.xxl)
+                        .revealOnAppear(),
                     verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
                 ) {
                     if (state.isTransfer) {
@@ -296,19 +299,12 @@ fun TransactionEditScreen(
                         Text(it, style = MmType.caption, color = MmColors.expense)
                     }
 
-                    Button(
+                    MmPrimaryButton(
+                        text = if (state.saving) "Saving…" else "Save changes",
                         onClick = { viewModel.save() },
                         enabled = !state.saving,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(MmSpacing.radiusRow),
-                        colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-                    ) {
-                        Text(
-                            if (state.saving) "Saving…" else "Save changes",
-                            color = MmColors.onAccent,
-                            style = MmType.label
-                        )
-                    }
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                         TextButton(onClick = onBack) { Text("Cancel") }

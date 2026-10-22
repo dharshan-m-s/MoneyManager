@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Password
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -108,7 +109,14 @@ private fun MethodRow(
                     Icons.Filled.Check,
                     contentDescription = "Selected",
                     tint = MmColors.accent,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer {
+                            val scale = if (selected) 1f else 0.6f
+                            scaleX = scale
+                            scaleY = scale
+                            alpha = if (selected) 1f else 0f
+                        }
                 )
             } else {
                 Spacer(Modifier.size(20.dp))

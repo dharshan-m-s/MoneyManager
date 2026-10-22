@@ -39,6 +39,10 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.LocalDate
+import com.moneymanager.app.data.accountingService
+import com.moneymanager.app.data.billRecurrenceService
+import com.moneymanager.app.data.creditCardBillingService
+import com.moneymanager.app.data.statementService
 
 /**
  * Regression tests for the durable credit-card outstanding checkpoint as driven through the
@@ -67,12 +71,12 @@ class CreditCardFormCheckpointTest {
             context,
             MoneyManagerDatabase::class.java
         ).allowMainThreadQueries().build()
-        service = AccountingService(db.accountDao(), db.transactionDao())
+        service = db.accountingService()
         val backupManager = BackupManager(
             context, db, db.transactionDao(), db.accountDao(), db.categoryDao()
         )
         val attachmentRepository = AttachmentRepository(context, db.transactionAttachmentDao())
-        val billRecurrenceService = BillRecurrenceService(db.billDao())
+        val billRecurrenceService = db.billRecurrenceService()
         transactionRepository = TransactionRepository(
             db, db.transactionDao(), db.accountDao(), db.categoryDao(), db.billDao(),
             service, backupManager, attachmentRepository,
@@ -88,7 +92,8 @@ class CreditCardFormCheckpointTest {
         )
         viewModel = CreditCardFormViewModel(
             db.accountDao(), db.billDao(), transactionRepository, service,
-            billRecurrenceService, backupManager, db
+            billRecurrenceService, db.statementService(), db.creditCardBillingService(),
+            backupManager, db
         )
     }
 

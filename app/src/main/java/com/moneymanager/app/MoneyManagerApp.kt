@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.data.repository.BillRecurrenceWorker
+import com.moneymanager.app.data.repository.CreditCardBillingService
 import com.moneymanager.app.domain.billing.BillRecurrenceService
 import com.moneymanager.app.updater.domain.UpdateScheduler
 import dagger.hilt.android.HiltAndroidApp
@@ -19,6 +20,7 @@ import javax.inject.Inject
 class MoneyManagerApp : Application() {
 
     @Inject lateinit var billRecurrenceService: BillRecurrenceService
+    @Inject lateinit var creditCardBillingService: CreditCardBillingService
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -36,6 +38,10 @@ class MoneyManagerApp : Application() {
         appScope.launch {
             runCatching { billRecurrenceService.reconcileAll() }
                 .onFailure { Timber.e(it, "Initial bill reconciliation failed") }
+            // A card's statement and its linked bill follow the card's billing cycle, so they
+            // are refreshed from the card's own transactions on every start.
+            runCatching { creditCardBillingService.refreshAllCards() }
+                .onFailure { Timber.e(it, "Initial credit card statement refresh failed") }
         }
         BillRecurrenceWorker.schedule(this)
     }

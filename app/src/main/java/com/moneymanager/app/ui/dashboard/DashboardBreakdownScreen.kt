@@ -43,6 +43,8 @@ import com.moneymanager.app.ui.theme.MmType
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.moneymanager.app.ui.components.revealOnAppear
+import androidx.compose.foundation.lazy.itemsIndexed
 
 private val breakdownZone = ZoneId.of("Asia/Kolkata")
 private val breakdownDate = DateTimeFormatter.ofPattern("dd MMM yyyy")
@@ -132,8 +134,12 @@ fun DashboardBreakdownScreen(
                 if (state.assetLines.isEmpty()) {
                     item { EmptyLine("No included asset accounts.") }
                 } else {
-                    items(state.assetLines, key = { "asset-${it.account.id}" }) { line ->
-                        AccountLineRow(line, liability = false)
+                    itemsIndexed(state.assetLines, key = { _, line -> "asset-${line.account.id}" }) { index, line ->
+                        AccountLineRow(
+                            line = line,
+                            liability = false,
+                            modifier = Modifier.revealOnAppear(index = index)
+                        )
                     }
                 }
                 item {
@@ -145,8 +151,12 @@ fun DashboardBreakdownScreen(
                 if (state.liabilityLines.isEmpty()) {
                     item { EmptyLine("No included liabilities.") }
                 } else {
-                    items(state.liabilityLines, key = { "liability-${it.account.id}" }) { line ->
-                        AccountLineRow(line, liability = true)
+                    itemsIndexed(state.liabilityLines, key = { _, line -> "liability-${line.account.id}" }) { index, line ->
+                        AccountLineRow(
+                            line = line,
+                            liability = true,
+                            modifier = Modifier.revealOnAppear(index = index)
+                        )
                     }
                 }
                 item {
@@ -166,8 +176,12 @@ fun DashboardBreakdownScreen(
                 if (state.accountLines.isEmpty()) {
                     item { EmptyLine("No included accounts.") }
                 } else {
-                    items(state.accountLines, key = { "balance-${it.account.id}" }) { line ->
-                        AccountLineRow(line, liability = false)
+                    itemsIndexed(state.accountLines, key = { _, line -> "balance-${line.account.id}" }) { index, line ->
+                        AccountLineRow(
+                            line = line,
+                            liability = false,
+                            modifier = Modifier.revealOnAppear(index = index)
+                        )
                     }
                 }
             }
@@ -182,8 +196,8 @@ fun DashboardBreakdownScreen(
                         )
                     }
                 } else {
-                    items(state.billLines, key = { "bill-${it.instance.id}" }) { line ->
-                        MmCard {
+                    itemsIndexed(state.billLines, key = { _, line -> "bill-${line.instance.id}" }) { index, line ->
+                        MmCard(modifier = Modifier.revealOnAppear(index = index)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text(
@@ -246,8 +260,8 @@ private fun BreakdownSectionHeader(title: String, total: String) {
 }
 
 @Composable
-private fun AccountLineRow(line: AccountLine, liability: Boolean) {
-    MmCard {
+private fun AccountLineRow(line: AccountLine, liability: Boolean, modifier: Modifier = Modifier) {
+    MmCard(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(

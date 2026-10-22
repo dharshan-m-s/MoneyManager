@@ -25,6 +25,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import com.moneymanager.app.data.accountingService
+import com.moneymanager.app.data.billRecurrenceService
 
 /**
  * Section 12: a rapid double tap on "Transfer now" must create exactly ONE transfer pair, never
@@ -44,7 +46,7 @@ class TransferViewModelTest {
         val context = RuntimeEnvironment.getApplication()
         db = Room.inMemoryDatabaseBuilder(context, MoneyManagerDatabase::class.java)
             .allowMainThreadQueries().build()
-        val accounting = AccountingService(db.accountDao(), db.transactionDao())
+        val accounting = db.accountingService()
         val backupManager = BackupManager(
             context, db, db.transactionDao(), db.accountDao(), db.categoryDao()
         )
@@ -54,7 +56,7 @@ class TransferViewModelTest {
             transactionDao = db.transactionDao(),
             accountDao = db.accountDao(),
             accountingService = accounting,
-            billRecurrenceService = BillRecurrenceService(db.billDao()),
+            billRecurrenceService = db.billRecurrenceService(),
             backupManager = backupManager
         )
         transactionRepository = TransactionRepository(

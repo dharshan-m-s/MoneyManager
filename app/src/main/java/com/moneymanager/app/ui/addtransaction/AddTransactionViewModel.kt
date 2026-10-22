@@ -7,6 +7,7 @@ import com.moneymanager.app.data.local.dao.CategoryDao
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.CategoryEntity
 import com.moneymanager.app.data.local.entity.CategoryKind
+import com.moneymanager.app.data.repository.AccountRepository
 import com.moneymanager.app.data.repository.NewTransactionInput
 import com.moneymanager.app.data.repository.TransactionRepository
 import com.moneymanager.app.domain.model.AccountType
@@ -14,10 +15,13 @@ import com.moneymanager.app.domain.model.BusinessPersonal
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.model.PaymentType
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
@@ -29,6 +33,9 @@ enum class AddTransactionEntryPoint { ACCOUNT_INCOME, ACCOUNT_SPEND, CASH_INCOME
 
 data class AddTransactionUiState(
     val isIncome: Boolean = true,
+    /** Cash entries are bound to the single app-owned Cash account and are NOT allowed to pick
+     *  a bank account. Drives the read-only "Cash" card in place of the account picker. */
+    val isCash: Boolean = false,
     /** "Spend ON/OFF" / "Income ON/OFF" - whether this entry counts toward the app's spend
      *  (or income) totals. Defaults to ON. This is NOT an income/expense type switch: the
      *  income/spend type is fixed by which FAB opened the screen. */
@@ -54,7 +61,8 @@ data class AddTransactionUiState(
 class AddTransactionViewModel @Inject constructor(
     private val accountDao: AccountDao,
     private val categoryDao: CategoryDao,
-    private val transactionRepository: TransactionRepository
+    private val transactionRepository: TransactionRepository,
+    private val accountRepository: AccountRepository
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(AddTransactionUiState())
@@ -72,27 +80,48 @@ class AddTransactionViewModel @Inject constructor(
         val isCash = entryPoint == AddTransactionEntryPoint.CASH_INCOME || entryPoint == AddTransactionEntryPoint.CASH_SPEND
         _ui.value = _ui.value.copy(
             isIncome = isIncome,
+            isCash = isCash,
             occurredAtEpochMillis = System.currentTimeMillis(),
-            selectedAccountId = preselectedAccountId,
+            // Cash entries never pick an account: leave selection null here and resolve the
+            // canonical Cash account asynchronously so the UI can show it while it loads.
+            selectedAccountId = if (isCash) null else preselectedAccountId,
             error = null,
             saved = false
         )
 
         viewModelScope.launch {
+            // For cash, the paying/receiving account is the single app-owned Cash account. We
+            // create it on demand so a fresh install can record cash entries immediately, and we
+            // never let the user choose a bank account instead.
+            val cashAccount = if (isCash) accountRepository.ensureCashAccount() else null
+            val accountFlow: Flow<List<AccountEntity>> = if (isCash) {
+                if (cashAccount != null) {
+                    accountDao.observeById(cashAccount.id).map { listOfNotNull(it) }
+                } else {
+                    flowOf(emptyList())
+                }
+            } else {
+                accountDao.observeActive()
+            }
             combine(
                 categoryDao.observeAll(),
-                if (isCash) accountDao.observeByType(AccountType.CASH) else accountDao.observeActive()
-            ) { cats, accts -> cats to accts }.collect { (cats, accts) ->
-                val relevantCats = cats.filter {
-                    it.kind == CategoryKind.BOTH || it.kind == (if (isIncome) CategoryKind.INCOME else CategoryKind.EXPENSE)
+                accountFlow
+            ) { cats, accts0 -> cats to if (isCash) accts0 else accts0.filter { it.accountType != AccountType.CASH } }
+                .collect { (cats, accts) ->
+                    val relevantCats = cats.filter {
+                        it.kind == CategoryKind.BOTH || it.kind == (if (isIncome) CategoryKind.INCOME else CategoryKind.EXPENSE)
+                    }
+                    _ui.value = _ui.value.copy(
+                        categories = relevantCats,
+                        accounts = accts,
+                        selectedAccountId = if (isCash) {
+                            cashAccount?.id ?: accts.firstOrNull { it.accountType == AccountType.CASH }?.id
+                        } else {
+                            _ui.value.selectedAccountId?.takeIf { id -> accts.any { it.id == id } }
+                                ?: accts.firstOrNull()?.id
+                        }
+                    )
                 }
-                _ui.value = _ui.value.copy(
-                    categories = relevantCats,
-                    accounts = accts,
-                    selectedAccountId = _ui.value.selectedAccountId?.takeIf { id -> accts.any { it.id == id } }
-                        ?: if (isCash) accts.firstOrNull()?.id else null
-                )
-            }
         }
     }
 
@@ -118,37 +147,46 @@ class AddTransactionViewModel @Inject constructor(
             _ui.value = s.copy(error = "Enter a valid amount")
             return
         }
-        val accountId = s.selectedAccountId
-        if (accountId == null || s.accounts.none { it.id == accountId }) {
-            _ui.value = s.copy(error = "This transaction needs an account. Go back and choose an account first.")
-            return
-        }
         val isCash = entryPoint == AddTransactionEntryPoint.CASH_INCOME || entryPoint == AddTransactionEntryPoint.CASH_SPEND
         val selectedCategory = s.categories.firstOrNull { it.id == s.selectedCategoryId }
         if (s.occurredAtEpochMillis <= 0L) {
             _ui.value = s.copy(error = "Choose a valid transaction date")
             return
         }
+        if (!isCash) {
+            val accountId = s.selectedAccountId
+            if (accountId == null || s.accounts.none { it.id == accountId }) {
+                _ui.value = s.copy(error = "This transaction needs an account. Go back and choose an account first.")
+                return
+            }
+        }
 
         _ui.value = s.copy(saving = true, error = null)
         viewModelScope.launch {
             runCatching {
-            transactionRepository.addTransaction(
-                NewTransactionInput(
-                    occurredAtEpochMillis = s.occurredAtEpochMillis,
-                    accountId = accountId,
-                    categoryId = s.selectedCategoryId,
-                    rawCategoryName = selectedCategory?.name,
-                    merchantReceiverSender = s.merchant.ifBlank { null },
-                    amount = Money.fromRupees(amount),
-                    isIncome = s.isIncome,
-                    paymentType = if (isCash) PaymentType.CASH else PaymentType.NETBANKING,
-                    businessPersonal = s.businessPersonal,
-                    notes = s.notes.ifBlank { null },
-                    reimbursable = s.reimbursable,
-                    includeInStatistics = s.includeInStatistics
+                // Cash always binds to the app-owned Cash account. Resolve/create it at save time
+                // so a save is never blocked just because the picker had not finished loading.
+                val accountId = if (isCash) {
+                    accountRepository.ensureCashAccount().id
+                } else {
+                    s.selectedAccountId!!
+                }
+                transactionRepository.addTransaction(
+                    NewTransactionInput(
+                        occurredAtEpochMillis = s.occurredAtEpochMillis,
+                        accountId = accountId,
+                        categoryId = s.selectedCategoryId,
+                        rawCategoryName = selectedCategory?.name,
+                        merchantReceiverSender = s.merchant.ifBlank { null },
+                        amount = Money.fromRupees(amount),
+                        isIncome = s.isIncome,
+                        paymentType = if (isCash) PaymentType.CASH else PaymentType.NETBANKING,
+                        businessPersonal = s.businessPersonal,
+                        notes = s.notes.ifBlank { null },
+                        reimbursable = s.reimbursable,
+                        includeInStatistics = s.includeInStatistics
+                    )
                 )
-            )
             }.onSuccess {
                 _ui.value = _ui.value.copy(saved = true, saving = false)
             }.onFailure { error ->

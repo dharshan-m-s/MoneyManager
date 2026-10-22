@@ -220,3 +220,252 @@ suppressed recalculation identified in the final review.
 
 No `git commit`, `git tag`, `git push`, release, PR or GitHub settings change was made.
 `HEAD` remains `08f28cd0e9a9fa36de861b74b2b08dd8dc35b94d` on `main`; all work is in the working tree.
+
+---
+
+# Addendum A — Reminder-driven bill payment window, credit-card lifecycle, premium UI pass
+
+Appended after the §19 deliverable above. Everything below was produced by running the command
+shown on this working tree. Still **no commit, tag, push, release or PR**.
+
+## A1. Starting point of this addendum
+
+- Branch `main`, HEAD **`f78ed417023cb4b04eb857b59a965e8402563491`** ("ci pipeline fix").
+- Working tree at the time of writing: **61 modified files** (+1,747 / −609) and **7 new
+  untracked files** (`12.json` schema, `BillPaymentWindow.kt`, `MmMotion.kt`,
+  `CreditCardWorkflowTest.kt`, `BillPaymentWindowTest.kt`, `BillsViewModelTest.kt`,
+  `reference.pdf`).
+- The addendum reused the §19 foundations: the `MmColors`/`MmSpacing`/`MmType` token system, the
+  `MmCard`/`MmChip`/`MmSectionHeader` component family, integer minor units, and the existing
+  Room migration chain (no destructive fallback).
+
+## A2. Reminder setting now drives "Mark as paid"
+
+- `BillPaymentWindow.leadDays(bill)` is the single source of truth for when an occurrence becomes
+  payable, and it reads `bill.reminderDaysBefore` (clamped to 1..365).
+- The default is **10 days**. `BillEntity.reminderDaysBefore` and `BillFormViewModel` both default
+  to 10; `MIGRATION_11_12` rewrites only legacy rows that still carry the old default of 3, so a
+  user who had explicitly chosen a different value keeps it.
+- `BillFormScreen` always shows "Days before the due date" and states in the helper copy that the
+  same number drives both the reminder and the "Mark as paid" window. `reminderEnabled` now only
+  controls notifications, exactly as its name says.
+- `autoGenerateLeadDays` remains a separate knob for auto-generated occurrences.
+
+## A3. Credit-card lifecycle, corrected end to end
+
+- **Purchases vs. refunds.** A card purchase increases the outstanding balance; a card credit is
+  recorded as `REFUND_REVERSAL`, which reduces the outstanding balance without being counted as
+  app income. Income analytics exclude that semantic explicitly.
+- **Cash advances.** `CARD_CASH_ADVANCE` was added to `TransactionSemantics` and to the
+  `AccountingEngine`, so a card cash advance increases card debt instead of behaving like a plain
+  expense.
+- **Limits.** `AccountEntity.creditLimitOverrideMinorUnits` holds a user-entered limit.
+  `AccountingService` prefers the override over the derived limit, and the accounts and
+  account-detail screens both show the effective limit.
+- **Bill settlement.** `BillRepository` creates out-of-band card settlement legs and reuses an
+  already-recorded card payment instead of double-counting it. A leg that settles a bill can no
+  longer be re-pointed to another bill; an unallocated card-payment leg still can.
+- **Dead code.** The unused card queries in `AccountDao` were removed.
+
+## A4. Premium, interactive UI pass across the app
+
+New shared primitives live in `app/src/main/java/com/moneymanager/app/ui/components/MmMotion.kt`:
+
+| primitive | behaviour |
+| --- | --- |
+| `pressScale` / `pressableClick` | spring-ish press feedback + scale on every tappable surface |
+| `revealOnAppear` | staggered fade/slide entrance, used for list items and screen sections |
+| `MmAnimatedAmount` | animated count-up for money values |
+| `MmSkeleton` | loading placeholder |
+| `MmPrimaryButton` / `MmSecondaryButton` | one button geometry for the whole app, with press feedback and an optional loading spinner |
+| `MmGlassSurface`, `MmHeroAction`, `MmStatTile` | hero/stat surfaces used by the dashboard, accounts, cash and detail screens |
+
+Applied across the app:
+
+- **Shell:** the top bar is now a brand gradient with a soft corner light; the FABs carry an accent
+  colour and a radial glow; the dashboard speed-dial rotates; the drawer header has a gradient and
+  a selected-item marker.
+- **Hero screens:** Dashboard, Accounts, Cash, Transaction detail and Account detail have gradient
+  headers with glow, animated headline amounts and staggered content.
+- **Card UX:** the account-detail card screen offers "Pay this card", "Record a refund" and
+  "Add a purchase"; add-transaction switches to card-aware wording; the transfer screen explains a
+  card payment vs. a cash advance; `Destination.Transfer.route(toAccountId?)` carries the card
+  selection through navigation.
+- **Lists:** every lazy list (accounts, banks, categories, bills, income, search, reimbursements,
+  import preview, dashboard breakdowns, category transactions) now staggers its items in and
+  animates its amounts.
+- **Consistency:** every remaining raw `Button`/`clickable` in the UI layer was converted to the
+  shared button and press-feedback primitives, and the raw `clickable` imports were removed where
+  they became unused.
+
+## A5. Commands executed for this addendum, and their real results
+
+| Command | Result |
+| --- | --- |
+| `./gradlew :app:compileDebugKotlin --no-daemon` | **BUILD SUCCESSFUL** (after every batch of edits) |
+| `./gradlew :app:testDebugUnitTest --no-daemon` | **BUILD SUCCESSFUL — 187 tests, 0 failures, 0 errors, 1 skipped** |
+| `./gradlew :app:lintDebug --no-daemon` | **BUILD SUCCESSFUL — 0 errors**; informational findings only (Material2/M3 mixed libraries, `UseKtx`, `GradleDependency`, `UnusedResources`) |
+| `./gradlew :app:assembleDebug :app:assembleRelease --no-daemon` | **BUILD SUCCESSFUL** — `app-debug.apk` and `app-release-unsigned.apk` produced (R8 + resource shrinking + `lintVitalRelease`) |
+| `12.json` schema inspection | version **12**; `accounts.creditLimitOverrideMinorUnits` **present**; `bills.reminderDaysBefore` **present** |
+| `./gradlew :app:connectedDebugAndroidTest` | **not run — no device/emulator attached** (`adb devices` empty) |
+
+Test delta since §19: 160 → **187** unit tests, driven by the new `BillPaymentWindowTest`,
+`BillsViewModelTest` and `CreditCardWorkflowTest` classes (plus additions to
+`BillPaymentRepositoryTest` and `AddTransactionDateTest`).
+
+## A6. Still unverified (unchanged from §11)
+
+- `connectedDebugAndroidTest`: `MigrationFullChainTest`, `Migration9To10Test`,
+  `Migration10To11Test`, `ThemeRenderingTest` need a device.
+- Signed release output: needs `ANDROID_KEYSTORE_PATH` and the signing secrets; only the unsigned
+  APK was built here.
+- `ApkVerifier` package/version/signer checks and on-device navigation walks: device-only.
+- GitHub Actions: the workflow has not been executed from here.
+
+---
+
+# Addendum B — Credit-card statement derivation, corrected due-date mapping, inactive accounts
+
+Appended after Addendum A. Still **no commit, tag, push, release or PR**.
+
+## B1. What "statement" now means
+
+- `domain/billing/CreditCardStatement.kt` is the single rule set:
+  - `DUE_LAG_DAYS = 20` — only used to *derive* a default due date when the card has none
+    (`cycleEnd + 20 days`). It is **not** used for cycle lookup any more.
+  - `currentCycle(startDay, now)` — the cycle containing `now`.
+  - `statementFor(cycle, closedOutstanding, currentOutstanding, movementSinceEnd)` —
+    closed cycle = outstanding at close; ongoing cycle = current outstanding.
+  - `cycleSettledByDueDate(cycleStartDay, dueEpochMillis)` — the occurrence that falls on a
+    due date settles the cycle that **closed most recently before that due date**; if the cycle
+    running on the due date has not closed yet, the previous cycle is the one being settled.
+  - `defaultDueDate(cycleStartDay, epoch)` — cycle end + 20 days.
+- `data/repository/CreditCardStatementService.kt` reads the ledger and produces:
+  - `statementForCycle` — exact statement for any cycle (ongoing = live outstanding, closed =
+    outstanding at close, future = none).
+  - `previousCycleStatement` — the prior cycle's statement, used as the estimate floor.
+  - `estimateStatementForCycle` — walks back up to `MAX_ESTIMATE_CYCLES = 24` cycles to the
+    most recent **started** cycle and returns its statement; falls back to the stored/user
+    estimate. This is what gives a not-yet-closed cycle a sensible number instead of 0.
+  - `movementSince`, `cardMovementMinorUnits`, `derivedOutstanding`, `allCards`.
+- `data/repository/CreditCardBillingService.kt` keeps the card row and its linked `CREDIT_CARD`
+  bill in step: auto-creates the MONTHLY linked bill if missing, writes `billAmountMinorUnits`
+  (the live statement) on the account, and syncs the head occurrence amount.
+- `domain/billing/BillRecurrenceService.kt` amounts card occurrences from the settled cycle's
+  statement (previous cycle when the due date still sits inside the open cycle), from
+  `estimateStatementForCycle` for future cycles, and only from the stored estimate as the last
+  resort; it touches only the head occurrence while it is unpaid with `paidAmount == 0`.
+- `data/repository/AccountingService.kt` re-runs the card refresh after every recalculation;
+  `MoneyManagerApp.kt` and `MainActivity.kt` refresh all cards on cold start and on foreground.
+
+## B2. The bug the device exposed, and its fix
+
+- The original mapping (`due − 20 days − 1ms`) put a payment made on the **24th** into the
+  cycle that was still running for a card whose cycle starts on the **3rd**, so the payment was
+  credited against the wrong statement and the linked bill grew for the wrong month.
+- `CreditCardStatement.cycleForDueDate` was replaced by `cycleSettledByDueDate` everywhere
+  (`BillRecurrenceService`, `AccountDetailViewModel`, tests) and the class doc was rewritten to
+  state the rule: *the cycle that closed most recently before the due date*.
+- Result on the reference card (cycle start day 3, due 24th): the 24 Oct occurrence now settles
+  the `03 SEP – 02 OCT` cycle, and the `03 OCT – 02 NOV` cycle is settled by the due date that
+  lands after 2 Nov.
+
+## B3. Where the statement is shown
+
+- **Account detail (card screen)** — `AccountDetailViewModel` now exposes
+  `currentStatementMinorUnits` and `statementDueDateEpochMillis` (it injects `BillDao`); the
+  statement shown is `billAmountMinorUnits ?: outstanding`, and the due date is the occurrence
+  that settles the *current* cycle, falling back to `account.dueDate`, then to the derived
+  default. The screen renders `Statement 03 OCT - 02 NOV • Due 24 Nov 2026` under the hero
+  outstanding.
+- **Cycle summary** — per user request the "This statement cycle starts on day X of each month"
+  and "Statement so far …" lines were removed from `CycleSummaryCard`, together with the now
+  unused `billingDay`/`statement`/`dueDateEpochMillis` parameters.
+- **Card form** — a read-only "This cycle's statement" row, and the estimate field only when the
+  user's number differs from it; saving refreshes the card so the bill is written back.
+- **Accounts list** — a card with a computed statement is labelled `Outstanding`; only a card
+  that has never been refreshed still reads `Estimated outstanding`.
+
+## B4. Inactive accounts moved off the live list
+
+- The first attempt (an "Inactive accounts (N)" section inside the same list) was verified on
+  device and then **replaced on user request**: mixing the sections on one screen made the list
+  hard to scan.
+- `AccountsScreen.kt` now keeps two lists, `activeAccounts` and `inactiveAccounts`, and a
+  segmented **`MmChip` switcher** right under the tab row — `Active (n)` / `Inactive (n)` — which
+  only appears when there is at least one inactive account.
+- The inactive view is its own screen state: header reads `Inactive outstanding` (or `Inactive
+  balance`) with `n account(s) • switched off`, and only the switched-off accounts are listed.
+- With nothing inactive the switcher disappears and `showInactive` can never hold; with zero
+  active accounts the empty state says "No active accounts … your 1 switched-off account is in
+  the Inactive view" and offers **Show inactive** instead of a misleading "No credit cards yet".
+- Inactive accounts are never deleted — they stay reachable, editable and re-enableable from
+  this view (verified both directions on device).
+
+## B5. New and updated tests
+
+| Test class | What it pins down |
+| --- | --- |
+| `domain/billing/CreditCardStatementTest.kt` | due-date → cycle mapping (due before/after cycle end), cycle shift when the start day changes, default due date = cycle end + 20 (Oct 24 for start day 4), future cycle has no statement, closed cycle = outstanding at close, running cycle = current outstanding |
+| `data/CreditCardStatementServiceTest.kt` (Robolectric, in-memory DB) | linked bill + occurrence created, current bill amount follows the cycle and the occurrence, refunds move the statement, closed cycle keeps its amount, future-cycle estimate from the prior cycle, estimate walking back several cycles, card-screen bill amount = statement, missing linked bill created on refresh, a non-card never gets a card bill |
+| `ui/accountdetail/AccountDetailStatementTest.kt` | card screen shows statement + due date from the linked bill, a card without a linked bill still gets a cycle-derived due date, a non-card shows no statement |
+| `ui/creditcardform/CreditCardFormCheckpointTest.kt` | updated for the new `CreditCardFormViewModel(db, io, accounts, transactions, statementService, creditCardBillingService)` constructor |
+
+Test delta since Addendum A: 187 → **202** unit tests before this addendum's final edits.
+
+## B6. Commands executed for this addendum, and their real results
+
+| Command | Result |
+| --- | --- |
+| `./gradlew :app:compileDebugKotlin --no-daemon` | **BUILD SUCCESSFUL** after every batch of edits |
+| `./gradlew :app:testDebugUnitTest --no-daemon` (credit-card classes) | **BUILD SUCCESSFUL in 46s** |
+| `./gradlew :app:testDebugUnitTest --no-daemon` (full, earlier in this addendum) | **BUILD SUCCESSFUL — 33 classes, 202 tests, 0 failures, 1 skipped** |
+| `./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --no-daemon` (final) | **BUILD SUCCESSFUL in 2m 1s — 34 test classes, 208 tests, 0 failures, 0 errors, 1 skipped; lint 0 errors, 298 warnings, 2 hints (pre-existing informational)** |
+| `./gradlew :app:assembleDebug --no-daemon` | **BUILD SUCCESSFUL**, every time |
+| `adb install -r -t app/build/outputs/apk/debug/app-debug.apk` | `Performing Streamed Install … Success` (multiple times) |
+
+**Device verification (`SM_M107F`, package `com.moneymanager.app.debug`):**
+
+- Card detail: `Outstanding ₹16,055`, `Statement 03 OCT - 02 NOV • Due 24 Nov 2026`, cycle
+  `03 OCT - 02 NOV • Current`, Spending `₹23,055`, Payments & credits `₹7,000`; the removed
+  "This statement …" lines are gone.
+- Inactive flow: disable card → Accounts / CREDIT CARDS shows `Total outstanding ₹0`,
+  `0 accounts`, chips `Active (0)` `Inactive (1)`, empty state "No active accounts … Show
+  inactive" → inactive view shows `Inactive outstanding ₹16,055`, `1 account • switched off`
+  and only the Regalia card → re-enable from the edit form → back to `Total outstanding
+  ₹16,055`, `1 account`, switcher gone.
+- Live DB pulled with `run-as` confirmed `active=0` and then `active=1` for card id 1, and
+  `outstandingMinorUnits = billAmountMinorUnits = 1,605,500`.
+- Final build on device: the card now reads `Outstanding` (not `Estimated outstanding`) because a
+  computed statement exists; the inactive round trip was repeated end to end — `Active (0)` /
+  `Inactive (1)` chips → **Show inactive** → `Inactive outstanding ₹16,055` with the card marked
+  `Inactive` → re-enable from the editor → `Total outstanding ₹16,055`, `1 account`, switcher
+  gone. Switching tab away and back lands on **Active** again.
+
+## B7. A test bug this addendum caused, and its fix
+
+- The first full-suite run of this addendum **hung** for 15 minutes in
+  `AccountDetailStatementTest.aNonCardAccountHasNoStatement`. `jstack` showed the Robolectric main
+  thread parked inside `runBlocking { viewModel.stateFor(id).first { ... } }` while the
+  ViewModel's `stateIn(viewModelScope)` transform waited for that same looper.
+- Cause: reading `billDao.findByLinkedAccountId(...)` **inside** the `combine` transform made the
+  transform suspend mid-way; the resumption is posted to `Dispatchers.Main`, which a main-thread
+  blocked `runBlocking` can never service. Before that change the transform was pure computation
+  and ran inline, so the same test passed only by luck.
+- Fix in the test (not in production, where the looper keeps running): `awaitState()` collects on
+  `Dispatchers.Default` while the test thread pumps the Robolectric looper with
+  `shadowOf(Looper.getMainLooper()).idle()` - the pattern `BillsViewModelTest`,
+  `CreditCardFormCheckpointTest` and the other ViewModel tests already use.
+
+## B8. Instrumentation tests now run, and what is still unverified
+
+- `./gradlew :app:connectedDebugAndroidTest --no-daemon` on the real device (`SM-M107F`,
+  Android 11): **BUILD SUCCESSFUL in 1m 34s - 7 tests, 0 failures, 0 errors, 0 skipped**:
+  `MigrationFullChainTest` (v1/v4/v8 chains), `Migration9To10Test`, `Migration10To11Test`,
+  `ThemeRenderingTest` (light + dark). This closes the long-standing "needs a device" gap from
+  section 11 and A6.
+- Still unverified: signed release APK (`ANDROID_KEYSTORE_PATH` and the signing secrets are not
+  available here - only `app-release-unsigned.apk` is built), `ApkVerifier` package/version/signer
+  checks against that signed output, and GitHub Actions (not executed from this working tree).
+- Nothing else: the final `testDebugUnitTest + lintDebug + assembleDebug` run, the connected
+  Android test run and the on-device walk above all completed on this working tree.
