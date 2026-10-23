@@ -1,5 +1,11 @@
 # Money Manager UI design system
 
+> **Two appearances.** This document describes **Default Look** (`ui/theme`, `ui/components`).
+> The second, switchable appearance — **Modern Look** — is documented in
+> [`MODERN_LOOK.md`](MODERN_LOOK.md) and lives entirely under `ui/modern/`. Appearance is a
+> persisted preference (`ui/appearance/AppearancePreferences.kt`), independent of light/dark, and
+> both trees share the same ViewModels and navigation routes.
+
 One visual language for every screen. The rules live in code (`ui/theme/Theme.kt`,
 `ui/components/`) so a new screen inherits the design instead of re-inventing it.
 

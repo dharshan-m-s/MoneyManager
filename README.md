@@ -26,6 +26,16 @@ This local project is a standalone reworked implementation based on the `dharsha
 - A Moneyview CSV import entry point is available from the dashboard.
 - Imported transactions are mapped into the same ledger used by normal app transactions.
 
+### Appearance: Default and Modern
+
+The app ships two complete, switchable appearances. **Settings → Appearance → Look** selects
+between **Default** (the original interface and the fresh-install default) and **Modern** (a
+midnight-navy dashboard with layered surfaces, indigo accents and a
+GPU-refracted glass balance card). The choice persists across restarts, is independent of light/dark
+mode, and never affects the ledger. See `docs/MODERN_LOOK.md` for the design tokens, the shader
+physics and the package layout. The complete Modern UI lives under `ui/modern/` so the Default UI
+can be retired later without touching it.
+
 ## Build and test
 
 The project builds and its tests run with the checked-in Gradle wrapper (JDK 21 for CI, JDK 25

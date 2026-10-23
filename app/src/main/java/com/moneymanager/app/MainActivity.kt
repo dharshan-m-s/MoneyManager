@@ -1,17 +1,17 @@
 package com.moneymanager.app
 
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material.Surface
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
@@ -20,8 +20,10 @@ import com.moneymanager.app.data.repository.CreditCardBillingService
 import com.moneymanager.app.domain.billing.BillRecurrenceService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import com.moneymanager.app.ui.navigation.MoneyManagerRoot
-import com.moneymanager.app.ui.theme.MoneyManagerTheme
+import com.moneymanager.app.ui.appearance.AppRoot
+import com.moneymanager.app.ui.appearance.AppearancePreferences
+import com.moneymanager.app.ui.appearance.MmAppearance
+import com.moneymanager.app.ui.appearance.navigationBarColor
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -30,6 +32,8 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var accountingService: AccountingService
     @Inject lateinit var billRecurrenceService: BillRecurrenceService
     @Inject lateinit var creditCardBillingService: CreditCardBillingService
+    // Appearance is presentation-only: this preference never touches the ledger.
+    @Inject lateinit var appearancePreferences: AppearancePreferences
 
     private val settingsPrefsName = "moneymanager_settings"
     private val darkModeKey = "dark_mode"
@@ -61,16 +65,30 @@ class MainActivity : FragmentActivity() {
         }
 
         var darkMode by mutableStateOf(prefs.getBoolean(darkModeKey, false))
-        fun applySystemBarAppearance(isDark: Boolean) {
+        var appearance by mutableStateOf(appearancePreferences.current())
+        fun applySystemBarAppearance(isDark: Boolean, look: MmAppearance) {
             // The app's dark mode is a setting of its own (not system night mode), so the window
             // colours must follow the pref at runtime. statusBarColor/navigationBarColor are
             // deprecated and ignored from API 35 — there the bars stay transparent and the app
-            // paints behind them — but on API 30–34 they still colour the starting window and
-            // the bar itself, so keep them in sync with the active palette.
+            // paints behind them. Modern keeps the navigation bar transparent on API 29+ too;
+            // Default retains its established solid system-bar treatment.
             window.statusBarColor = android.graphics.Color.TRANSPARENT
-            window.navigationBarColor = if (isDark) 0xFF0B1220.toInt() else 0xFFF6F8F7.toInt()
-            // Status icons stay white: every top-level screen either draws the brand-green
-            // header or the branded gradient wash (PIN gate) under the status bar.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isStatusBarContrastEnforced = look == MmAppearance.DEFAULT
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                look == MmAppearance.MODERN
+            ) {
+                window.navigationBarColor = android.graphics.Color.TRANSPARENT
+                window.isNavigationBarContrastEnforced = false
+            } else {
+                window.navigationBarColor = navigationBarColor(look, isDark)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    window.isNavigationBarContrastEnforced = true
+                }
+            }
+            // The Modern shell adjusts glyph contrast per route. Default keeps its original
+            // white status-bar treatment.
             val controller = WindowInsetsControllerCompat(window, window.decorView)
             controller.isAppearanceLightStatusBars = false
             controller.isAppearanceLightNavigationBars = !isDark
@@ -79,10 +97,10 @@ class MainActivity : FragmentActivity() {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == darkModeKey) {
                 darkMode = prefs.getBoolean(darkModeKey, false)
-                applySystemBarAppearance(darkMode)
+                applySystemBarAppearance(darkMode, appearance)
             }
         }
-        applySystemBarAppearance(darkMode)
+        applySystemBarAppearance(darkMode, appearance)
         prefs.registerOnSharedPreferenceChangeListener(listener)
 
         // The app may have been backgrounded across a bill's lead date. Reconcile on every
@@ -98,11 +116,15 @@ class MainActivity : FragmentActivity() {
             DisposableEffect(Unit) {
                 onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
             }
-            MoneyManagerTheme(darkTheme = darkMode) {
-                Surface(modifier = Modifier.fillMaxSize(), color = androidx.compose.material.MaterialTheme.colors.background) {
-                    MoneyManagerRoot()
-                }
+            // The single source of truth for the look, streamed from the persisted preference.
+            // A change recomposes the whole tree once — no restart, no recreated ViewModels and
+            // no database work.
+            val selectedAppearance by appearancePreferences.appearance.collectAsState()
+            androidx.compose.runtime.LaunchedEffect(selectedAppearance, darkMode) {
+                appearance = selectedAppearance
+                applySystemBarAppearance(darkMode, selectedAppearance)
             }
+            AppRoot(appearance = selectedAppearance, darkTheme = darkMode)
         }
     }
 

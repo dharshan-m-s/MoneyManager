@@ -409,7 +409,7 @@ object AccountingEngine {
      *
      * `adjustment` is captured once, when the user states the balance they can see. Every
      * subsequent ledger movement (including backdated entries and edits) is then applied on
-     * top of the engine-derived balance. This avoids the classic timestamp-filter bug where a
+     * top of the engine-derived balance. This avoids the default timestamp-filter bug where a
      * transaction dated before the checkpoint is silently dropped, while still guaranteeing
      * that a recalculation cannot overwrite the user's value.
      */

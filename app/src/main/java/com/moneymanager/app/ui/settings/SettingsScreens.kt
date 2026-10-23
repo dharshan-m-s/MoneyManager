@@ -98,6 +98,10 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.components.revealOnAppear
+import com.moneymanager.app.ui.appearance.AppearanceEntryPoint
+import com.moneymanager.app.ui.appearance.AppearancePreferences
+import com.moneymanager.app.ui.appearance.AppearanceSelector
+import com.moneymanager.app.ui.appearance.MmAppearance
 import com.moneymanager.app.ui.components.MmSecondaryButton
 
 /** Kept for the updater screen, which shares this chrome. */
@@ -202,6 +206,12 @@ fun SettingsScreen(
     }
     val homePreferences: HomePreferences = remember { entryPoint.homePreferences() }
     val appLock: AppLock = remember { entryPoint.appLock() }
+    val appearancePreferences: AppearancePreferences = remember {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            AppearanceEntryPoint::class.java
+        ).appearancePreferences()
+    }
 
     val scope = rememberCoroutineScope()
     val snackbarState = remember { SnackbarHostState() }
@@ -216,6 +226,7 @@ fun SettingsScreen(
     val showCashSummary by homePreferences.showCashSummary.collectAsState()
     val hideAmounts by homePreferences.hideAmounts.collectAsState()
     var darkMode by remember { mutableStateOf(homePreferences.isDarkMode()) }
+    var appearance by remember { mutableStateOf(appearancePreferences.current()) }
     var autoBackup by remember { mutableStateOf(backupManager.autoBackupEnabled()) }
     var lockEnabled by remember { mutableStateOf(appLock.isEnabled()) }
     var lockMethod by remember { mutableStateOf(appLock.method()) }
@@ -567,6 +578,28 @@ fun SettingsScreen(
                         homePreferences.setDarkMode(it)
                     }
                 )
+                // Appearance is independent of light/dark: either look works in either mode.
+                Column(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)) {
+                    Text(
+                        "Look",
+                        style = MmType.label,
+                        color = MmColors.textSecondary,
+                        modifier = Modifier.padding(bottom = MmSpacing.sm, start = 2.dp)
+                    )
+                    AppearanceSelector(
+                        selected = appearance,
+                        onSelect = { picked ->
+                            appearance = picked
+                            appearancePreferences.set(picked)
+                        }
+                    )
+                    Text(
+                        "Switches instantly. Your accounts, transactions and settings are untouched.",
+                        style = MmType.caption,
+                        color = MmColors.textTertiary,
+                        modifier = Modifier.padding(top = MmSpacing.sm, start = 2.dp)
+                    )
+                }
 
                 SettingsSectionHeader("About")
                 SettingsRow(
