@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Divider
 import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
@@ -559,7 +558,7 @@ private fun PeriodHeaderBlock(
             )
         }
     }
-    Divider(color = MmColors.divider)
+    Spacer(Modifier.height(MmSpacing.xs))
 }
 
 @Composable
@@ -568,21 +567,33 @@ private fun CycleSummaryCard(
     income: Money,
     expense: Money
 ) {
-    Column(Modifier.fillMaxWidth().padding(MmSpacing.lg)) {
-        Text(label, style = MmType.sectionTitle, color = MmColors.textPrimary)
-        Spacer(Modifier.height(MmSpacing.sm))
-        Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
-            CycleStat("Spending", MoneyFormat.rupeesNoDecimals(expense), MmColors.expense, Modifier.weight(1f))
-            CycleStat("Payments & credits", MoneyFormat.rupeesNoDecimals(income), MmColors.income, Modifier.weight(1f))
-            CycleStat(
-                "Net",
-                MoneyFormat.rupeesNoDecimals(Money(expense.minorUnits - income.minorUnits)),
-                MmColors.textPrimary,
-                Modifier.weight(1f)
-            )
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
+    ) {
+        androidx.compose.material.Surface(
+            shape = RoundedCornerShape(22.dp),
+            color = MmColors.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MmColors.outline),
+            elevation = 0.dp
+        ) {
+            Column(Modifier.fillMaxWidth().padding(MmSpacing.lg)) {
+                Text(label, style = MmType.sectionTitle, color = MmColors.textPrimary)
+                Spacer(Modifier.height(MmSpacing.sm))
+                Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
+                    CycleStat("Spending", MoneyFormat.rupeesNoDecimals(expense), MmColors.expense, Modifier.weight(1f))
+                    CycleStat("Payments & credits", MoneyFormat.rupeesNoDecimals(income), MmColors.income, Modifier.weight(1f))
+                    CycleStat(
+                        "Net",
+                        MoneyFormat.rupeesNoDecimals(Money(expense.minorUnits - income.minorUnits)),
+                        MmColors.textPrimary,
+                        Modifier.weight(1f)
+                    )
+                }
+            }
         }
     }
-    Divider(color = MmColors.divider)
 }
 
 @Composable

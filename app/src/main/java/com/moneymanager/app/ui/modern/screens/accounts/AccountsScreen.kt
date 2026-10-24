@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -82,6 +83,9 @@ fun AccountsScreen(
     onAccountSettings: () -> Unit = {},
     onEditAccount: (Long) -> Unit = {},
     onEditCreditCard: (Long) -> Unit = onEditAccount,
+    // Dock destinations show the central context-aware Add in the navigation pill, so the
+    // inline add row would be a duplicate `+`. It stays for routes where the dock is hidden.
+    showInlineAdd: Boolean = true,
     viewModel: AccountsViewModel = hiltViewModel()
 ) {
     val accounts by viewModel.accounts.collectAsState()
@@ -200,22 +204,26 @@ fun AccountsScreen(
             ) {
                 itemsIndexed(shown, key = { _, account -> account.id }) { index, account ->
                     AccountRow(
-                        account = account,
-                        isCreditCard = account.accountType == AccountType.CREDIT_CARD,
-                        editMode = editMode,
-                        showTopDivider = index > 0,
-                        onClick = { onAccountClick(account.id) },
+                account = account,
+                isCreditCard = true,
+                editMode = editMode,
+                showTopDivider = false,
+                onClick = { onAccountClick(account.id) },
                         onEdit = {
                             if (account.accountType == AccountType.CREDIT_CARD) onEditCreditCard(account.id)
                             else onEditAccount(account.id)
                         }
                     )
                 }
-                item {
-                    AddAccountRow(
-                        label = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account",
-                        onClick = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
-                    )
+                if (showInlineAdd) {
+                if (!editMode) {
+                    item {
+                        AddAccountRow(
+                            label = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account",
+                            onClick = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                        )
+                    }
+                }
                 }
             }
         }
@@ -352,7 +360,7 @@ private fun AccountRow(
     account: AccountEntity,
     isCreditCard: Boolean,
     editMode: Boolean,
-    showTopDivider: Boolean,
+    showTopDivider: Boolean = false,
     onClick: () -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier
@@ -379,19 +387,20 @@ private fun AccountRow(
         else -> MmColors.accent
     }
 
-    Column(modifier) {
-        if (showTopDivider) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(start = 60.dp)
-                    .height(1.dp)
-                    .background(MmColors.divider)
-            )
-        }
+    Column(modifier.padding(horizontal = MmSpacing.md, vertical = 2.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            tint.copy(alpha = 0.14f),
+                            MmColors.surface
+                        )
+                    )
+                )
+                .border(1.dp, tint.copy(alpha = 0.28f), RoundedCornerShape(18.dp))
                 .clickable(onClick = onClick)
                 .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
             verticalAlignment = Alignment.CenterVertically
@@ -454,7 +463,7 @@ private fun AccountRow(
                 Icon(
                     Icons.Filled.ChevronRight,
                     contentDescription = null,
-                    tint = MmColors.textTertiary,
+                    tint = tint,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -467,19 +476,26 @@ private fun AddAccountRow(
     label: String,
     onClick: () -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().clip(MmShape.card).clickable(onClick = onClick),
-        shape = MmShape.card,
-        color = Color.Transparent,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MmColors.outline)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Brush.linearGradient(listOf(MmColors.accentFill.copy(alpha = 0.16f), MmColors.surface)))
+            .border(1.dp, MmColors.accentFill.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
     ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)
         ) {
-            MmIconBadge(icon = Icons.Filled.Add, tint = MmColors.accent, size = 40.dp)
-            Text(label, style = MmType.body, fontWeight = FontWeight.Medium, color = MmColors.accent)
+            Box(
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(MmColors.accentFill),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, tint = MmColors.onAccent)
+            }
+            Text(label, style = MmType.body, fontWeight = FontWeight.SemiBold, color = MmColors.textPrimary)
         }
     }
 }

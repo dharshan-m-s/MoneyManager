@@ -2,6 +2,7 @@ package com.moneymanager.app.ui.modern.screens.spendsummary
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
@@ -24,10 +25,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
-import com.moneymanager.app.ui.modern.components.MmCard
 import com.moneymanager.app.ui.modern.components.MmEmptyState
 import com.moneymanager.app.ui.modern.components.MmPill
 import com.moneymanager.app.ui.modern.components.MmTransactionRow
@@ -88,19 +92,32 @@ fun CategoryTransactionsScreen(
             verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)
         ) {
             item {
-                MmCard {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFF1F3BFF).copy(alpha = 0.9f), Color(0xFF0B1026))
+                            )
+                        )
+                        .padding(MmSpacing.lg)
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("Net spend in this category", style = MmType.caption, color = MmColors.textSecondary)
+                            Text("Net spend this month", style = MmType.caption, color = Color.White.copy(alpha = 0.8f))
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 MoneyFormat.rupeesNoDecimals(Money(spent)),
                                 style = MmType.amountLarge,
-                                color = MmColors.textPrimary,
+                                color = Color.White,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
+                            Spacer(Modifier.height(4.dp))
+                            Text("Showing only $monthLabel", style = MmType.caption, color = Color.White.copy(alpha = 0.7f))
                         }
-                        MmPill(monthLabel, tint = MmColors.accent, filled = true)
+                        MmPill(monthLabel, tint = Color.White, filled = false)
                     }
                 }
                 Spacer(Modifier.height(MmSpacing.sm))

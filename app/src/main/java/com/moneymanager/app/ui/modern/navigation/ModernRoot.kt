@@ -2,6 +2,8 @@ package com.moneymanager.app.ui.modern.navigation
 
 import android.os.SystemClock
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,9 +22,15 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.RequestQuote
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.runtime.Composable
@@ -181,16 +189,24 @@ fun ModernRoot() {
     val currentRoute = backStackEntry?.destination?.route ?: Destination.Dashboard.route
     var fabExpanded by remember { mutableStateOf(false) }
     var moreExpanded by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(currentRoute) {
+        fabExpanded = false
+        moreExpanded = false
+    }
     val dockVisible = currentRoute in DOCK_ROUTES
+    // Context-aware Add: on Accounts the central + opens account actions (bank account,
+    // credit card, transfer) instead of the transaction menu, so there is exactly one
+    // entry point for creating an account on this destination.
+    val onAccountsRoute = currentRoute == Destination.Accounts.route
     val density = LocalDensity.current
     var dockHeightPx by remember { mutableIntStateOf(0) }
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val measuredDockHeight = if (dockHeightPx > 0) {
         with(density) { dockHeightPx.toDp() }
     } else {
-        68.dp + navigationInset
+        68.dp + navigationInset + 8.dp
     }
-    val dockContentReservation = measuredDockHeight + 12.dp
+    val dockContentReservation = measuredDockHeight + 16.dp
 
     StatusBarGlyphToneAndSystemBarTint(lightBackground = MaterialTheme.colors.isLight)
 
@@ -204,10 +220,9 @@ fun ModernRoot() {
         }
     }
 
-    if (fabExpanded || moreExpanded) {
-        androidx.activity.compose.BackHandler {
-            if (fabExpanded) fabExpanded = false else moreExpanded = false
-        }
+    androidx.activity.compose.BackHandler(enabled = fabExpanded || moreExpanded) {
+        fabExpanded = false
+        moreExpanded = false
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -225,59 +240,96 @@ fun ModernRoot() {
                 )
         )
 
-        if (fabExpanded || moreExpanded) {
+        if ((fabExpanded || moreExpanded) && dockVisible) {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f))
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    ) {
+                        fabExpanded = false
+                        moreExpanded = false
+                    }
             )
         }
 
-        androidx.compose.animation.AnimatedVisibility(
-            visible = moreExpanded && dockVisible,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = MmSpacing.lg, bottom = measuredDockHeight + 8.dp),
-            enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)) +
-                androidx.compose.animation.scaleIn(initialScale = 0.98f, animationSpec = androidx.compose.animation.core.tween(150)),
-            exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(100)) +
-                androidx.compose.animation.scaleOut(targetScale = 0.98f, animationSpec = androidx.compose.animation.core.tween(100))
-        ) {
-            ModernMorePopover(onSelect = { destination ->
-                moreExpanded = false
-                navController.navigate(destination.route) { launchSingleTop = true }
-            })
+        if (moreExpanded && dockVisible) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = MmSpacing.lg, bottom = measuredDockHeight + 16.dp),
+                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)) +
+                    androidx.compose.animation.scaleIn(initialScale = 0.98f, animationSpec = androidx.compose.animation.core.tween(150)),
+                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(100)) +
+                    androidx.compose.animation.scaleOut(targetScale = 0.98f, animationSpec = androidx.compose.animation.core.tween(100))
+            ) {
+                ModernMorePopover(onSelect = { destination ->
+                    moreExpanded = false
+                    navController.navigate(destination.route) { launchSingleTop = true }
+                })
+            }
         }
 
-        androidx.compose.animation.AnimatedVisibility(
-            visible = fabExpanded && dockVisible,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = measuredDockHeight + 8.dp),
-            enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)) +
-                androidx.compose.animation.scaleIn(initialScale = 0.98f, animationSpec = androidx.compose.animation.core.tween(150)),
-            exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(100)) +
-                androidx.compose.animation.scaleOut(targetScale = 0.98f, animationSpec = androidx.compose.animation.core.tween(100))
-        ) {
-            ModernAddActionSurface(
-                actions = listOf(
-                    AddAction("Expense", Icons.AutoMirrored.Filled.TrendingDown, MmColors.expense, "Add expense"),
-                    AddAction("Income", Icons.AutoMirrored.Filled.TrendingUp, MmColors.income, "Add income"),
-                    AddAction("Cash expense", Icons.Filled.Payments, MmColors.expense, "Add cash expense"),
-                    AddAction("Cash income", Icons.Filled.Savings, MmColors.income, "Add cash income"),
-                    AddAction("Transfer", Icons.Filled.SwapHoriz, MmColors.accent, "Transfer between accounts")
-                ),
+        if (fabExpanded && dockVisible) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = measuredDockHeight + 14.dp),
+                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)) +
+                    androidx.compose.animation.scaleIn(initialScale = 0.98f, animationSpec = androidx.compose.animation.core.tween(150)),
+                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(100)) +
+                    androidx.compose.animation.scaleOut(targetScale = 0.98f, animationSpec = androidx.compose.animation.core.tween(100))
+            ) {
+                ModernAddActionSurface(
+                title = if (onAccountsRoute) "Add account" else "Create",
+                subtitle = if (onAccountsRoute) "Bank, card or transfer" else "Transaction or bill",
+                actions = if (onAccountsRoute) {
+                    listOf(
+                        AddAction("Bank account", Icons.Filled.AccountBalance, MmColors.accent, "Add a bank account"),
+                        AddAction("Credit card", Icons.Filled.CreditCard, Color(0xFF7C3AED), "Add a credit card"),
+                        AddAction("Wallet", Icons.Filled.AccountBalanceWallet, Color(0xFF059669), "Add a wallet"),
+                        AddAction("Loan", Icons.Filled.RequestQuote, Color(0xFFEA580C), "Add a loan"),
+                        AddAction("Transfer", Icons.Filled.SwapHoriz, MmColors.accent, "Transfer between accounts"),
+                        AddAction("Bill", Icons.AutoMirrored.Filled.ReceiptLong, Color(0xFFD97706), "Add a bill")
+                    )
+                } else {
+                    listOf(
+                        AddAction("Expense", Icons.AutoMirrored.Filled.TrendingDown, MmColors.expense, "Add expense"),
+                        AddAction("Income", Icons.AutoMirrored.Filled.TrendingUp, MmColors.income, "Add income"),
+                        AddAction("Cash expense", Icons.Filled.Payments, MmColors.expense, "Add cash expense"),
+                        AddAction("Cash income", Icons.Filled.Savings, MmColors.income, "Add cash income"),
+                        AddAction("Transfer", Icons.Filled.SwapHoriz, MmColors.accent, "Transfer between accounts"),
+                        AddAction("Bill", Icons.AutoMirrored.Filled.ReceiptLong, Color(0xFFD97706), "Add a bill")
+                    )
+                },
                 onSelect = { index ->
                     fabExpanded = false
-                    when (index) {
-                        0 -> openAddTransaction("ACCOUNT_SPEND")
-                        1 -> openAddTransaction("ACCOUNT_INCOME")
-                        2 -> openAddTransaction("CASH_SPEND")
-                        3 -> openAddTransaction("CASH_INCOME")
-                        4 -> navController.navigate(Destination.Transfer.route())
+                    if (onAccountsRoute) {
+                        when (index) {
+                            0 -> navController.navigate(Destination.BankSelection.route) { launchSingleTop = true }
+                            1 -> navController.navigate(Destination.CreditCardForm.route(null)) { launchSingleTop = true }
+                            2 -> navController.navigate(Destination.AddTransaction.route("CASH_INCOME", null))
+                            3 -> navController.navigate(Destination.BillTypeSelection.route) { launchSingleTop = true }
+                            4 -> navController.navigate(Destination.Transfer.route())
+                            5 -> navController.navigate(Destination.BillTypeSelection.route) { launchSingleTop = true }
+                        }
+                    } else {
+                        when (index) {
+                            0 -> openAddTransaction("ACCOUNT_SPEND")
+                            1 -> openAddTransaction("ACCOUNT_INCOME")
+                            2 -> openAddTransaction("CASH_SPEND")
+                            3 -> openAddTransaction("CASH_INCOME")
+                            4 -> navController.navigate(Destination.Transfer.route())
+                            5 -> navController.navigate(Destination.BillTypeSelection.route) { launchSingleTop = true }
+                        }
                     }
                 }
             )
+            }
         }
 
         if (dockVisible) {

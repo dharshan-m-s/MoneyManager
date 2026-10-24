@@ -63,8 +63,10 @@ internal fun ModernDock(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .padding(horizontal = MmSpacing.lg)
+            .padding(bottom = 0.dp)
             .navigationBarsPadding()
-            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm),
+            .padding(bottom = MmSpacing.sm),
         contentAlignment = Alignment.BottomCenter
     ) {
         Surface(

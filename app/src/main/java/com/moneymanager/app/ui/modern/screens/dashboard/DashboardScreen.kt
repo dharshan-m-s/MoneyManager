@@ -91,7 +91,6 @@ import com.moneymanager.app.ui.modern.theme.MmType
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import com.moneymanager.app.ui.dashboard.DashboardBreakdownKind
 import com.moneymanager.app.ui.dashboard.DashboardUiState
 import com.moneymanager.app.ui.dashboard.DashboardViewModel
@@ -131,13 +130,12 @@ fun DashboardScreen(
     // after unlocking. Once loaded, the state streams in without a second flash.
     val state = uiState
     if (state == null) {
-        Column(Modifier.fillMaxSize().background(MmColors.background)) {
-            DashboardGreeting(
-                onOpenMore = onOpenMore,
-                onOpenSearch = onOpenSearch,
-                onOpenFilter = {},
-                filterActive = false
-            )
+        Column(
+            Modifier
+                .fillMaxSize()
+                .background(MmColors.background)
+                .modernTopInsets()
+        ) {
             MmLoadingState(text = "Opening your ledger…", modifier = Modifier.fillMaxSize())
         }
         return
@@ -182,22 +180,16 @@ fun DashboardScreen(
     }
     val anyFilterActive = query.isNotBlank() || activeType != RecentTypeFilter.ALL || fromEpoch != null || toEpoch != null
 
+    // The safe top inset (status bar + display cutout) is applied exactly once on this list,
+    // so the page background extends edge-to-edge behind the transparent status bar while the
+    // financial overview starts directly below the system icons. No greeting or date header.
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(MmColors.background),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MmColors.background)
+            .modernTopInsets(),
         contentPadding = PaddingValues(bottom = MmSpacing.md)
     ) {
-            // The dashboard command row is a sticky header: menu/search/filter remain reachable
-            // while the financial content scrolls, but the controls never appear on detail or
-            // editor routes because those screens use their own compact top bars.
-            stickyHeader {
-                DashboardGreeting(
-                    onOpenMore = onOpenMore,
-                    onOpenSearch = onOpenSearch,
-                    onOpenFilter = { filterOpen = true },
-                    filterActive = anyFilterActive
-                )
-            }
-
             item {
                 BalanceHeroCard(
                     state = state,
@@ -288,7 +280,18 @@ fun DashboardScreen(
                     title = "Latest transactions",
                     subtitle = if (anyFilterActive) "${filteredRecent.size} match your filter" else null,
                     actionLabel = "See all",
-                    onAction = onSeeAllTransactions
+                    onAction = onSeeAllTransactions,
+                    // Search and filter live where they act: on the recent-activity header.
+                    headerTrailing = {
+                        CircleAction(Icons.Filled.Search, "Search", onClick = onOpenSearch)
+                        Spacer(Modifier.width(MmSpacing.sm))
+                        CircleAction(
+                            Icons.Filled.FilterList,
+                            "Filter transactions",
+                            onClick = { filterOpen = true },
+                            badge = anyFilterActive
+                        )
+                    }
                 ) {
                     if (filteredRecent.isEmpty()) {
                         MmEmptyState(
@@ -425,57 +428,6 @@ fun DashboardScreen(
     }
 }
 
-/**
- * Greeting header: the period, a personal greeting, and the real actions (menu, search, filter).
- * No fabricated profile avatar or notification count — only controls that already exist.
- */
-@Composable
-private fun DashboardGreeting(
-    onOpenMore: () -> Unit,
-    onOpenSearch: () -> Unit,
-    onOpenFilter: () -> Unit,
-    filterActive: Boolean
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(MmColors.background)
-            .modernTopInsets()
-            .padding(horizontal = MmSpacing.screen)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                greeting(),
-                style = MmType.screenTitle,
-                color = MmColors.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(Modifier.width(MmSpacing.sm))
-            CircleAction(Icons.Filled.Search, "Search", onClick = onOpenSearch)
-            Spacer(Modifier.width(MmSpacing.sm))
-            CircleAction(
-                Icons.Filled.FilterList,
-                "Filter transactions",
-                onClick = onOpenFilter,
-                badge = filterActive
-            )
-        }
-        Spacer(Modifier.height(MmSpacing.xs))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                DateTimeFormatter.ofPattern("MMMM yyyy").format(LocalDate.now(dashboardZone)),
-                style = MmType.caption,
-                color = MmColors.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.weight(1f))
-        }
-    }
-}
-
 @Composable
 private fun CircleAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -527,20 +479,38 @@ private fun BalanceHeroCard(
     onToggleVisibility: () -> Unit,
     onOpenBreakdown: () -> Unit
 ) {
-    androidx.compose.material.Surface(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = MmSpacing.lg),
-        shape = MmShape.card,
-        color = MmColors.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MmColors.outline)
+            .padding(horizontal = MmSpacing.lg)
+            .clip(RoundedCornerShape(26.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        Color(0xFF1F3BFF),
+                        Color(0xFF0B1026)
+                    )
+                )
+            )
+            .pressableClick(onClick = onOpenBreakdown)
     ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.10f), Color.Transparent),
+                        center = Offset(320f, 40f),
+                        radius = 420f
+                    )
+                )
+        )
         Column(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Total balance",
                     style = MmType.label,
-                    color = MmColors.textSecondary
+                    color = Color.White.copy(alpha = 0.86f)
                 )
                 Spacer(Modifier.width(2.dp))
                 Box(
@@ -553,7 +523,7 @@ private fun BalanceHeroCard(
                     Icon(
                         if (hideAmounts) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
                         contentDescription = if (hideAmounts) "Show amounts" else "Hide amounts",
-                        tint = MmColors.textSecondary.copy(alpha = 0.78f),
+                        tint = Color.White.copy(alpha = 0.9f),
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -562,15 +532,15 @@ private fun BalanceHeroCard(
                     Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(MmColors.surfaceContainer)
-                        .border(1.dp, MmColors.outline, CircleShape)
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(1.dp, Color.White.copy(alpha = 0.24f), CircleShape)
                         .pressableClick(onClick = onOpenBreakdown),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Filled.ChevronRight,
                         contentDescription = "Open balance breakdown",
-                        tint = MmColors.textSecondary,
+                        tint = Color.White,
                         modifier = Modifier.size(19.dp)
                     )
                 }
@@ -580,7 +550,7 @@ private fun BalanceHeroCard(
                 Text(
                     "••••••",
                     style = MmType.amountHero,
-                    color = MmColors.textPrimary,
+                    color = Color.White,
                     maxLines = 1,
                     softWrap = false
                 )
@@ -589,7 +559,7 @@ private fun BalanceHeroCard(
                     value = state.netWorth.minorUnits,
                     formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
                     style = MmType.amountHero,
-                    color = MmColors.textPrimary
+                    color = Color.White
                 )
             }
             Spacer(Modifier.height(6.dp))
@@ -598,7 +568,7 @@ private fun BalanceHeroCard(
                     Modifier
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(MmColors.income)
+                        .background(Color(0xFF22D3EE))
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
@@ -609,7 +579,7 @@ private fun BalanceHeroCard(
                         "Net worth across your accounts"
                     },
                     style = MmType.caption,
-                    color = MmColors.textPrimary.copy(alpha = 0.72f),
+                    color = Color.White.copy(alpha = 0.82f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -674,51 +644,51 @@ private fun MonthSummaryCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Box(
         modifier = modifier
-            .clip(MmShape.row)
-            .background(MmColors.surface)
-            .border(1.dp, MmColors.hairline, MmShape.row)
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        tint.copy(alpha = 0.18f),
+                        MmColors.surface
+                    )
+                )
+            )
+            .border(1.dp, tint.copy(alpha = 0.28f), RoundedCornerShape(20.dp))
             .pressableClick(onClick = onClick)
             .padding(MmSpacing.md)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(30.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(tint.copy(alpha = 0.16f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(tint.copy(alpha = 0.22f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+                }
+                Spacer(Modifier.width(MmSpacing.sm))
+                Text(
+                    label,
+                    style = MmType.caption,
+                    color = MmColors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-            Spacer(Modifier.width(MmSpacing.sm))
+            Spacer(Modifier.height(MmSpacing.sm))
             Text(
-                label,
-                style = MmType.caption,
-                color = MmColors.textSecondary,
+                if (hideAmounts) "••••" else MoneyFormat.rupeesNoDecimals(amount),
+                style = MmType.amountTile,
+                color = MmColors.textPrimary,
                 maxLines = 1,
+                softWrap = false,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Spacer(Modifier.height(MmSpacing.sm))
-        Text(
-            if (hideAmounts) "••••" else MoneyFormat.rupeesNoDecimals(amount),
-            style = MmType.amountTile,
-            color = MmColors.textPrimary,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-private fun greeting(): String {
-    val hour = java.time.LocalTime.now(dashboardZone).hour
-    return when {
-        hour < 12 -> "Good morning"
-        hour < 17 -> "Good afternoon"
-        else -> "Good evening"
     }
 }
 
@@ -996,15 +966,23 @@ private fun SectionBlock(
     subtitle: String? = null,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
+    headerTrailing: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
-        MmSectionHeader(
-            title = title,
-            subtitle = subtitle,
-            actionLabel = actionLabel,
-            onAction = onAction
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MmSectionHeader(
+                title = title,
+                subtitle = subtitle,
+                actionLabel = actionLabel,
+                onAction = onAction,
+                modifier = Modifier.weight(1f)
+            )
+            if (headerTrailing != null) {
+                Spacer(Modifier.width(MmSpacing.sm))
+                headerTrailing()
+            }
+        }
         Spacer(Modifier.height(MmSpacing.sm))
         MmCard(contentPadding = PaddingValues(vertical = 6.dp, horizontal = 0.dp)) {
             content()
