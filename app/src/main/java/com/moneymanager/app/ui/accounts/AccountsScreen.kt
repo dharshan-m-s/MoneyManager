@@ -1,6 +1,7 @@
 package com.moneymanager.app.ui.accounts
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Box
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.RequestQuote
@@ -419,7 +421,12 @@ private fun AccountCard(
         else -> "Estimated balance"
     }
 
-    Column(modifier.fillMaxWidth().background(MmColors.surface).padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md)) {
+    Column(
+        modifier.fillMaxWidth()
+            .background(MmColors.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MmIconBadge(
                 icon = typeIcon(account.accountType),
@@ -451,6 +458,12 @@ private fun AccountCard(
                 IconButton(onClick = onEdit) {
                     Icon(Icons.Filled.Edit, contentDescription = "Edit account", tint = MmColors.accent)
                 }
+            } else {
+                Icon(
+                    Icons.Filled.ChevronRight,
+                    contentDescription = "View account details",
+                    tint = MmColors.textSecondary
+                )
             }
         }
         Spacer(Modifier.size(MmSpacing.sm))

@@ -52,20 +52,12 @@ fun MoneyManagerNavHost(
     onOpenDrawer: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // One Back action removes exactly one layer. The Dashboard fallback is used ONLY when the
-    // controller genuinely has no previous entry (e.g. deep link/process restore); it is never
-    // the normal path for a nested screen.
+    // Back removes only the current destination. A missing previous entry is a no-op rather
+    // than an unexpected jump to Home.
     fun safeBack() {
         val currentRoute = navController.currentDestination?.route
         if (currentRoute == Destination.Dashboard.route) return
-        if (navController.previousBackStackEntry != null) {
-            navController.popBackStack()
-            return
-        }
-        navController.navigate(Destination.Dashboard.route) {
-            popUpTo(navController.graph.id) { inclusive = true }
-            launchSingleTop = true
-        }
+        navController.popBackStack()
     }
 
     fun go(route: String) {

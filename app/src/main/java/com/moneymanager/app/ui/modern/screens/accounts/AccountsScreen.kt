@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
+import androidx.compose.material.Divider
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
@@ -231,14 +232,14 @@ fun AccountsScreen(
                     top = MmSpacing.sm,
                     bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.xl
                 ),
-                verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 itemsIndexed(shown, key = { _, account -> account.id }) { index, account ->
                     AccountRow(
                 account = account,
-                isCreditCard = true,
+                isCreditCard = account.accountType == AccountType.CREDIT_CARD,
                 editMode = editMode,
-                showTopDivider = false,
+                showTopDivider = index > 0,
                 onClick = { onAccountClick(account.id) },
                         onEdit = {
                             if (account.accountType == AccountType.CREDIT_CARD) onEditCreditCard(account.id)
@@ -463,18 +464,23 @@ private fun AccountRow(
         else -> MmColors.accent
     }
 
-    Column(modifier.fillMaxWidth().background(MmColors.surface).padding(horizontal = MmSpacing.md, vertical = MmSpacing.md)) {
+    Column(modifier.fillMaxWidth()) {
+        if (showTopDivider) {
+            Divider(
+                modifier = Modifier.padding(start = 60.dp, end = MmSpacing.screen),
+                color = MmColors.outline.copy(alpha = 0.55f),
+                thickness = 0.5.dp
+            )
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onClick)
-                .padding(vertical = MmSpacing.xs),
+                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
             MmIconBadge(
-                icon = when (account.accountType) {
-                    else -> modernTypeIcon(account.accountType)
-                },
+                icon = modernTypeIcon(account.accountType),
                 tint = tint,
                 size = 44.dp
             )

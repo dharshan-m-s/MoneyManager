@@ -2,7 +2,6 @@ package com.moneymanager.app.ui.navigation
 
 import android.content.Context
 import androidx.navigation.NavController
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.createGraph
 import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.compose.composable
@@ -128,16 +127,16 @@ class NavigationRouteTest {
     }
 
     @Test
-    fun drawerNavigationKeepsDashboardAsTheBackTarget() {
+    fun drawerNavigationPreservesTheImmediateBackTarget() {
         val nav = controller()
-        // Simulate the host's drawer contract: popUpTo(Dashboard) then push the section.
+        nav.navigate(Destination.Accounts.route)
         nav.navigate(Destination.Accounts.route) {
-            popUpTo(nav.graph.findStartDestination().id)
             launchSingleTop = true
         }
         assertEquals(Destination.Accounts.route, nav.currentDestination?.route)
+        nav.navigate(Destination.Bills.route) { launchSingleTop = true }
         nav.popBackStack()
-        assertEquals(Destination.Dashboard.route, nav.currentDestination?.route)
+        assertEquals(Destination.Accounts.route, nav.currentDestination?.route)
     }
 
     @Test

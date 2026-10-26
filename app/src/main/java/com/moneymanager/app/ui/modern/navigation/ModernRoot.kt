@@ -348,7 +348,6 @@ fun ModernRoot() {
                 onNavigate = { route ->
                     closeOverlay()
                     navController.navigate(route) {
-                        popUpTo(Destination.Dashboard.route)
                         launchSingleTop = true
                     }
                 },

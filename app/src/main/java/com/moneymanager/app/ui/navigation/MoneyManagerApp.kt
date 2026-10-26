@@ -243,11 +243,8 @@ fun MoneyManagerRoot() {
         drawerContent = {
             DrawerContent(currentRoute = currentRoute) { dest ->
                 scope.launch { drawerState.close() }
-                // NAVIGATION_TEST_MATRIX: drawer navigation resets to Dashboard + the selected
-                // section. It must never restore a nested editor stack from saved state, so no
-                // saveState/restoreState round-trip here - each section opens at its own root.
+                // Keep section history so Back returns to the immediately previous destination.
                 navController.navigate(dest.route) {
-                    popUpTo(Destination.Dashboard.route)
                     launchSingleTop = true
                 }
             }
