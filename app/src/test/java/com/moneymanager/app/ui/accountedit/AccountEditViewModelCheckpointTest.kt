@@ -6,6 +6,7 @@ import androidx.room.Room
 import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.TransactionEntity
+import com.moneymanager.app.data.repository.AccountRepository
 import com.moneymanager.app.data.repository.AccountingService
 import com.moneymanager.app.data.repository.BackupManager
 import com.moneymanager.app.domain.billing.BillSchedule
@@ -62,7 +63,8 @@ class AccountEditViewModelCheckpointTest {
             db.accountDao(),
             service,
             BackupManager(context, db, db.transactionDao(), db.accountDao(), db.categoryDao()),
-            db
+            db,
+            AccountRepository(db.accountDao(), BackupManager(context, db, db.transactionDao(), db.accountDao(), db.categoryDao()), db.transactionDao(), db.billDao(), db)
         )
     }
 

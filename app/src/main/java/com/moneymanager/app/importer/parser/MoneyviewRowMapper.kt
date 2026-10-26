@@ -39,7 +39,11 @@ data class MoneyviewTransactionCandidate(
     val notes: String?,
     val reimbursable: Boolean,
     val reimbursed: Boolean,
-    val dedupeFingerprint: String
+    val dedupeFingerprint: String,
+    /** Reporting class derived only from the explicit source columns. */
+    val classification: ImportClassification = ImportClassification.AMBIGUOUS,
+    /** Why the source columns could not yield a confident class, or null. */
+    val classificationIssue: String? = null
 )
 
 data class MoneyviewMappingProblem(
@@ -66,13 +70,24 @@ object MoneyviewRowMapper {
         val debit = Money.fromCsvString(row.debit)
             ?: return problem(row, "unparseable Debit amount: '${row.debit}'")
 
+        val txnType = TxnType.from(row.type)
+        val txnSubType = TxnSubType.from(row.subType)
+        val txnKind = TxnKind.from(row.txnType)
+        val classification = ImportClassifier.classify(
+            type = txnType,
+            subType = txnSubType,
+            kind = txnKind,
+            credit = credit,
+            debit = debit
+        )
+
         val candidate = MoneyviewTransactionCandidate(
             rowNumber = row.rowNumber,
             occurredAtEpochMillis = epochMillis,
             rawDateString = row.date,
-            txnType = TxnType.from(row.type),
-            txnSubType = TxnSubType.from(row.subType),
-            txnKind = TxnKind.from(row.txnType),
+            txnType = txnType,
+            txnSubType = txnSubType,
+            txnKind = txnKind,
             paymentType = PaymentType.from(row.paymentType),
             rawPaymentType = nullableText(row.paymentType),
             businessPersonal = BusinessPersonal.from(row.businessPersonal),
@@ -89,7 +104,9 @@ object MoneyviewRowMapper {
             notes = cleanText(row.notes),
             reimbursable = parseBoolean(row.reimbursable),
             reimbursed = parseBoolean(row.reimbursed),
-            dedupeFingerprint = "" // filled below once we know the rest
+            dedupeFingerprint = "", // filled below once we know the rest
+            classification = classification.classification,
+            classificationIssue = classification.issue
         )
 
         return MoneyviewMappingResult.Ok(

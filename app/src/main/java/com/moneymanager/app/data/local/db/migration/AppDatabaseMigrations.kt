@@ -274,6 +274,18 @@ object AppDatabaseMigrations {
     }
 
     /**
+     * Migration 12 -> 13: explicit reporting class for imported rows whose source type columns
+     * were ambiguous. Null keeps the existing derivation from subtype/kind/linkage; existing
+     * rows are untouched. The column stores a [TransactionDisplayClass] name only - it never
+     * changes the stored transaction type, amounts, or account balances.
+     */
+    val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `transactions` ADD COLUMN `reportingClassOverride` TEXT")
+        }
+    }
+
+    /**
      * Add new migrations above this line. Each migration must:
      * 1. Be backward-safe (can't drop columns used by older code)
      * 2. Preserve all existing data
@@ -291,12 +303,13 @@ object AppDatabaseMigrations {
         MIGRATION_8_9,
         MIGRATION_9_10,
         MIGRATION_10_11,
-        MIGRATION_11_12
+        MIGRATION_11_12,
+        MIGRATION_12_13
     )
 
     /**
      * Returns the latest database version. Used by DatabaseModule to set the version
      * parameter dynamically so it stays in sync with migrations.
      */
-    fun latestVersion(): Int = 12
+    fun latestVersion(): Int = 13
 }

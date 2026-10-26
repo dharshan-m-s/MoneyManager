@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
@@ -19,19 +21,19 @@ import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.moneymanager.app.ui.modern.components.pressableClick
 import com.moneymanager.app.ui.modern.theme.MmColors
 import com.moneymanager.app.ui.modern.theme.MmType
 import com.moneymanager.app.ui.navigation.Destination
@@ -52,71 +54,176 @@ internal data class AddAction(
     val description: String
 )
 
+/**
+ * The Add menu is a focused create sheet: five transaction actions, one per row, with the
+ * amount direction stated in words. It deliberately looks different from [ModernMorePopover],
+ * which is a two-column tool grid - the two surfaces should never be mistaken for each other.
+ */
+@Composable
+internal fun ModernAddActionSurface(
+    actions: List<AddAction>,
+    modifier: Modifier = Modifier,
+    title: String = "New transaction",
+    subtitle: String = "Choose how money moved",
+    onSelect: (Int) -> Unit
+) {
+    OverlayCard(modifier = modifier) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(MmColors.accentFill),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.Add,
+                        contentDescription = null,
+                        tint = MmColors.onAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Column {
+                    Text(title, style = MmType.sectionTitle, color = MmColors.textPrimary)
+                    Text(subtitle, style = MmType.caption, color = MmColors.textSecondary)
+                }
+            }
+            Spacer(Modifier.height(2.dp))
+            actions.forEachIndexed { index, action ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .pressableClick { onSelect(index) }
+                        .semantics { contentDescription = action.description }
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(action.tint.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            action.icon,
+                            contentDescription = null,
+                            tint = action.tint,
+                            modifier = Modifier.size(21.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            action.label,
+                            style = MmType.body,
+                            fontWeight = FontWeight.Medium,
+                            color = MmColors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            action.description,
+                            style = MmType.caption,
+                            color = MmColors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MmColors.textTertiary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The More menu belongs to the navigation side of the app: a compact grid of destinations that
+ * are not first-class dock tabs. Different geometry and a different header from the Add sheet.
+ */
 @Composable
 internal fun ModernMorePopover(
     modifier: Modifier = Modifier,
     onSelect: (Destination) -> Unit
 ) {
-    Surface(
-        modifier = modifier.width(356.dp),
-        shape = RoundedCornerShape(28.dp),
-        color = MmColors.surface,
-        border = BorderStroke(1.dp, MmColors.outline),
-        elevation = 8.dp
-    ) {
+    OverlayCard(modifier = modifier) {
         Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(
-                    modifier = Modifier.size(44.dp).clip(CircleShape).background(
-                        Brush.linearGradient(listOf(Color(0xFF2563EB), Color(0xFF7C3AED)))
-                    ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
-                }
-                Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
                     Text("More", style = MmType.sectionTitle, color = MmColors.textPrimary)
-                    Text("All tools in one place", style = MmType.caption, color = MmColors.textSecondary)
+                    Text(
+                        "Tools, planning and settings",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
+                    )
                 }
+                Text(
+                    "${moreDestinations.size}",
+                    style = MmType.caption,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MmColors.textTertiary
+                )
             }
-            val rows = moreDestinations.chunked(3)
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                rows.forEach { row ->
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        row.forEach { destination ->
-                            val tint = when (destination) {
-                                Destination.Bills -> Color(0xFFF59E0B)
-                                Destination.Cash -> Color(0xFF22C55E)
-                                Destination.SpendSummary -> Color(0xFF8B5CF6)
-                                Destination.Categories -> Color(0xFF06B6D4)
-                                Destination.Reimbursements -> Color(0xFF14B8A6)
-                                Destination.Settings -> Color(0xFF64748B)
-                                else -> MmColors.accent
-                            }
-                            Column(
+            moreDestinations.chunked(2).forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    row.forEach { destination ->
+                        val tint = tintFor(destination)
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MmColors.surfaceMuted)
+                                .clickable { onSelect(destination) }
+                                .semantics { contentDescription = destination.label }
+                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .clickable { onSelect(destination) }
-                                    .semantics { contentDescription = destination.label }
-                                    .padding(vertical = 8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(11.dp))
+                                    .background(tint.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = tint.copy(alpha = 0.16f)
-                                ) {
-                                    Icon(destination.icon, contentDescription = null, tint = tint, modifier = Modifier.size(48.dp).padding(12.dp))
-                                }
-                                Text(destination.label, style = MmType.caption, fontWeight = FontWeight.SemiBold, color = MmColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                                Icon(
+                                    destination.icon,
+                                    contentDescription = null,
+                                    tint = tint,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
+                            Spacer(Modifier.width(9.dp))
+                            Text(
+                                destination.label,
+                                style = MmType.caption,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MmColors.textPrimary,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
-                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
@@ -124,63 +231,28 @@ internal fun ModernMorePopover(
 }
 
 @Composable
-internal fun ModernAddActionSurface(
-    actions: List<AddAction>,
+private fun OverlayCard(
     modifier: Modifier = Modifier,
-    title: String = "Create",
-    subtitle: String = "Pick what to add",
-    onSelect: (Int) -> Unit
+    content: @Composable () -> Unit
 ) {
     Surface(
-        modifier = modifier.width(356.dp),
-        shape = RoundedCornerShape(28.dp),
+        modifier = modifier.widthIn(max = 400.dp).fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
         color = MmColors.surface,
         border = BorderStroke(1.dp, MmColors.outline),
-        elevation = 6.dp
+        elevation = 12.dp
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(
-                    modifier = Modifier.size(44.dp).clip(CircleShape).background(Brush.linearGradient(listOf(MmColors.accentFill, Color(0xFF1D4ED8)))),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
-                }
-                Column {
-                    Text(title, style = MmType.sectionTitle, color = MmColors.textPrimary)
-                    Text(subtitle, style = MmType.caption, color = MmColors.textSecondary)
-                }
-            }
-            val rows = actions.chunked(3)
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                rows.forEach { row ->
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        row.forEachIndexed { rowIndex, action ->
-                            val actionIndex = actions.indexOf(action)
-                            val idx = if (actionIndex >= 0) actionIndex else rowIndex
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .clickable { onSelect(idx) }
-                                    .semantics { contentDescription = action.description }
-                                    .padding(vertical = 8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Surface(shape = RoundedCornerShape(16.dp), color = action.tint.copy(alpha = 0.14f)) {
-                                    Icon(action.icon, contentDescription = null, tint = action.tint, modifier = Modifier.size(48.dp).padding(12.dp))
-                                }
-                                Text(action.label, style = MmType.caption, fontWeight = FontWeight.SemiBold, color = MmColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                            }
-                        }
-                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-                    }
-                }
-            }
-        }
+        content()
     }
+}
+
+@Composable
+private fun tintFor(destination: Destination): Color = when (destination) {
+    Destination.Bills -> Color(0xFFB45309)
+    Destination.Cash -> Color(0xFF047857)
+    Destination.SpendSummary -> Color(0xFF6D28D9)
+    Destination.Categories -> Color(0xFF0E7490)
+    Destination.Reimbursements -> Color(0xFF0F766E)
+    Destination.Settings -> MmColors.textSecondary
+    else -> MmColors.accent
 }

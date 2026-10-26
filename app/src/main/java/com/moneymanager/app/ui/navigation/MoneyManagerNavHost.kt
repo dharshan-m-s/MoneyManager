@@ -150,7 +150,8 @@ fun MoneyManagerNavHost(
                 onAddAccount = { go(Destination.BankSelection.route) },
                 onAccountSettings = { go(Destination.Settings.route) },
                 onEditAccount = { id -> go(Destination.AccountEdit.route(id)) },
-                onEditCreditCard = { id -> go(Destination.CreditCardForm.route(id)) }
+                onEditCreditCard = { id -> go(Destination.CreditCardForm.route(id)) },
+                showInlineAdd = false
             )
         }
         composable(Destination.Bills.route) {
@@ -220,7 +221,8 @@ fun MoneyManagerNavHost(
             AccountEditScreen(
                 accountId = accountId,
                 onBack = { safeBack() },
-                onSaved = { safeBack() }
+                onSaved = { safeBack() },
+                onDeleted = { returnToAccountsAfterDelete() }
             )
         }
 

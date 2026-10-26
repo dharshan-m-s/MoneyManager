@@ -68,7 +68,7 @@ class AccountSelectionViewModel @Inject constructor(
     val accounts: StateFlow<List<AccountEntity>> = accountDao.observeActive()
         .map { accounts ->
             accounts
-                .filter { it.accountType != AccountType.CASH && !it.deleted && !it.hide }
+                .filter { it.accountType != AccountType.UNKNOWN && !it.deleted && !it.hide }
                 .sortedWith(
                     compareBy<AccountEntity> { accountTypeOrder(it.accountType) }
                         .thenBy(String.CASE_INSENSITIVE_ORDER) { it.nickname.ifBlank { it.institutionName } }
@@ -84,8 +84,8 @@ class AccountSelectionViewModel @Inject constructor(
         AccountType.PREPAID_CARD -> 4
         AccountType.INVESTMENT -> 5
         AccountType.LOAN -> 6
-        AccountType.UNKNOWN -> 7
-        AccountType.CASH -> 8
+        AccountType.CASH -> 7
+        AccountType.UNKNOWN -> 8
     }
 }
 

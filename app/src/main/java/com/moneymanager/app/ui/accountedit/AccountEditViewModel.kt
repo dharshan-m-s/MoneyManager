@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
 import com.moneymanager.app.data.local.dao.AccountDao
 import com.moneymanager.app.data.local.db.MoneyManagerDatabase
+import com.moneymanager.app.data.repository.AccountRepository
 import com.moneymanager.app.data.repository.AccountingService
 import com.moneymanager.app.data.repository.BackupManager
 import com.moneymanager.app.domain.model.AccountType
@@ -37,7 +38,9 @@ data class AccountEditState(
     val hide: Boolean = false,
     val hideTransactions: Boolean = false,
     val saved: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val deleted: Boolean = false,
+    val deleteBlockedMessage: String? = null
 )
 
 @HiltViewModel
@@ -45,7 +48,8 @@ class AccountEditViewModel @Inject constructor(
     private val accountDao: AccountDao,
     private val accountingService: AccountingService,
     private val backupManager: BackupManager,
-    private val database: MoneyManagerDatabase
+    private val database: MoneyManagerDatabase,
+    private val accountRepository: AccountRepository
 ) : ViewModel() {
     private val _state = MutableStateFlow(AccountEditState())
     val state: StateFlow<AccountEditState> = _state
@@ -176,6 +180,27 @@ class AccountEditViewModel @Inject constructor(
                     saving = false,
                     error = "Could not save: ${e.message ?: "unknown error"}"
                 )
+            }
+        }
+    }
+
+    fun checkDelete() {
+        viewModelScope.launch {
+            val id = _state.value.accountId ?: return@launch
+            val check = accountRepository.checkDeletion(id)
+            _state.value = _state.value.copy(deleteBlockedMessage = if (!check.canDelete) check.reason else null)
+        }
+    }
+
+    fun delete() {
+        viewModelScope.launch {
+            val id = _state.value.accountId ?: return@launch
+            _state.value = _state.value.copy(saving = true, error = null)
+            val result = accountRepository.deleteAccountSafely(id)
+            result.onSuccess {
+                _state.value = _state.value.copy(saving = false, deleted = true, error = null)
+            }.onFailure { e ->
+                _state.value = _state.value.copy(saving = false, error = e.message ?: "Could not delete account")
             }
         }
     }

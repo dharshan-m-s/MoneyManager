@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
@@ -24,6 +26,7 @@ import androidx.compose.material.Surface
 import androidx.compose.material.Tab
 import androidx.compose.material.TabRow
 import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
@@ -33,6 +36,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.RequestQuote
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,6 +58,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.entity.AccountBalanceSource
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.domain.model.AccountType
+import com.moneymanager.app.domain.model.AccountTypeCatalog
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.reporting.FinancialSummary
 import com.moneymanager.app.ui.components.AccountsFab
@@ -70,7 +76,6 @@ import com.moneymanager.app.ui.theme.MMWhite
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
-import androidx.compose.foundation.lazy.itemsIndexed
 
 @Composable
 fun AccountsScreen(
@@ -82,6 +87,7 @@ fun AccountsScreen(
     onAccountSettings: () -> Unit = {},
     onEditAccount: (Long) -> Unit = {},
     onEditCreditCard: (Long) -> Unit = onEditAccount,
+    showInlineAdd: Boolean = true,
     viewModel: AccountsViewModel = hiltViewModel()
 ) {
     val accounts by viewModel.accounts.collectAsState()
@@ -125,14 +131,18 @@ fun AccountsScreen(
 
     Scaffold(
         backgroundColor = MmColors.background,
-        floatingActionButton = {
-            Box(Modifier.navigationBarsPadding()) {
-                if (tab == AccountsTab.CREDIT_CARDS) {
-                    AccountsFab(onAddAccount = onAddCreditCard)
-                } else {
-                    AccountsFab(onAddAccount = onAddAccount)
+        floatingActionButton = if (showInlineAdd) {
+            {
+                Box(Modifier.navigationBarsPadding()) {
+                    if (tab == AccountsTab.CREDIT_CARDS) {
+                        AccountsFab(onAddAccount = onAddCreditCard)
+                    } else {
+                        AccountsFab(onAddAccount = onAddAccount)
+                    }
                 }
             }
+        } else {
+            {}
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
@@ -177,7 +187,21 @@ fun AccountsScreen(
                 }
             }
 
-            if (shown.isEmpty()) {
+            if (tab == AccountsTab.ALL && !inactiveView) {
+                AllAccountTypesBrowser(
+                    accounts = accounts,
+                    onSelectType = { type ->
+                        selectedTab = AccountsTab.entries.indexOf(AccountsTab.forType(type))
+                        showInactive = false
+                    },
+                    onAddType = { type ->
+                        when (type) {
+                            AccountType.CREDIT_CARD -> onAddCreditCard()
+                            else -> onAddAccount()
+                        }
+                    }
+                )
+            } else if (shown.isEmpty() && tab != AccountsTab.ALL) {
                 val hasInactive = inactiveAccounts.isNotEmpty()
                 val emptyTitle: String
                 val emptyMessage: String
@@ -199,12 +223,23 @@ fun AccountsScreen(
                     emptyTitle = "No ${tab.label.lowercase()} yet"
                     emptyMessage = when (tab) {
                         AccountsTab.CREDIT_CARDS -> "Add a card to track outstanding, limits and billing cycles."
+                        AccountsTab.DEBIT_CARDS -> "Add a debit card to track spending from your bank account."
                         AccountsTab.LOANS -> "Add a loan to keep track of what is left to pay."
-                        AccountsTab.WALLETS -> "Add a wallet to track prepaid balances."
+                        AccountsTab.WALLETS -> "Add a wallet to track balances."
+                        AccountsTab.PREPAID_CARDS -> "Add a prepaid card to track its balance."
                         AccountsTab.BANK -> "Add a bank account to track your balance and transactions."
+                        AccountsTab.CASH -> "Add or manage your cash account."
+                        AccountsTab.INVESTMENTS -> "Add an investment account to track it here."
+                        AccountsTab.ALL -> "No accounts found for this selection."
                     }
-                    emptyActionLabel = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account"
-                    emptyAction = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                    emptyActionLabel = when (tab) {
+                        AccountsTab.CREDIT_CARDS -> "Add credit card"
+                        else -> "Add account"
+                    }
+                    emptyAction = when (tab) {
+                        AccountsTab.CREDIT_CARDS -> onAddCreditCard
+                        else -> onAddAccount
+                    }
                 }
                 MmEmptyState(
                     icon = tab.icon,
@@ -237,9 +272,14 @@ fun AccountsScreen(
 private val AccountsTab.icon: ImageVector
     get() = when (this) {
         AccountsTab.BANK -> Icons.Filled.AccountBalance
+        AccountsTab.DEBIT_CARDS -> Icons.Filled.CreditCard
         AccountsTab.CREDIT_CARDS -> Icons.Filled.CreditCard
         AccountsTab.WALLETS -> Icons.Filled.AccountBalanceWallet
+        AccountsTab.PREPAID_CARDS -> Icons.Filled.CreditCard
+        AccountsTab.CASH -> Icons.Filled.Payments
+        AccountsTab.INVESTMENTS -> Icons.Filled.AccountBalance
         AccountsTab.LOANS -> Icons.Filled.RequestQuote
+        AccountsTab.ALL -> Icons.Filled.AccountBalance
     }
 
 @Composable
@@ -333,25 +373,25 @@ private fun AccountsHeader(
 
 @Composable
 private fun AccountsTabs(selected: Int, onSelect: (Int) -> Unit) {
-    TabRow(
-        selectedTabIndex = selected,
-        backgroundColor = MmColors.surface,
-        contentColor = MmColors.accent
-    ) {
-        AccountsTab.entries.forEachIndexed { index, tab ->
-            Tab(
-                selected = selected == index,
-                onClick = { onSelect(index) },
-                text = {
-                    Text(
-                        tab.label,
-                        fontSize = 11.sp,
-                        fontWeight = if (selected == index) FontWeight.SemiBold else FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            )
+    val primary = AccountsTab.primary
+    val allIndex = AccountsTab.entries.indexOf(AccountsTab.ALL)
+    val currentIndex = selected.coerceIn(0, AccountsTab.entries.size - 1)
+    val isAll = currentIndex == allIndex
+    Column(Modifier.fillMaxWidth().background(MmColors.surface).padding(horizontal = MmSpacing.sm)) {
+        TabRow(
+            selectedTabIndex = primary.indexOfFirst { AccountsTab.entries.indexOf(it) == currentIndex }.coerceAtLeast(0),
+            backgroundColor = MmColors.surface,
+            contentColor = MmColors.accent
+        ) {
+            primary.forEach { tab ->
+                val actualIndex = AccountsTab.entries.indexOf(tab)
+                Tab(selected = selected == actualIndex, onClick = { onSelect(actualIndex) }, text = {
+                    Text(tab.label, fontSize = 12.sp, fontWeight = if (selected == actualIndex) FontWeight.SemiBold else FontWeight.Normal, maxLines = 2)
+                })
+            }
+        }
+        TextButton(onClick = { onSelect(allIndex) }, modifier = Modifier.fillMaxWidth()) {
+            Text(if (isAll) "All account types · selected" else if (currentIndex != allIndex && primary.none { AccountsTab.entries.indexOf(it) == currentIndex }) "${AccountsTab.entries[currentIndex].label} · Browse all account types" else "Browse all account types", fontSize = 14.sp)
         }
     }
 }
@@ -379,13 +419,10 @@ private fun AccountCard(
         else -> "Estimated balance"
     }
 
-    MmCard(
-        modifier = modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
-        onClick = onClick
-    ) {
+    Column(modifier.fillMaxWidth().background(MmColors.surface).padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MmIconBadge(
-                icon = if (isCreditCard) Icons.Filled.CreditCard else Icons.Filled.AccountBalance,
+                icon = typeIcon(account.accountType),
                 tint = MmColors.accent,
                 size = 44.dp
             )
@@ -440,4 +477,64 @@ private fun AccountCard(
             }
         }
     }
+}
+
+@Composable
+private fun AllAccountTypesBrowser(
+    accounts: List<AccountEntity>,
+    onSelectType: (AccountType) -> Unit,
+    onAddType: (AccountType) -> Unit
+) {
+    LazyColumn(
+        contentPadding = PaddingValues(horizontal = MmSpacing.lg, vertical = MmSpacing.sm),
+        verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+    ) {
+        items(AccountTypeCatalog.all) { info ->
+            val type = info.type
+            val list = accounts.filter { it.accountType == type && !it.deleted && !it.hide }
+            val count = list.size
+            val total = list.filter { FinancialSummary.isIncluded(it) }.sumOf { account ->
+                if (type == AccountType.CREDIT_CARD) account.outstandingMinorUnits ?: 0L else account.currentBalanceMinorUnits
+            }
+            MmCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(MmSpacing.md)) {
+                  Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)
+                  ) {
+                    MmIconBadge(
+                        icon = typeIcon(type),
+                        tint = MmColors.accent,
+                        size = 44.dp
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(info.pluralLabel, style = MmType.body, fontWeight = FontWeight.SemiBold, color = MmColors.textPrimary)
+                        Text(
+                            "$count ${if (count == 1) "account" else "accounts"} · ${MoneyFormat.rupeesNoDecimals(Money(total))}",
+                            style = MmType.caption,
+                            color = MmColors.textSecondary
+                        )
+                    }
+                    androidx.compose.material.TextButton(onClick = { onSelectType(type) }) { Text("View") }
+                  }
+                  androidx.compose.material.TextButton(onClick = { onAddType(type) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Add ${info.singularLabel}")
+                  }
+                }
+            }
+        }
+    }
+}
+
+private fun typeIcon(type: AccountType): ImageVector = when (type) {
+    AccountType.BANK -> Icons.Filled.AccountBalance
+    AccountType.DEBIT_CARD -> Icons.Filled.CreditCard
+    AccountType.CREDIT_CARD -> Icons.Filled.CreditCard
+    AccountType.WALLET -> Icons.Filled.AccountBalanceWallet
+    AccountType.PREPAID_CARD -> Icons.Filled.CreditCard
+    AccountType.CASH -> Icons.Filled.Payments
+    AccountType.INVESTMENT -> Icons.Filled.AccountBalance
+    AccountType.LOAN -> Icons.Filled.RequestQuote
+    AccountType.UNKNOWN -> Icons.Filled.AccountBalance
 }

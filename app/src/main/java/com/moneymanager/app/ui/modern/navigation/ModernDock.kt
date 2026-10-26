@@ -1,7 +1,11 @@
 package com.moneymanager.app.ui.modern.navigation
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,11 +36,17 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.moneymanager.app.ui.modern.components.pressableClick
 import com.moneymanager.app.ui.modern.theme.MmColors
+import com.moneymanager.app.ui.modern.theme.MmType
 import com.moneymanager.app.ui.modern.theme.MmSpacing
 import com.moneymanager.app.ui.navigation.Destination
+
+/** Which floating menu, if any, is open above the dock. Exactly one can be open at a time. */
+internal enum class DockOverlay { NONE, ADD, MORE }
 
 internal enum class DockTab(
     val label: String,
@@ -45,95 +54,84 @@ internal enum class DockTab(
     val route: String?
 ) {
     HOME("Home", Icons.Filled.Home, Destination.Dashboard.route),
-    TRANSACTIONS("Transactions", Icons.AutoMirrored.Filled.ReceiptLong, Destination.Transactions.route),
+    TRANSACTIONS("Activity", Icons.AutoMirrored.Filled.ReceiptLong, Destination.Transactions.route),
     ACCOUNTS("Accounts", Icons.Filled.AccountBalance, Destination.Accounts.route),
     MORE("More", Icons.Filled.GridView, null)
 }
 
+/**
+ * One continuous floating navigation pill with the prominent Add control centered above it.
+ */
 @Composable
 internal fun ModernDock(
     currentRoute: String,
-    fabExpanded: Boolean,
-    onToggleFab: () -> Unit,
+    overlay: DockOverlay,
     onNavigate: (String) -> Unit,
-    onOpenMore: () -> Unit,
+    onToggleAdd: () -> Unit,
+    onToggleMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val selected = DockTab.entries.firstOrNull { it.route == currentRoute }
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = MmSpacing.lg)
-            .padding(bottom = 0.dp)
             .navigationBarsPadding()
-            .padding(bottom = MmSpacing.sm),
+            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm),
         contentAlignment = Alignment.BottomCenter
     ) {
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(68.dp),
+            modifier = Modifier.fillMaxWidth().height(68.dp),
             shape = RoundedCornerShape(34.dp),
             color = MmColors.surface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MmColors.outline),
-            elevation = 0.dp
+            border = BorderStroke(1.dp, MmColors.outline),
+            elevation = 6.dp
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                DockItem(DockTab.HOME, selected == DockTab.HOME, Modifier.weight(1f)) {
-                    onNavigate(DockTab.HOME.route!!)
-                }
-                DockItem(DockTab.TRANSACTIONS, selected == DockTab.TRANSACTIONS, Modifier.weight(1f)) {
-                    onNavigate(DockTab.TRANSACTIONS.route!!)
-                }
-                // Space for center button
-                Box(Modifier.weight(0.8f))
-                DockItem(DockTab.ACCOUNTS, selected == DockTab.ACCOUNTS, Modifier.weight(1f)) {
-                    onNavigate(DockTab.ACCOUNTS.route!!)
-                }
-                DockItem(DockTab.MORE, selected = false, Modifier.weight(1f)) { onOpenMore() }
-            }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            DockItem(DockTab.HOME, currentRoute == DockTab.HOME.route && overlay == DockOverlay.NONE, Modifier.weight(1f)) { onNavigate(DockTab.HOME.route!!) }
+            DockItem(DockTab.TRANSACTIONS, currentRoute == DockTab.TRANSACTIONS.route && overlay == DockOverlay.NONE, Modifier.weight(1f)) { onNavigate(DockTab.TRANSACTIONS.route!!) }
+            Box(Modifier.weight(0.8f))
+            DockItem(DockTab.ACCOUNTS, currentRoute == DockTab.ACCOUNTS.route && overlay == DockOverlay.NONE, Modifier.weight(1f)) { onNavigate(DockTab.ACCOUNTS.route!!) }
+            DockItem(DockTab.MORE, overlay == DockOverlay.MORE, Modifier.weight(1f), onToggleMore)
         }
+    }
 
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = (-20).dp),
-            contentAlignment = Alignment.Center
-        ) {
-            val rotation by animateFloatAsState(
-                targetValue = if (fabExpanded) 45f else 0f,
-                animationSpec = tween(200),
-                label = "dockAdd"
-            )
-            Surface(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = onToggleFab)
-                    .semantics {
-                        contentDescription = if (fabExpanded) "Close add menu" else "Add transaction"
-                    },
-                shape = CircleShape,
-                color = MmColors.accentFill,
-                border = androidx.compose.foundation.BorderStroke(2.dp, MmColors.onAccent.copy(alpha = 0.15f)),
-                elevation = 0.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Filled.Add,
-                        contentDescription = null,
-                        tint = MmColors.onAccent,
-                        modifier = Modifier
-                            .size(26.dp)
-                            .graphicsLayer { rotationZ = rotation }
-                    )
-                }
-            }
+        Box(Modifier.align(Alignment.TopCenter).offset(y = (-20).dp), contentAlignment = Alignment.Center) {
+            AddOrb(expanded = overlay == DockOverlay.ADD, onClick = onToggleAdd)
         }
+    }
+}
+
+@Composable
+private fun AddOrb(
+    expanded: Boolean,
+    onClick: () -> Unit
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 45f else 0f,
+        animationSpec = tween(180),
+        label = "dockAdd"
+    )
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .clip(CircleShape)
+            .background(MmColors.accentFill)
+            .clickable(onClick = onClick)
+            .semantics {
+                contentDescription = if (expanded) "Close add menu" else "Add transaction"
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            Icons.Filled.Add,
+            contentDescription = null,
+            tint = MmColors.onAccent,
+            modifier = Modifier
+                .size(27.dp)
+                .graphicsLayer { rotationZ = rotation }
+        )
     }
 }
 
@@ -144,22 +142,35 @@ private fun DockItem(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val tint = if (selected) MmColors.accent else MmColors.textTertiary
+    val tint by animateColorAsState(
+        targetValue = if (selected) MmColors.accent else MmColors.textTertiary,
+        animationSpec = tween(160),
+        label = "dockTint"
+    )
+    val background by animateColorAsState(
+        targetValue = if (selected) MmColors.accent.copy(alpha = 0.11f) else MmColors.surface.copy(alpha = 0f),
+        animationSpec = tween(160),
+        label = "dockBackground"
+    )
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .padding(horizontal = 3.dp, vertical = 5.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(background)
+            .pressableClick(onClick = onClick)
             .semantics {
                 contentDescription = if (selected) "${tab.label}, selected" else tab.label
-            },
+            }
+            .padding(vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(tab.icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        Icon(tab.icon, contentDescription = null, tint = tint, modifier = Modifier.size(21.dp))
         Text(
             tab.label,
             color = tint,
-            style = com.moneymanager.app.ui.modern.theme.MmType.caption,
+            style = MmType.caption,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

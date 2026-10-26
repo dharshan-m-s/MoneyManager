@@ -11,6 +11,7 @@ import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.BillEntity
 import com.moneymanager.app.data.local.entity.BillerType
 import com.moneymanager.app.data.local.entity.BillingCycle
+import com.moneymanager.app.data.repository.AccountRepository
 import com.moneymanager.app.data.repository.AccountingService
 import com.moneymanager.app.data.repository.BackupManager
 import com.moneymanager.app.data.repository.CreditCardBillingService
@@ -78,7 +79,8 @@ data class CreditCardFormState(
     val saving: Boolean = false,
     val saved: Boolean = false,
     val deleted: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val deleteBlockedMessage: String? = null
 ) {
     val maskedNumber: String
         get() {
@@ -105,6 +107,7 @@ class CreditCardFormViewModel @Inject constructor(
     private val creditCardStatementService: CreditCardStatementService,
     private val creditCardBillingService: CreditCardBillingService,
     private val backupManager: BackupManager,
+    private val accountRepository: AccountRepository,
     private val database: MoneyManagerDatabase
 ) : ViewModel() {
 
@@ -146,50 +149,39 @@ class CreditCardFormViewModel @Inject constructor(
                 hideAccount = account.hide,
                 isBusiness = account.businessPersonal == BusinessPersonal.BUSINESS
             )
+            recomputeDeleteBlockedMessage()
         }
     }
 
     fun onField(update: CreditCardFormState.() -> CreditCardFormState) {
-        val previous = _ui.value
-        val next = previous.update()
-        _ui.value = next.copy(
-            billerNameError = next.billerNameError.takeIf { next.billerName == previous.billerName },
-            cardNumberError = next.cardNumberError.takeIf { next.cardNumber == previous.cardNumber },
-            outstandingError = next.outstandingError.takeIf { next.outstanding == previous.outstanding },
-            creditLimitError = next.creditLimitError.takeIf { next.creditLimit == previous.creditLimit },
-            billAmountError = next.billAmountError.takeIf { next.billAmount == previous.billAmount },
-            error = null
-        )
-    }
-
-    /**
-     * The billing cycle decides when the statement closes and therefore when the bill falls
-     * due. Moving the cycle start moves the due date with it - unless the user has picked a
-     * due date of their own, which always wins.
-     */
-    fun onBillingCycleStartDayChange(day: Int) = onField {
-        val next = copy(billingCycleStartDay = day, billingCycleSet = true)
-        if (next.dueDateEdited) {
-            next
-        } else {
-            next.copy(
-                dueDateEpochMillis = CreditCardStatement.defaultDueDate(
-                    day,
-                    System.currentTimeMillis()
-                )
+        _ui.value = _ui.value.update().also { state ->
+            _ui.value = state.copy(
+                billerNameError = state.billerNameError?.takeIf { state.billerName == _ui.value.billerName },
+                cardNumberError = state.cardNumberError?.takeIf { state.cardNumber == _ui.value.cardNumber },
+                outstandingError = state.outstandingError?.takeIf { state.outstanding == _ui.value.outstanding },
+                creditLimitError = state.creditLimitError?.takeIf { state.creditLimit == _ui.value.creditLimit },
+                billAmountError = state.billAmountError?.takeIf { state.billAmount == _ui.value.billAmount },
+                deleteBlockedMessage = null,
+                error = null
             )
         }
     }
 
-    fun onDueDateChange(epochMillis: Long) {
-        onField { copy(dueDateEpochMillis = epochMillis, dueDateEdited = true) }
+    fun onBillingCycleStartDayChange(day: Int) = onField {
+        val next = copy(billingCycleStartDay = day, billingCycleSet = true)
+        if (next.dueDateEdited) next
+        else next.copy(
+            dueDateEpochMillis = CreditCardStatement.defaultDueDate(
+                day,
+                System.currentTimeMillis()
+            )
+        )
     }
 
+    fun onDueDateChange(epochMillis: Long) = onField { copy(dueDateEpochMillis = epochMillis, dueDateEdited = true) }
     fun onBillAmountChange(raw: String) = onField { copy(billAmount = sanitiseAmount(raw), estimateEdited = true) }
-    fun onOutstandingChange(raw: String) =
-        onField { copy(outstanding = sanitiseAmount(raw), outstandingEdited = true) }
-    fun onCreditLimitChange(raw: String) =
-        onField { copy(creditLimit = sanitiseAmount(raw), creditLimitEdited = true) }
+    fun onOutstandingChange(raw: String) = onField { copy(outstanding = sanitiseAmount(raw), outstandingEdited = true) }
+    fun onCreditLimitChange(raw: String) = onField { copy(creditLimit = sanitiseAmount(raw), creditLimitEdited = true) }
 
     private fun sanitiseAmount(raw: String): String {
         val cleaned = raw.filter { it.isDigit() || it == '.' }.replace(",", "")
@@ -197,11 +189,20 @@ class CreditCardFormViewModel @Inject constructor(
         return if (parts.size <= 1) parts[0].take(12) else parts[0].take(12) + "." + parts[1].take(2)
     }
 
-    private fun plain(money: Money): String =
-        money.toBigDecimal().stripTrailingZeros().toPlainString()
+    private fun plain(money: Money): String = money.toBigDecimal().stripTrailingZeros().toPlainString()
 
-    private fun parseAmount(value: String): Long? =
-        runCatching { Money.fromRupees(BigDecimal(value.trim())).minorUnits }.getOrNull()
+    private fun parseAmount(value: String): Long? = runCatching { Money.fromRupees(BigDecimal(value.trim())).minorUnits }.getOrNull()
+
+    private fun recomputeDeleteBlockedMessage() {
+        val id = _ui.value.editingAccountId ?: return
+        viewModelScope.launch {
+            _ui.value = _ui.value.copy(
+                deleteBlockedMessage = accountRepository.checkDeletion(id).let { check ->
+                    if (check.canDelete) null else check.reason?.ifBlank { null }
+                }
+            )
+        }
+    }
 
     fun save() {
         val s = _ui.value
@@ -244,16 +245,11 @@ class CreditCardFormViewModel @Inject constructor(
                         return@launch
                     }
                     cardId = existing.id
-                    val derivedOutstanding = accountingService
-                        .derivedBalancesFor(existing).baseOutstandingMinorUnits
-                    val effectiveOutstanding = if (s.outstandingEdited) outstanding
-                        else existing.outstandingMinorUnits ?: derivedOutstanding
+                    val derivedOutstanding = accountingService.derivedBalancesFor(existing).baseOutstandingMinorUnits
+                    val effectiveOutstanding = if (s.outstandingEdited) outstanding else existing.outstandingMinorUnits ?: derivedOutstanding
                     val adjustment = if (s.outstandingEdited) {
-                        com.moneymanager.app.domain.accounting.AccountingEngine
-                            .checkpointAdjustment(outstanding, derivedOutstanding)
+                        com.moneymanager.app.domain.accounting.AccountingEngine.checkpointAdjustment(outstanding, derivedOutstanding)
                     } else existing.outstandingAdjustmentMinorUnits
-                    // Account write + recalc commit together so a crash can never leave the
-                    // checkpoint stored with a stale derived balance.
                     database.withTransaction {
                         accountDao.update(
                             existing.copy(
@@ -261,18 +257,11 @@ class CreditCardFormViewModel @Inject constructor(
                                 sourceAccountId = s.cardNumber.trim(),
                                 nickname = s.nickname.ifBlank { s.billerName.trim() },
                                 outstandingMinorUnits = effectiveOutstanding,
-                                // Durable user reconciliation: survives any later full
-                                // recalculation/restart while purchases and payments still move it.
-                                outstandingCheckpointMinorUnits = if (s.outstandingEdited) outstanding
-                                    else existing.outstandingCheckpointMinorUnits,
-                                outstandingCheckpointAtEpochMillis = if (s.outstandingEdited) now
-                                    else existing.outstandingCheckpointAtEpochMillis,
+                                outstandingCheckpointMinorUnits = if (s.outstandingEdited) outstanding else existing.outstandingCheckpointMinorUnits,
+                                outstandingCheckpointAtEpochMillis = if (s.outstandingEdited) now else existing.outstandingCheckpointAtEpochMillis,
                                 outstandingAdjustmentMinorUnits = adjustment,
                                 creditLimitMinorUnits = limit,
-                                // A user-typed limit is stored as a durable override so the
-                                // engine cannot re-derive it away on the next recalculation.
-                                creditLimitOverrideMinorUnits = if (s.creditLimitEdited) limit
-                                    else existing.creditLimitOverrideMinorUnits,
+                                creditLimitOverrideMinorUnits = if (s.creditLimitEdited) limit else existing.creditLimitOverrideMinorUnits,
                                 availableLimitMinorUnits = limit?.let { it - effectiveOutstanding } ?: available,
                                 billingCycleStartDay = s.billingCycleStartDay,
                                 dueDate = s.dueDateEpochMillis ?: existing.dueDate,
@@ -307,8 +296,6 @@ class CreditCardFormViewModel @Inject constructor(
                                 outstandingMinorUnits = outstanding,
                                 outstandingCheckpointMinorUnits = outstanding,
                                 outstandingCheckpointAtEpochMillis = now,
-                                // The card starts with no ledger; the entered value is the full
-                                // base and future movements apply on top of it.
                                 outstandingAdjustmentMinorUnits = outstanding,
                                 creditLimitMinorUnits = limit,
                                 creditLimitOverrideMinorUnits = limit,
@@ -322,14 +309,10 @@ class CreditCardFormViewModel @Inject constructor(
                                 updatedAtEpochMillis = now
                             )
                         )
-                        // Recompute from the canonical engine so the durable checkpoint and the
-                        // available limit are consistent with any ledger rows that already exist.
                         accountingService.recalculateAccounts(setOf(cardId))
                     }
                 }
 
-                // Bill upsert + first-occurrence materialization run after the account change is
-                // committed; both are individually transactional and idempotent.
                 val billId = upsertLinkedBill(
                     cardId = cardId,
                     billerName = s.billerName.trim(),
@@ -345,10 +328,7 @@ class CreditCardFormViewModel @Inject constructor(
                     autoGenerateBills = s.autoGenerateBills,
                     now = now
                 )
-                // Materialize the first occurrence and any occurrence inside the lead window.
                 billId?.let { billRecurrenceService.reconcileAfterEdit(it, now) }
-                // The card's current statement and its bill's occurrences are computed from
-                // the card's own transactions - refresh them from that single source.
                 creditCardBillingService.refreshCard(cardId, now)
 
                 _ui.value = _ui.value.copy(saving = false, saved = true)
@@ -363,13 +343,6 @@ class CreditCardFormViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Keeps exactly one linked credit-card biller in sync with this card.
-     *
-     * Never fabricates a due date: when the user has not supplied one there is no correct
-     * payment date to invent, so no new bill/occurrence is created. Editing an existing card
-     * preserves its paid history; only future unpaid occurrences are reconciled.
-     */
     private suspend fun upsertLinkedBill(
         cardId: Long,
         billerName: String,
@@ -390,8 +363,6 @@ class CreditCardFormViewModel @Inject constructor(
 
         if (existing == null) {
             val due = dueEpoch ?: return null
-            // Without a typed estimate the bill starts from what the card owes today - the
-            // statement of the cycle that is running right now.
             val amount = estimate ?: accountDao.findById(cardId)?.let {
                 creditCardStatementService.currentStatementMinorUnits(it)
             } ?: 0L
@@ -417,8 +388,6 @@ class CreditCardFormViewModel @Inject constructor(
         }
 
         val nextDue = dueEpoch ?: existing.nextDueDateEpochMillis
-        // Keep the existing anchor when the date was merely loaded (a 31st bill can be
-        // materialized on 28 Feb). Only a deliberate date change resets the anchor.
         val anchor = if (dueDateWasEdited) {
             BillSchedule.anchorDay(nextDue, null)
         } else {
@@ -431,11 +400,7 @@ class CreditCardFormViewModel @Inject constructor(
                 nickname = nickname,
                 nextDueDateEpochMillis = nextDue,
                 scheduleAnchorDay = anchor,
-                // The estimate is only a fallback for a cycle that has not closed yet. A card
-                // bill's real amounts come from the card's statement, so this value is kept
-                // exactly as the user left it.
-                estimatedAmountMinorUnits = if (estimateWasEdited) estimate ?: 0L
-                    else existing.estimatedAmountMinorUnits,
+                estimatedAmountMinorUnits = if (estimateWasEdited) estimate ?: 0L else existing.estimatedAmountMinorUnits,
                 autoPay = autoPay,
                 businessPersonal = business,
                 active = active,

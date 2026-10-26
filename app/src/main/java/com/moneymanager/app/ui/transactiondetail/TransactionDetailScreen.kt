@@ -114,12 +114,9 @@ fun TransactionDetailScreen(
                 )
                 else -> {
                     val amount = Money(txn.creditMinorUnits - txn.debitMinorUnits)
-                    val isTransfer = txn.txnSubType == TxnSubType.TRANSFER_IN ||
-                        txn.txnSubType == TxnSubType.TRANSFER_OUT
-                    val isIncome = amount.isNegative.not()
-                    // A card refund is money in, but it cancels an earlier charge - it is not
-                    // income, so it gets its own label and tint instead of the income green.
-                    val isRefund = txn.txnKind == TxnKind.REFUND_REVERSAL
+                    val displayClass = com.moneymanager.app.domain.reporting.TransactionDisplayClassifier.classify(txn)
+                    val isTransfer = displayClass == com.moneymanager.app.domain.reporting.TransactionDisplayClass.TRANSFER
+                    val isRefund = displayClass == com.moneymanager.app.domain.reporting.TransactionDisplayClass.REFUND
                     val title = txn.merchantReceiverSender?.takeIf { it.isNotBlank() }
                         ?: txn.rawCategoryName?.takeIf { it.isNotBlank() }
                         ?: "Transaction"
@@ -141,23 +138,20 @@ fun TransactionDetailScreen(
                             categoryName = categoryName,
                             whenText = whenText,
                             amount = amount,
-                            amountColor = when {
-                                isTransfer -> MmColors.textPrimary
-                                isRefund -> MmColors.accent
-                                isIncome -> MmColors.income
-                                else -> MmColors.expense
+                            amountColor = when (displayClass) {
+                                com.moneymanager.app.domain.reporting.TransactionDisplayClass.TRANSFER -> MmColors.transfer
+                                com.moneymanager.app.domain.reporting.TransactionDisplayClass.NOT_A_SPEND -> MmColors.textPrimary
+                                com.moneymanager.app.domain.reporting.TransactionDisplayClass.REFUND -> MmColors.accent
+                                com.moneymanager.app.domain.reporting.TransactionDisplayClass.INCOME -> MmColors.income
+                                com.moneymanager.app.domain.reporting.TransactionDisplayClass.EXPENSE -> MmColors.expense
                             },
-                            statusLabel = when {
-                                isTransfer -> "Transfer"
-                                isRefund -> "Refund"
-                                isIncome -> "Income"
-                                else -> "Expense"
-                            },
-                            statusTint = when {
-                                isTransfer -> MmColors.accent
-                                isRefund -> MmColors.accent
-                                isIncome -> MmColors.income
-                                else -> MmColors.expense
+                            statusLabel = displayClass.label,
+                            statusTint = when (displayClass) {
+                                com.moneymanager.app.domain.reporting.TransactionDisplayClass.TRANSFER -> MmColors.transfer
+                                com.moneymanager.app.domain.reporting.TransactionDisplayClass.NOT_A_SPEND -> MmColors.textSecondary
+                                com.moneymanager.app.domain.reporting.TransactionDisplayClass.REFUND -> MmColors.accent
+                                com.moneymanager.app.domain.reporting.TransactionDisplayClass.INCOME -> MmColors.income
+                                com.moneymanager.app.domain.reporting.TransactionDisplayClass.EXPENSE -> MmColors.expense
                             },
                             categoryVisual = state.category,
                             fallbackIcon = categoryIcon(categoryName ?: title, state.category?.iconKey.orEmpty()),

@@ -31,8 +31,8 @@ import androidx.compose.ui.unit.sp
 import com.moneymanager.app.data.local.entity.CategoryEntity
 import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.model.Money
-import com.moneymanager.app.domain.model.TxnKind
-import com.moneymanager.app.domain.model.TxnSubType
+import com.moneymanager.app.domain.reporting.TransactionDisplayClass
+import com.moneymanager.app.domain.reporting.TransactionDisplayClassifier
 import com.moneymanager.app.ui.modern.screens.categories.categoryIcon
 import com.moneymanager.app.ui.modern.theme.MmColors
 import com.moneymanager.app.ui.modern.theme.MmSpacing
@@ -101,9 +101,11 @@ fun MmTransactionRow(
     groupPosition: MmGroupPosition? = null
 ) {
     val amount = mmSignedAmount(txn)
-    val isTransfer = txn.txnSubType == TxnSubType.TRANSFER_IN || txn.txnSubType == TxnSubType.TRANSFER_OUT
+    val displayClass = TransactionDisplayClassifier.classify(txn)
+    val isTransfer = displayClass == TransactionDisplayClass.TRANSFER
     // A card refund is money in, but it cancels card debt rather than earning income.
-    val isRefund = txn.txnKind == TxnKind.REFUND_REVERSAL
+    val isRefund = displayClass == TransactionDisplayClass.REFUND
+    val isNotSpend = displayClass == TransactionDisplayClass.NOT_A_SPEND
     val title = mmDisplayTitle(txn)
     val tint = category?.let { mmCategoryTint(it.name) } ?: mmCategoryTint(txn.rawCategoryName ?: title)
     val icon = when {
@@ -116,15 +118,16 @@ fun MmTransactionRow(
         leading = { MmIconBadge(icon = icon, tint = tint, size = 44.dp) },
         amountText = when {
             hideAmounts -> "••••"
-            isTransfer -> MoneyFormat.rupeesNoDecimals(amount.abs())
+            isTransfer || isNotSpend -> MoneyFormat.rupeesNoDecimals(amount.abs())
             amount.isNegative -> "−" + MoneyFormat.rupeesNoDecimals(amount.abs())
             else -> "+" + MoneyFormat.rupeesNoDecimals(amount.abs())
         },
-        amountColor = when {
-            isTransfer -> MmColors.textPrimary
-            amount.isNegative -> MmColors.expense
-            isRefund -> MmColors.accent
-            else -> MmColors.income
+        amountColor = when (displayClass) {
+            TransactionDisplayClass.TRANSFER -> MmColors.transfer
+            TransactionDisplayClass.NOT_A_SPEND -> MmColors.notSpend
+            TransactionDisplayClass.REFUND -> MmColors.accent
+            TransactionDisplayClass.EXPENSE -> MmColors.expense
+            TransactionDisplayClass.INCOME -> MmColors.income
         },
         showRefundGlyph = isRefund && !hideAmounts,
         onClick = onClick,

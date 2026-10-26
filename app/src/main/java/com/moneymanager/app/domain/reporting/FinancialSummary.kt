@@ -105,6 +105,14 @@ object FinancialSummary {
     fun isSpendRow(transaction: TransactionEntity, accounts: Map<Long, AccountEntity>): Boolean {
         if (!transaction.includeInStatistics) return false
         if (!accountIncludedForStats(transaction, accounts)) return false
+        when (overrideClass(transaction)) {
+            TransactionDisplayClass.EXPENSE,
+            TransactionDisplayClass.REFUND -> return true
+            TransactionDisplayClass.INCOME,
+            TransactionDisplayClass.NOT_A_SPEND,
+            TransactionDisplayClass.TRANSFER -> return false
+            null -> Unit
+        }
         return when (semanticsOf(transaction, accounts)) {
             TransactionSemantics.EXPENSE,
             TransactionSemantics.CARD_PURCHASE,
@@ -116,8 +124,19 @@ object FinancialSummary {
     fun isIncomeRow(transaction: TransactionEntity, accounts: Map<Long, AccountEntity>): Boolean {
         if (!transaction.includeInStatistics) return false
         if (!accountIncludedForStats(transaction, accounts)) return false
+        when (overrideClass(transaction)) {
+            TransactionDisplayClass.INCOME -> return true
+            TransactionDisplayClass.EXPENSE,
+            TransactionDisplayClass.REFUND,
+            TransactionDisplayClass.NOT_A_SPEND,
+            TransactionDisplayClass.TRANSFER -> return false
+            null -> Unit
+        }
         return semanticsOf(transaction, accounts) == TransactionSemantics.INCOME
     }
+
+    private fun overrideClass(transaction: TransactionEntity): TransactionDisplayClass? =
+        TransactionDisplayClassifier.parseOverride(transaction.reportingClassOverride)
 
     /** Signed contribution to the spending total: purchases add, refunds/reversals subtract. */
     fun spendAmountMinor(transaction: TransactionEntity): Long =

@@ -1,6 +1,7 @@
 package com.moneymanager.app.ui.modern.screens.transactiondetail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,8 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
-import com.moneymanager.app.domain.model.TxnKind
-import com.moneymanager.app.domain.model.TxnSubType
+import com.moneymanager.app.domain.reporting.TransactionDisplayClass
+import com.moneymanager.app.domain.reporting.TransactionDisplayClassifier
 import com.moneymanager.app.ui.modern.screens.categories.CategoryVisual
 import com.moneymanager.app.ui.modern.screens.categories.categoryIcon
 import com.moneymanager.app.ui.modern.components.MmTopBarAction
@@ -115,12 +116,9 @@ fun TransactionDetailScreen(
                 )
                 else -> {
                     val amount = Money(txn.creditMinorUnits - txn.debitMinorUnits)
-                    val isTransfer = txn.txnSubType == TxnSubType.TRANSFER_IN ||
-                        txn.txnSubType == TxnSubType.TRANSFER_OUT
-                    val isIncome = amount.isNegative.not()
-                    // A card refund is money in, but it cancels an earlier charge - it is not
-                    // income, so it gets its own label and tint instead of the income green.
-                    val isRefund = txn.txnKind == TxnKind.REFUND_REVERSAL
+                    val displayClass = TransactionDisplayClassifier.classify(txn)
+                    val isTransfer = displayClass == TransactionDisplayClass.TRANSFER
+                    val isRefund = displayClass == TransactionDisplayClass.REFUND
                     val title = txn.merchantReceiverSender?.takeIf { it.isNotBlank() }
                         ?: txn.rawCategoryName?.takeIf { it.isNotBlank() }
                         ?: "Transaction"
@@ -142,42 +140,50 @@ fun TransactionDetailScreen(
                             categoryName = categoryName,
                             whenText = whenText,
                             amount = amount,
-                            amountColor = when {
-                                isTransfer -> MmColors.textPrimary
-                                isRefund -> MmColors.accent
-                                isIncome -> MmColors.income
-                                else -> MmColors.expense
+                            amountColor = when (displayClass) {
+                                TransactionDisplayClass.TRANSFER -> MmColors.transfer
+                                TransactionDisplayClass.NOT_A_SPEND -> MmColors.notSpend
+                                TransactionDisplayClass.REFUND -> MmColors.accent
+                                TransactionDisplayClass.INCOME -> MmColors.income
+                                TransactionDisplayClass.EXPENSE -> MmColors.expense
                             },
-                            statusLabel = when {
-                                isTransfer -> "Transfer"
-                                isRefund -> "Refund"
-                                isIncome -> "Income"
-                                else -> "Expense"
-                            },
-                            statusTint = when {
-                                isTransfer -> MmColors.accent
-                                isRefund -> MmColors.accent
-                                isIncome -> MmColors.income
-                                else -> MmColors.expense
+                            statusLabel = displayClass.label,
+                            statusTint = when (displayClass) {
+                                TransactionDisplayClass.TRANSFER -> MmColors.transfer
+                                TransactionDisplayClass.NOT_A_SPEND -> MmColors.textSecondary
+                                TransactionDisplayClass.REFUND -> MmColors.accent
+                                TransactionDisplayClass.INCOME -> MmColors.income
+                                TransactionDisplayClass.EXPENSE -> MmColors.expense
                             },
                             categoryVisual = state.category,
                             fallbackIcon = categoryIcon(categoryName ?: title, state.category?.iconKey.orEmpty()),
                             tint = tint
                         )
 
-                        if (txn.reimbursable) {
+                        val showStatusPills = txn.reimbursable ||
+                            displayClass == TransactionDisplayClass.NOT_A_SPEND ||
+                            displayClass == TransactionDisplayClass.TRANSFER
+                        if (showStatusPills) {
                             Row(
-                                Modifier.padding(horizontal = MmSpacing.screen),
+                                Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(horizontal = MmSpacing.screen),
                                 horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                MmPill(
-                                    if (txn.reimbursed) "Reimbursed" else "Awaiting reimbursement",
-                                    tint = if (txn.reimbursed) MmColors.income else MmColors.warning,
-                                    filled = true
-                                )
-                                if (!txn.includeInStatistics) {
-                                    MmPill("Excluded from statistics", tint = MmColors.textSecondary)
+                                if (txn.reimbursable) {
+                                    MmPill(
+                                        if (txn.reimbursed) "Reimbursed" else "Awaiting reimbursement",
+                                        tint = if (txn.reimbursed) MmColors.income else MmColors.warning,
+                                        filled = true
+                                    )
+                                }
+                                if (displayClass == TransactionDisplayClass.NOT_A_SPEND) {
+                                    MmPill("Not a spend · excluded from totals", tint = MmColors.textSecondary, filled = true)
+                                }
+                                if (displayClass == TransactionDisplayClass.TRANSFER) {
+                                    MmPill("Transfer · not spending or income", tint = MmColors.transfer, filled = true)
                                 }
                             }
                         }

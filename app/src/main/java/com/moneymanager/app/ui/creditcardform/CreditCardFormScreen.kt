@@ -332,8 +332,7 @@ fun CreditCardFormScreen(
             title = { Text("Delete this credit card?") },
             text = {
                 Text(
-                    "The card and its linked biller are removed. Transactions already recorded stay " +
-                        "in your history.",
+                    "The card and its linked biller are removed. Any transactions already recorded stay in your history.",
                     style = MmType.body,
                     color = MmColors.textSecondary
                 )

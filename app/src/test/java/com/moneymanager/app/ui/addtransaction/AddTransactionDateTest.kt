@@ -78,7 +78,7 @@ class AddTransactionDateTest {
             db.accountDao(),
             db.categoryDao(),
             repository,
-            AccountRepository(db.accountDao(), backupManager)
+            AccountRepository(db.accountDao(), backupManager, db.transactionDao(), db.billDao(), db)
         )
         accountId = runBlocking {
             db.accountDao().insert(

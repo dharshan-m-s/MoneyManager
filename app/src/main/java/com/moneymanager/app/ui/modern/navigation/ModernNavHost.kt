@@ -152,9 +152,9 @@ fun ModernNavHost(
                 onAccountSettings = { go(Destination.Settings.route) },
                 onEditAccount = { id -> go(Destination.AccountEdit.route(id)) },
                 onEditCreditCard = { id -> go(Destination.CreditCardForm.route(id)) },
-                // The dock's central + opens the account actions here (see ModernRoot),
-                // so the inline add row would be a second competing Add control.
-                showInlineAdd = false
+                // The central dock Add creates transactions only, so account creation stays on
+                // the Accounts list as an inline row and on each empty state.
+                showInlineAdd = true
             )
         }
         composable(Destination.Bills.route) {
@@ -224,7 +224,8 @@ fun ModernNavHost(
             AccountEditScreen(
                 accountId = accountId,
                 onBack = { safeBack() },
-                onSaved = { safeBack() }
+                onSaved = { safeBack() },
+                onDeleted = { returnToAccountsAfterDelete() }
             )
         }
 

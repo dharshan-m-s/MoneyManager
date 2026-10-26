@@ -157,6 +157,12 @@ object MmColors {
     val expense: Color @Composable get() = if (isLight) MmPaletteLightExpense else MmPaletteDarkExpense
     /** Warning — resolves to correct light/dark value. */
     val warning: Color @Composable get() = if (isLight) MmPaletteLightWarning else MmPaletteDarkWarning
+    /**
+     * Transfer/refund foreground. The Default appearance has always shown transfers in the
+     * ordinary text colour, so this deliberately aliases [textPrimary] to preserve that look
+     * exactly while giving the row a semantic token.
+     */
+    val transfer: Color @Composable get() = textPrimary
 
     /**
      * Foreground for text/icons sitting on a [brandHeader] / [brandGradient] band. These bands are

@@ -8,7 +8,9 @@ import com.moneymanager.app.data.local.entity.ImportRowResultEntity
 import com.moneymanager.app.data.local.entity.ImportRowStatus
 import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.importer.csv.ImportPreview
+import com.moneymanager.app.importer.parser.ImportClassification
 import com.moneymanager.app.importer.parser.MoneyviewTransactionCandidate
+import com.moneymanager.app.domain.reporting.TransactionDisplayClass
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,7 +39,12 @@ class ImportRepository @Inject constructor(
      * already in the database, not just within the current file - this is what makes
      * re-importing the same CSV a safe no-op instead of doubling every transaction.
      */
-    suspend fun commit(preview: ImportPreview, sourceFileName: String, onProgress: (processed: Int, total: Int, imported: Int, duplicates: Int) -> Unit = { _, _, _, _ -> }): ImportCommitResult {
+    suspend fun commit(
+        preview: ImportPreview,
+        sourceFileName: String,
+        classificationOverrides: Map<Int, ImportClassification> = emptyMap(),
+        onProgress: (processed: Int, total: Int, imported: Int, duplicates: Int) -> Unit = { _, _, _, _ -> }
+    ): ImportCommitResult {
         return database.withTransaction {
             val now = System.currentTimeMillis()
             val batch = ImportBatchEntity(
@@ -102,6 +109,15 @@ class ImportRepository @Inject constructor(
                 val account = accountRepository.resolveAccountForCandidate(candidate, now)
                 val categoryId = categoryRepository.resolveOrCreate(candidate.rawCategoryName, candidate.txnSubType)
 
+                // Reporting class is explicit and independent of the stored accounting type.
+                // A user correction applies only to the reporting flag/override; the original
+                // source fields, amount and account effect are preserved verbatim.
+                val override = classificationOverrides[candidate.rowNumber]
+                val effectiveClass = override ?: candidate.classification
+                val includeInStatistics = effectiveClass.countsInStatistics &&
+                    effectiveClass != ImportClassification.AMBIGUOUS
+                val reportingClassOverride = override?.toDisplayClass()?.name
+
                 val entity = TransactionEntity(
                     occurredAtEpochMillis = candidate.occurredAtEpochMillis,
                     rawDateString = candidate.rawDateString,
@@ -127,6 +143,8 @@ class ImportRepository @Inject constructor(
                     isHistoricalImport = true,
                     importBatchId = batchId,
                     dedupeFingerprint = candidate.dedupeFingerprint,
+                    includeInStatistics = includeInStatistics,
+                    reportingClassOverride = reportingClassOverride,
                     createdAtEpochMillis = now,
                     updatedAtEpochMillis = now
                 )

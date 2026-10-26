@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.RequestQuote
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,6 +56,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.entity.AccountBalanceSource
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.domain.model.AccountType
+import com.moneymanager.app.domain.model.AccountTypeCatalog
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.reporting.FinancialSummary
 import com.moneymanager.app.ui.accounts.AccountsTab
@@ -66,12 +69,15 @@ import com.moneymanager.app.ui.modern.components.MmSegmentedControl
 import com.moneymanager.app.ui.modern.components.MoneyFormat
 import com.moneymanager.app.ui.modern.components.formatDayMonth
 import com.moneymanager.app.ui.modern.components.modernTopInsets
+import com.moneymanager.app.ui.modern.components.LocalDockContentPadding
 import com.moneymanager.app.ui.modern.components.pressableClick
 import com.moneymanager.app.ui.modern.components.pressScale
 import com.moneymanager.app.ui.modern.theme.MmColors
 import com.moneymanager.app.ui.modern.theme.MmShape
 import com.moneymanager.app.ui.modern.theme.MmSpacing
 import com.moneymanager.app.ui.modern.theme.MmType
+import androidx.compose.material.TextButton
+import androidx.compose.material.icons.filled.MoreHoriz
 
 @Composable
 fun AccountsScreen(
@@ -83,8 +89,8 @@ fun AccountsScreen(
     onAccountSettings: () -> Unit = {},
     onEditAccount: (Long) -> Unit = {},
     onEditCreditCard: (Long) -> Unit = onEditAccount,
-    // Dock destinations show the central context-aware Add in the navigation pill, so the
-    // inline add row would be a duplicate `+`. It stays for routes where the dock is hidden.
+    // The dock Add is transaction-only, so the Accounts list keeps its own add row for
+    // accounts and credit cards. Hidden only for embedded/read-only presentations.
     showInlineAdd: Boolean = true,
     viewModel: AccountsViewModel = hiltViewModel()
 ) {
@@ -156,7 +162,21 @@ fun AccountsScreen(
             }
         }
 
-        if (shown.isEmpty()) {
+        if (tab == AccountsTab.ALL && !inactiveView) {
+            ModernAllAccountTypesBrowser(
+                accounts = accounts,
+                onSelectType = { type ->
+                    selectedTab = AccountsTab.entries.indexOf(AccountsTab.forType(type))
+                    showInactive = false
+                },
+                onAddType = { type ->
+                    when (type) {
+                        AccountType.CREDIT_CARD -> onAddCreditCard()
+                        else -> onAddAccount()
+                    }
+                }
+            )
+        } else if (shown.isEmpty() && tab != AccountsTab.ALL) {
             val hasInactive = inactiveAccounts.isNotEmpty()
             val emptyTitle: String
             val emptyMessage: String
@@ -178,12 +198,23 @@ fun AccountsScreen(
                 emptyTitle = "No ${tab.label.lowercase()} yet"
                 emptyMessage = when (tab) {
                     AccountsTab.CREDIT_CARDS -> "Add a card to track outstanding, limits and billing cycles."
+                    AccountsTab.DEBIT_CARDS -> "Add a debit card to track spending from your bank account."
                     AccountsTab.LOANS -> "Add a loan to keep track of what is left to pay."
-                    AccountsTab.WALLETS -> "Add a wallet to track prepaid balances."
+                    AccountsTab.WALLETS -> "Add a wallet to track balances."
+                    AccountsTab.PREPAID_CARDS -> "Add a prepaid card to track its balance."
                     AccountsTab.BANK -> "Add a bank account to track your balance and transactions."
+                    AccountsTab.CASH -> "Add or manage your cash account."
+                    AccountsTab.INVESTMENTS -> "Add an investment account to track it here."
+                    AccountsTab.ALL -> "No accounts found for this selection."
                 }
-                emptyActionLabel = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account"
-                emptyAction = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                emptyActionLabel = when (tab) {
+                    AccountsTab.CREDIT_CARDS -> "Add credit card"
+                    else -> "Add account"
+                }
+                emptyAction = when (tab) {
+                    AccountsTab.CREDIT_CARDS -> onAddCreditCard
+                    else -> onAddAccount
+                }
             }
             MmEmptyState(
                 icon = tab.icon,
@@ -198,7 +229,7 @@ fun AccountsScreen(
                     start = MmSpacing.screen,
                     end = MmSpacing.screen,
                     top = MmSpacing.sm,
-                    bottom = MmSpacing.xl
+                    bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.xl
                 ),
                 verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
             ) {
@@ -233,9 +264,14 @@ fun AccountsScreen(
 private val AccountsTab.icon: ImageVector
     get() = when (this) {
         AccountsTab.BANK -> Icons.Filled.AccountBalance
+        AccountsTab.DEBIT_CARDS -> Icons.Filled.CreditCard
         AccountsTab.CREDIT_CARDS -> Icons.Filled.CreditCard
         AccountsTab.WALLETS -> Icons.Filled.AccountBalanceWallet
+        AccountsTab.PREPAID_CARDS -> Icons.Filled.CreditCard
+        AccountsTab.CASH -> Icons.Filled.Payments
+        AccountsTab.INVESTMENTS -> Icons.Filled.AccountBalance
         AccountsTab.LOANS -> Icons.Filled.RequestQuote
+        AccountsTab.ALL -> Icons.Filled.AccountBalance
     }
 
 @Composable
@@ -347,12 +383,52 @@ private fun AccountsCircleAction(
 
 @Composable
 private fun AccountsTabs(selected: Int, onSelect: (Int) -> Unit) {
-    MmSegmentedControl(
-        options = AccountsTab.entries.map { it.label },
-        selectedIndex = selected,
-        onSelect = onSelect,
-        modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-    )
+    val primary = AccountsTab.primary
+    val primaryIndices = primary.map { AccountsTab.entries.indexOf(it) }
+    val allIndex = AccountsTab.entries.indexOf(AccountsTab.ALL)
+    val selectedIndexInPrimary = primaryIndices.indexOf(selected).coerceAtLeast(-1)
+    Column {
+        MmSegmentedControl(
+            options = primary.map { it.label },
+            selectedIndex = if (selected == allIndex) -1 else selectedIndexInPrimary,
+            onSelect = { onSelect(primaryIndices[it]) },
+            modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
+        )
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+        ) {
+            val selAll = selected == allIndex
+            val selectedHiddenLabel = primaryIndices.none { it == selected } && !selAll
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (selAll) MmColors.accent.copy(alpha = 0.16f) else MmColors.surfaceElevated)
+                    .border(
+                        width = 1.dp,
+                        color = if (selAll) MmColors.accent.copy(alpha = 0.6f) else MmColors.outline,
+                        shape = RoundedCornerShape(50)
+                    )
+                    .pressableClick { onSelect(allIndex) }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.MoreHoriz, contentDescription = null, tint = if (selAll) MmColors.accent else MmColors.textSecondary, modifier = Modifier.size(14.dp))
+                    Text(
+                        when {
+                            selAll -> "All account types · selected"
+                            selectedHiddenLabel -> "${AccountsTab.entries[selected].label} · Browse all account types"
+                            else -> "Browse all account types"
+                        },
+                        style = MmType.body,
+                        color = if (selAll) MmColors.accent else MmColors.textSecondary,
+                        fontWeight = if (selAll) FontWeight.SemiBold else FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -387,30 +463,17 @@ private fun AccountRow(
         else -> MmColors.accent
     }
 
-    Column(modifier.padding(horizontal = MmSpacing.md, vertical = 2.dp)) {
+    Column(modifier.fillMaxWidth().background(MmColors.surface).padding(horizontal = MmSpacing.md, vertical = MmSpacing.md)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            tint.copy(alpha = 0.14f),
-                            MmColors.surface
-                        )
-                    )
-                )
-                .border(1.dp, tint.copy(alpha = 0.28f), RoundedCornerShape(18.dp))
                 .clickable(onClick = onClick)
-                .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
+                .padding(vertical = MmSpacing.xs),
             verticalAlignment = Alignment.CenterVertically
         ) {
             MmIconBadge(
                 icon = when (account.accountType) {
-                    AccountType.CREDIT_CARD -> Icons.Filled.CreditCard
-                    AccountType.CASH -> Icons.Filled.AccountBalanceWallet
-                    AccountType.LOAN -> Icons.Filled.RequestQuote
-                    else -> Icons.Filled.AccountBalance
+                    else -> modernTypeIcon(account.accountType)
                 },
                 tint = tint,
                 size = 44.dp
@@ -498,4 +561,79 @@ private fun AddAccountRow(
             Text(label, style = MmType.body, fontWeight = FontWeight.SemiBold, color = MmColors.textPrimary)
         }
     }
+}
+
+@Composable
+private fun ModernAllAccountTypesBrowser(
+    accounts: List<AccountEntity>,
+    onSelectType: (AccountType) -> Unit,
+    onAddType: (AccountType) -> Unit
+) {
+    LazyColumn(
+        contentPadding = PaddingValues(
+            start = MmSpacing.screen,
+            top = MmSpacing.sm,
+            end = MmSpacing.screen,
+            bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.sm
+        ),
+        verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+    ) {
+        items(AccountTypeCatalog.all) { info ->
+            val type = info.type
+            val list = accounts.filter { it.accountType == type && !it.deleted && !it.hide }
+            val count = list.size
+            val total = list.filter { FinancialSummary.isIncluded(it) }.sumOf { account ->
+                if (type == AccountType.CREDIT_CARD) account.outstandingMinorUnits ?: 0L else account.currentBalanceMinorUnits
+            }
+            val tint = when (type) {
+                AccountType.CREDIT_CARD -> MmColors.categoryPalette[5 % MmColors.categoryPalette.size]
+                AccountType.CASH -> MmColors.income
+                AccountType.LOAN -> MmColors.warning
+                else -> MmColors.accent
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.12f), MmColors.surface)))
+                    .border(1.dp, tint.copy(alpha = 0.26f), RoundedCornerShape(18.dp))
+            ) {
+                Column(Modifier.fillMaxWidth().padding(MmSpacing.md)) {
+                  Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)
+                  ) {
+                    MmIconBadge(
+                        icon = modernTypeIcon(type),
+                        tint = tint,
+                        size = 44.dp
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(info.pluralLabel, style = MmType.body, fontWeight = FontWeight.SemiBold, color = MmColors.textPrimary)
+                        Text(
+                            "$count ${if (count == 1) "account" else "accounts"} · ${MoneyFormat.rupeesNoDecimals(Money(total))}",
+                            style = MmType.caption,
+                            color = MmColors.textSecondary
+                        )
+                    }
+                    androidx.compose.material.TextButton(onClick = { onSelectType(type) }) { Text("View") }
+                  }
+                  androidx.compose.material.TextButton(onClick = { onAddType(type) }, modifier = Modifier.fillMaxWidth()) { Text("Add ${info.singularLabel}") }
+                }
+            }
+        }
+    }
+}
+
+private fun modernTypeIcon(type: AccountType): ImageVector = when (type) {
+    AccountType.BANK -> Icons.Filled.AccountBalance
+    AccountType.DEBIT_CARD -> Icons.Filled.CreditCard
+    AccountType.CREDIT_CARD -> Icons.Filled.CreditCard
+    AccountType.WALLET -> Icons.Filled.AccountBalanceWallet
+    AccountType.PREPAID_CARD -> Icons.Filled.CreditCard
+    AccountType.CASH -> Icons.Filled.Payments
+    AccountType.INVESTMENT -> Icons.Filled.AccountBalance
+    AccountType.LOAN -> Icons.Filled.RequestQuote
+    AccountType.UNKNOWN -> Icons.Filled.AccountBalance
 }

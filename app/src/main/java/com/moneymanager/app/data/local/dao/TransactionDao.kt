@@ -44,6 +44,9 @@ interface TransactionDao {
      *  limited window is the most relevant one; callers needing more raise the limit
      *  explicitly (incremental "load more"), rather than the DAO ever returning everything
      *  by default. */
+    @Query("SELECT COUNT(*) FROM transactions WHERE accountId = :accountId")
+    suspend fun countByAccountId(accountId: Long): Int
+
     @Query("SELECT * FROM transactions WHERE accountId = :accountId ORDER BY occurredAtEpochMillis DESC LIMIT :limit")
     fun observeByAccountLimited(accountId: Long, limit: Int): Flow<List<TransactionEntity>>
 
@@ -108,6 +111,12 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE dedupeFingerprint = :fingerprint LIMIT 1")
     suspend fun findByFingerprint(fingerprint: String): TransactionEntity?
+
+    @Query("SELECT * FROM transactions WHERE linkedTransferTransactionId = :transactionId")
+    suspend fun findByLinkedTransferId(transactionId: Long): TransactionEntity?
+
+    @Query("SELECT COUNT(*) FROM transactions WHERE accountId = :accountId AND reimbursable = 1 AND reimbursed = 0")
+    suspend fun countPendingReimbursementsForAccount(accountId: Long): Int
 
     @Query("SELECT * FROM transactions WHERE importBatchId = :batchId")
     suspend fun findByImportBatch(batchId: Long): List<TransactionEntity>

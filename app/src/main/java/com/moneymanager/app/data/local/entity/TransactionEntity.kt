@@ -135,6 +135,12 @@ data class TransactionEntity(
     @ColumnInfo(defaultValue = "1")
     val includeInStatistics: Boolean = true,
 
+    // --- Explicit reporting class chosen during import correction (name of a
+    //     TransactionDisplayClass). Null means "derive from subtype/kind/linkage". This never
+    //     changes txnSubType/txnKind, amounts or account balances - it only lets a row whose
+    //     source columns were ambiguous be included in the report the user chose. ---
+    val reportingClassOverride: String? = null,
+
     // --- Provenance / immutability (spec section 22: "Transactions should be immutable or
     //     safely auditable where appropriate. Avoid silently modifying imported historical
     //     records.") ---

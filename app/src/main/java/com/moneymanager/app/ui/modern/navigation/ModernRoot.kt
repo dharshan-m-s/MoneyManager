@@ -22,18 +22,13 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.RequestQuote
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -60,6 +55,7 @@ import com.moneymanager.app.ui.navigation.Destination
 import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.security.LockMethod
 import com.moneymanager.app.ui.modern.components.MmIconBadge
+import com.moneymanager.app.ui.modern.components.LocalDockContentPadding
 import com.moneymanager.app.ui.modern.components.StatusBarGlyphToneAndSystemBarTint
 import com.moneymanager.app.ui.modern.components.mmBrandWash
 import com.moneymanager.app.ui.modern.screens.security.PinUnlockScreen
@@ -187,31 +183,25 @@ fun ModernRoot() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: Destination.Dashboard.route
-    var fabExpanded by remember { mutableStateOf(false) }
-    var moreExpanded by remember { mutableStateOf(false) }
+    var overlay by remember { mutableStateOf(DockOverlay.NONE) }
     androidx.compose.runtime.LaunchedEffect(currentRoute) {
-        fabExpanded = false
-        moreExpanded = false
+        overlay = DockOverlay.NONE
     }
     val dockVisible = currentRoute in DOCK_ROUTES
-    // Context-aware Add: on Accounts the central + opens account actions (bank account,
-    // credit card, transfer) instead of the transaction menu, so there is exactly one
-    // entry point for creating an account on this destination.
-    val onAccountsRoute = currentRoute == Destination.Accounts.route
     val density = LocalDensity.current
     var dockHeightPx by remember { mutableIntStateOf(0) }
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val measuredDockHeight = if (dockHeightPx > 0) {
         with(density) { dockHeightPx.toDp() }
     } else {
-        68.dp + navigationInset + 8.dp
+        68.dp + navigationInset + 16.dp
     }
-    val dockContentReservation = measuredDockHeight + 16.dp
+    val dockContentReservation = measuredDockHeight + 8.dp
 
     StatusBarGlyphToneAndSystemBarTint(lightBackground = MaterialTheme.colors.isLight)
 
     fun openAddTransaction(entryPoint: String) {
-        fabExpanded = false
+        overlay = DockOverlay.NONE
         val isAccountEntry = entryPoint == "ACCOUNT_INCOME" || entryPoint == "ACCOUNT_SPEND"
         if (isAccountEntry) {
             navController.navigate(Destination.AccountSelection.route(entryPoint))
@@ -220,140 +210,153 @@ fun ModernRoot() {
         }
     }
 
-    androidx.activity.compose.BackHandler(enabled = fabExpanded || moreExpanded) {
-        fabExpanded = false
-        moreExpanded = false
+    fun closeOverlay() {
+        overlay = DockOverlay.NONE
+    }
+
+    androidx.activity.compose.BackHandler(enabled = overlay != DockOverlay.NONE) {
+        closeOverlay()
     }
 
     Box(Modifier.fillMaxSize()) {
-        ModernNavHost(
-            navController = navController,
-            onOpenMore = {
-                fabExpanded = false
-                moreExpanded = true
-            },
-            modifier = Modifier
-                .fillMaxSize()
-                .then(
-                    if (dockVisible) Modifier.padding(bottom = dockContentReservation)
-                    else Modifier.navigationBarsPadding()
-                )
-        )
-
-        if ((fabExpanded || moreExpanded) && dockVisible) {
-            Box(
-                Modifier
+        CompositionLocalProvider(
+            LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
+        ) {
+            ModernNavHost(
+                navController = navController,
+                onOpenMore = {
+                    overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
+                },
+                modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.45f))
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                    ) {
-                        fabExpanded = false
-                        moreExpanded = false
-                    }
+                    .then(if (dockVisible) Modifier else Modifier.navigationBarsPadding())
             )
         }
 
-        if (moreExpanded && dockVisible) {
-            androidx.compose.animation.AnimatedVisibility(
-                visible = true,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = MmSpacing.lg, bottom = measuredDockHeight + 16.dp),
-                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)) +
-                    androidx.compose.animation.scaleIn(initialScale = 0.98f, animationSpec = androidx.compose.animation.core.tween(150)),
-                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(100)) +
-                    androidx.compose.animation.scaleOut(targetScale = 0.98f, animationSpec = androidx.compose.animation.core.tween(100))
-            ) {
-                ModernMorePopover(onSelect = { destination ->
-                    moreExpanded = false
-                    navController.navigate(destination.route) { launchSingleTop = true }
-                })
-            }
+        // The scrim dismisses on an outside tap. It is drawn before the dock and the menus, so
+        // the trigger stays tappable (re-tap closes) and the open card is never blocked by a
+        // stale full-screen layer.
+        if (overlay != DockOverlay.NONE && dockVisible) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.32f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { closeOverlay() }
+            )
         }
 
-        if (fabExpanded && dockVisible) {
-            androidx.compose.animation.AnimatedVisibility(
-                visible = true,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = measuredDockHeight + 14.dp),
-                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)) +
-                    androidx.compose.animation.scaleIn(initialScale = 0.98f, animationSpec = androidx.compose.animation.core.tween(150)),
-                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(100)) +
-                    androidx.compose.animation.scaleOut(targetScale = 0.98f, animationSpec = androidx.compose.animation.core.tween(100))
-            ) {
-                ModernAddActionSurface(
-                title = if (onAccountsRoute) "Add account" else "Create",
-                subtitle = if (onAccountsRoute) "Bank, card or transfer" else "Transaction or bill",
-                actions = if (onAccountsRoute) {
-                    listOf(
-                        AddAction("Bank account", Icons.Filled.AccountBalance, MmColors.accent, "Add a bank account"),
-                        AddAction("Credit card", Icons.Filled.CreditCard, Color(0xFF7C3AED), "Add a credit card"),
-                        AddAction("Wallet", Icons.Filled.AccountBalanceWallet, Color(0xFF059669), "Add a wallet"),
-                        AddAction("Loan", Icons.Filled.RequestQuote, Color(0xFFEA580C), "Add a loan"),
-                        AddAction("Transfer", Icons.Filled.SwapHoriz, MmColors.accent, "Transfer between accounts"),
-                        AddAction("Bill", Icons.AutoMirrored.Filled.ReceiptLong, Color(0xFFD97706), "Add a bill")
+        androidx.compose.animation.AnimatedVisibility(
+            visible = overlay == DockOverlay.MORE && dockVisible,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(horizontal = MmSpacing.lg, vertical = 0.dp)
+                .padding(bottom = measuredDockHeight + 10.dp),
+            enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(140)) +
+                androidx.compose.animation.scaleIn(
+                    initialScale = 0.97f,
+                    animationSpec = androidx.compose.animation.core.tween(140)
+                ),
+            exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(90)) +
+                androidx.compose.animation.scaleOut(
+                    targetScale = 0.97f,
+                    animationSpec = androidx.compose.animation.core.tween(90)
+                )
+        ) {
+            ModernMorePopover(onSelect = { destination ->
+                closeOverlay()
+                navController.navigate(destination.route) { launchSingleTop = true }
+            })
+        }
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = overlay == DockOverlay.ADD && dockVisible,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = MmSpacing.lg)
+                .padding(bottom = measuredDockHeight + 8.dp),
+            enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(140)) +
+                androidx.compose.animation.scaleIn(
+                    initialScale = 0.97f,
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f),
+                    animationSpec = androidx.compose.animation.core.tween(140)
+                ),
+            exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(90)) +
+                androidx.compose.animation.scaleOut(
+                    targetScale = 0.97f,
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f),
+                    animationSpec = androidx.compose.animation.core.tween(90)
+                )
+        ) {
+            ModernAddActionSurface(
+                actions = listOf(
+                    AddAction(
+                        "Expense",
+                        Icons.AutoMirrored.Filled.TrendingDown,
+                        MmColors.expense,
+                        "Paid from an account"
+                    ),
+                    AddAction(
+                        "Income",
+                        Icons.AutoMirrored.Filled.TrendingUp,
+                        MmColors.income,
+                        "Received into an account"
+                    ),
+                    AddAction(
+                        "Cash expense",
+                        Icons.Filled.Payments,
+                        MmColors.expense,
+                        "Cash you handed over"
+                    ),
+                    AddAction(
+                        "Cash income",
+                        Icons.Filled.Savings,
+                        MmColors.income,
+                        "Cash you received"
+                    ),
+                    AddAction(
+                        "Transfer",
+                        Icons.Filled.SwapHoriz,
+                        MmColors.transfer,
+                        "Move money between accounts"
                     )
-                } else {
-                    listOf(
-                        AddAction("Expense", Icons.AutoMirrored.Filled.TrendingDown, MmColors.expense, "Add expense"),
-                        AddAction("Income", Icons.AutoMirrored.Filled.TrendingUp, MmColors.income, "Add income"),
-                        AddAction("Cash expense", Icons.Filled.Payments, MmColors.expense, "Add cash expense"),
-                        AddAction("Cash income", Icons.Filled.Savings, MmColors.income, "Add cash income"),
-                        AddAction("Transfer", Icons.Filled.SwapHoriz, MmColors.accent, "Transfer between accounts"),
-                        AddAction("Bill", Icons.AutoMirrored.Filled.ReceiptLong, Color(0xFFD97706), "Add a bill")
-                    )
-                },
+                ),
                 onSelect = { index ->
-                    fabExpanded = false
-                    if (onAccountsRoute) {
-                        when (index) {
-                            0 -> navController.navigate(Destination.BankSelection.route) { launchSingleTop = true }
-                            1 -> navController.navigate(Destination.CreditCardForm.route(null)) { launchSingleTop = true }
-                            2 -> navController.navigate(Destination.AddTransaction.route("CASH_INCOME", null))
-                            3 -> navController.navigate(Destination.BillTypeSelection.route) { launchSingleTop = true }
-                            4 -> navController.navigate(Destination.Transfer.route())
-                            5 -> navController.navigate(Destination.BillTypeSelection.route) { launchSingleTop = true }
-                        }
-                    } else {
-                        when (index) {
-                            0 -> openAddTransaction("ACCOUNT_SPEND")
-                            1 -> openAddTransaction("ACCOUNT_INCOME")
-                            2 -> openAddTransaction("CASH_SPEND")
-                            3 -> openAddTransaction("CASH_INCOME")
-                            4 -> navController.navigate(Destination.Transfer.route())
-                            5 -> navController.navigate(Destination.BillTypeSelection.route) { launchSingleTop = true }
+                    when (index) {
+                        0 -> openAddTransaction("ACCOUNT_SPEND")
+                        1 -> openAddTransaction("ACCOUNT_INCOME")
+                        2 -> openAddTransaction("CASH_SPEND")
+                        3 -> openAddTransaction("CASH_INCOME")
+                        4 -> {
+                            closeOverlay()
+                            navController.navigate(Destination.Transfer.route())
                         }
                     }
                 }
             )
-            }
         }
 
         if (dockVisible) {
             ModernDock(
                 currentRoute = currentRoute,
-                fabExpanded = fabExpanded,
-                onToggleFab = {
-                    moreExpanded = false
-                    fabExpanded = !fabExpanded
-                },
+                overlay = overlay,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .onSizeChanged { dockHeightPx = it.height },
                 onNavigate = { route ->
-                    moreExpanded = false
-                    fabExpanded = false
+                    closeOverlay()
                     navController.navigate(route) {
                         popUpTo(Destination.Dashboard.route)
                         launchSingleTop = true
                     }
                 },
-                onOpenMore = {
-                    fabExpanded = false
-                    moreExpanded = !moreExpanded
+                onToggleAdd = {
+                    overlay = if (overlay == DockOverlay.ADD) DockOverlay.NONE else DockOverlay.ADD
+                },
+                onToggleMore = {
+                    overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
                 }
             )
         }

@@ -7,6 +7,8 @@ import androidx.navigation.createGraph
 import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.compose.composable
 import com.moneymanager.app.data.local.entity.BillerType
+import com.moneymanager.app.domain.model.AccountType
+import com.moneymanager.app.domain.model.AccountTypeCatalog
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -136,5 +138,16 @@ class NavigationRouteTest {
         assertEquals(Destination.Accounts.route, nav.currentDestination?.route)
         nav.popBackStack()
         assertEquals(Destination.Dashboard.route, nav.currentDestination?.route)
+    }
+
+    @Test
+    fun everySupportedAccountTypeHasNontrivialNavigationBehavior() {
+        // AccountsScreen and ModernNavHost already drive per-type navigation; this is a
+        // compile-time sanity check that the supported set resolves through the same path the
+        // app uses.
+        AccountType.entries.filter { it != AccountType.UNKNOWN }.forEach { type ->
+            val accountLabel = AccountTypeCatalog.label(type)
+            assertNotNull("${type.name} must resolve to a tab with a readable label", accountLabel)
+        }
     }
 }

@@ -68,6 +68,9 @@ interface BillDao {
     @Query("SELECT * FROM bill_payment_allocations WHERE transactionId = :transactionId LIMIT 1")
     suspend fun findAllocationByTransactionId(transactionId: Long): BillPaymentAllocationEntity?
 
+    @Query("SELECT COUNT(*) FROM bill_payment_allocations WHERE transactionId IN (SELECT id FROM transactions WHERE accountId = :accountId)")
+    suspend fun countAllocationsForAccount(accountId: Long): Int
+
     @Query("SELECT billInstanceId FROM bill_payment_allocations WHERE transactionId IN (:transactionIds)")
     suspend fun findInstanceIdsForTransactions(transactionIds: Set<Long>): List<Long>
 
@@ -96,6 +99,9 @@ interface BillDao {
             "INNER JOIN bills b ON b.id = bi.billId WHERE bi.paid = 0 AND b.active = 1"
     )
     fun observeTotalUpcomingBillAmount(): Flow<Long>
+
+    @Query("SELECT COUNT(*) FROM bills WHERE linkedAccountId = :accountId")
+    suspend fun countByLinkedAccountId(accountId: Long): Int
 
     @Query("SELECT * FROM bills WHERE linkedAccountId = :accountId LIMIT 1")
     suspend fun findByLinkedAccountId(accountId: Long): BillEntity?

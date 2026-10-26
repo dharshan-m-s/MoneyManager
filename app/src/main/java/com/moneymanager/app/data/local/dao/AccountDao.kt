@@ -71,4 +71,7 @@ interface AccountDao {
 
     @Query("UPDATE accounts SET deleted = 1, active = 0, hide = 1, updatedAtEpochMillis = :now WHERE id = :id")
     suspend fun softDeleteById(id: Long, now: Long)
+
+    @Query("DELETE FROM accounts WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

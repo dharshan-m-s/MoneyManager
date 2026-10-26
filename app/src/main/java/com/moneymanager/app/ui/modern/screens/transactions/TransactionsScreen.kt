@@ -53,7 +53,9 @@ import com.moneymanager.app.domain.model.Money
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.ui.transactions.TransactionsViewModel
 import com.moneymanager.app.data.local.entity.TransactionEntity
-import com.moneymanager.app.domain.model.TxnSubType
+import com.moneymanager.app.domain.reporting.FinancialSummary
+import com.moneymanager.app.domain.reporting.TransactionDisplayClass
+import com.moneymanager.app.domain.reporting.TransactionDisplayClassifier
 import com.moneymanager.app.ui.modern.components.MmAmountField
 import com.moneymanager.app.ui.modern.components.MmBottomSheet
 import com.moneymanager.app.ui.modern.components.MmChip
@@ -68,6 +70,7 @@ import com.moneymanager.app.ui.modern.components.MmSegmentedControl
 import com.moneymanager.app.ui.modern.components.MmSwitchRow
 import com.moneymanager.app.ui.modern.components.MmTransactionRow
 import com.moneymanager.app.ui.modern.components.modernTopInsets
+import com.moneymanager.app.ui.modern.components.LocalDockContentPadding
 import com.moneymanager.app.ui.modern.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.modern.components.formatFullDate
 import com.moneymanager.app.ui.modern.theme.MmColors
@@ -92,8 +95,9 @@ private enum class TxnSort(val label: String) {
 
 private enum class TxnTypeFilter(val label: String) {
     ALL("All"),
-    EXPENSE("Expense"),
+    EXPENSE("Spending"),
     INCOME("Income"),
+    NOT_A_SPEND("Not a spend"),
     TRANSFER("Transfer")
 }
 
@@ -135,6 +139,7 @@ fun TransactionsScreen(
     val accountNames = remember(accounts) {
         accounts.associate { it.id to it.nickname.ifBlank { it.institutionName } }
     }
+    val accountById = remember(accounts) { FinancialSummary.accountMap(accounts) }
 
     val visibleRows = remember(rows, sort, filters, query, categoryNames, accountNames) {
         val searched = if (query.isBlank()) rows else rows.filter { txn ->
@@ -155,15 +160,20 @@ fun TransactionsScreen(
         }
     }
 
-    // Honest "in view" totals: income and expense subtotals only, so transfers never inflate both
-    // sides. Computed from the rows already on screen; no extra query.
-    val viewTotals = remember(visibleRows) {
-        val income = visibleRows
-            .filter { it.txnSubType == TxnSubType.INCOME }
-            .sumOf { it.creditMinorUnits - it.debitMinorUnits }
-        val expense = visibleRows
-            .filter { it.txnSubType == TxnSubType.EXPENSE }
-            .sumOf { it.debitMinorUnits - it.creditMinorUnits }
+    // Honest "in view" totals: use the same FinancialSummary rules as the dashboard, so
+    // transfers, card bill payments and Not-a-spend rows contribute to neither side and refunds
+    // reduce spending instead of inflating income. Computed from the rows already on screen.
+    val viewTotals = remember(visibleRows, accountById) {
+        var income = 0L
+        var expense = 0L
+        visibleRows.forEach { txn ->
+            if (FinancialSummary.isIncomeRow(txn, accountById)) {
+                income += FinancialSummary.incomeAmountMinor(txn)
+            }
+            if (FinancialSummary.isSpendRow(txn, accountById)) {
+                expense += FinancialSummary.spendAmountMinor(txn)
+            }
+        }
         income to expense
     }
 
@@ -192,14 +202,23 @@ fun TransactionsScreen(
         }
 
         // Type selection is the filter that is used most often, so it lives one tap away.
-        MmSegmentedControl(
-            options = TxnTypeFilter.entries.map { it.label },
-            selectedIndex = filters.type.ordinal,
-            onSelect = { index ->
-                filters = filters.copy(type = TxnTypeFilter.entries[index])
-            },
-            modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)
-        )
+        // Five classifications no longer fit a fixed segmented control on narrow phones;
+        // a scrolling chip row keeps every option reachable and the labels readable.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+        ) {
+            TxnTypeFilter.entries.forEach { option ->
+                MmChip(
+                    label = option.label,
+                    selected = filters.type == option,
+                    onClick = { filters = filters.copy(type = option) }
+                )
+            }
+        }
 
         if (filters.isActive) {
             Row(
@@ -236,7 +255,9 @@ fun TransactionsScreen(
                 } else null
             )
         } else {
-            LazyColumn(contentPadding = PaddingValues(bottom = MmSpacing.md)) {
+            LazyColumn(contentPadding = PaddingValues(
+                bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.md
+            )) {
                 item(key = "summary") {
                     InViewSummary(
                         income = viewTotals.first,
@@ -244,7 +265,17 @@ fun TransactionsScreen(
                     )
                 }
                 grouped.forEach { (date, list) ->
-                    val dayNet = list.sumOf { it.creditMinorUnits - it.debitMinorUnits }
+                    // Day movement follows the same classification as the summary: transfers
+                    // and Not-a-spend rows never move this number, and a refund reduces spend.
+                    val dayNet = list.sumOf { txn ->
+                        when {
+                            FinancialSummary.isIncomeRow(txn, accountById) ->
+                                FinancialSummary.incomeAmountMinor(txn)
+                            FinancialSummary.isSpendRow(txn, accountById) ->
+                                -FinancialSummary.spendAmountMinor(txn)
+                            else -> 0L
+                        }
+                    }
                     item(key = "header-$date") {
                         DayHeader(date = date, dayNet = dayNet)
                     }
@@ -636,11 +667,17 @@ private fun TxnFilters.activeChips(
 }
 
 private fun matchesFilters(txn: TransactionEntity, f: TxnFilters): Boolean {
+    val displayClass = TransactionDisplayClassifier.classify(txn)
     when (f.type) {
         TxnTypeFilter.ALL -> Unit
-        TxnTypeFilter.EXPENSE -> if (txn.txnSubType != TxnSubType.EXPENSE) return false
-        TxnTypeFilter.INCOME -> if (txn.txnSubType != TxnSubType.INCOME) return false
-        TxnTypeFilter.TRANSFER -> if (txn.txnSubType != TxnSubType.TRANSFER_IN && txn.txnSubType != TxnSubType.TRANSFER_OUT) return false
+        TxnTypeFilter.EXPENSE ->
+            if (!TransactionDisplayClassifier.isSpending(displayClass)) return false
+        TxnTypeFilter.INCOME ->
+            if (!TransactionDisplayClassifier.isIncome(displayClass)) return false
+        TxnTypeFilter.NOT_A_SPEND ->
+            if (displayClass != TransactionDisplayClass.NOT_A_SPEND) return false
+        TxnTypeFilter.TRANSFER ->
+            if (displayClass != TransactionDisplayClass.TRANSFER) return false
     }
     f.categoryId?.let { if (txn.categoryId != it) return false }
     f.accountId?.let { if (txn.accountId != it) return false }

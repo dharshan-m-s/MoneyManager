@@ -49,6 +49,10 @@ internal val IncomeLight = Color(0xFF047857)
 internal val IncomeDark = Color(0xFF34D399)
 internal val ExpenseLight = Color(0xFFDC2626)
 internal val ExpenseDark = Color(0xFFF87171)
+// Transfer/refund neutral-blue: distinct from both income green and expense red, without
+// borrowing the brand accent used for actions and links.
+internal val TransferLight = Color(0xFF4B5F7A)
+internal val TransferDark = Color(0xFFA9BED8)
 internal val WarningLight = Color(0xFFB45309)
 internal val WarningDark = Color(0xFFFBBF24)
 
@@ -96,6 +100,10 @@ object MmColors {
     val income: Color @Composable get() = if (light) IncomeLight else IncomeDark
     val expense: Color @Composable get() = if (light) ExpenseLight else ExpenseDark
     val warning: Color @Composable get() = if (light) WarningLight else WarningDark
+    /** Neutral blue for transfers and refunds; never used for category names or icons. */
+    val transfer: Color @Composable get() = if (light) TransferLight else TransferDark
+    /** Explicit "Not a spend" rows keep the ordinary foreground in both appearances. */
+    val notSpend: Color @Composable get() = textPrimary
 
     val onBrand: Color get() = MMWhite
 

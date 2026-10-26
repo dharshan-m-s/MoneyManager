@@ -1,5 +1,6 @@
 package com.moneymanager.app.importer.csv
 
+import com.moneymanager.app.importer.parser.ImportClassification
 import com.moneymanager.app.importer.parser.MoneyviewMappingResult
 import com.moneymanager.app.importer.parser.MoneyviewRowMapper
 import com.moneymanager.app.importer.parser.MoneyviewTransactionCandidate
@@ -27,7 +28,35 @@ data class ImportPreview(
     val dateRangeEndEpochMillis: Long?,
     val transactionTypeCounts: Map<String, Int>,
     val withinFileDuplicateGroups: List<List<Int>>, // groups of row numbers sharing a fingerprint
+    val classificationCounts: ImportClassificationCounts,
+    val ambiguousRows: List<ImportAmbiguousRow>,
     val validCandidates: List<MoneyviewTransactionCandidate>
+)
+
+/** Counts shown before anything is written. `invalid` covers structural/semantic parse problems;
+ *  `ambiguous` covers otherwise-valid rows whose explicit source fields conflict. */
+data class ImportClassificationCounts(
+    val totalRows: Int,
+    val expenses: Int,
+    val income: Int,
+    val notASpend: Int,
+    val transfers: Int,
+    val refunds: Int,
+    val ambiguous: Int,
+    val invalid: Int
+) {
+    val classifiedRows: Int
+        get() = expenses + income + notASpend + transfers + refunds + ambiguous
+}
+
+/** A row that will be imported neutrally unless the user picks a reporting class. */
+data class ImportAmbiguousRow(
+    val rowNumber: Int,
+    val reason: String,
+    val description: String?,
+    val occurredAtEpochMillis: Long,
+    val creditMinorUnits: Long,
+    val debitMinorUnits: Long
 )
 
 data class RowProblem(val rowNumber: Int, val reason: String, val rawLine: String)
@@ -90,6 +119,30 @@ object ImportPreviewBuilder {
             .filter { it.size > 1 }
             .map { group -> group.map { it.rowNumber } }
 
+        val counts = ImportClassificationCounts(
+            totalRows = parseResult.totalDataRows,
+            expenses = candidates.count { it.classification == ImportClassification.EXPENSE },
+            income = candidates.count { it.classification == ImportClassification.INCOME },
+            notASpend = candidates.count { it.classification == ImportClassification.NOT_A_SPEND },
+            transfers = candidates.count { it.classification == ImportClassification.TRANSFER },
+            refunds = candidates.count { it.classification == ImportClassification.REFUND },
+            ambiguous = candidates.count { it.classification == ImportClassification.AMBIGUOUS },
+            invalid = allProblems.size
+        )
+
+        val ambiguousRows = candidates
+            .filter { it.classification == ImportClassification.AMBIGUOUS }
+            .map { candidate ->
+                ImportAmbiguousRow(
+                    rowNumber = candidate.rowNumber,
+                    reason = candidate.classificationIssue ?: "Explicit source columns are ambiguous",
+                    description = candidate.merchantReceiverSender ?: candidate.rawCategoryName,
+                    occurredAtEpochMillis = candidate.occurredAtEpochMillis,
+                    creditMinorUnits = candidate.credit.minorUnits,
+                    debitMinorUnits = candidate.debit.minorUnits
+                )
+            }
+
         return ImportPreview(
             totalRows = parseResult.totalDataRows,
             structurallyValidRows = parseResult.rows.size,
@@ -101,6 +154,8 @@ object ImportPreviewBuilder {
             dateRangeEndEpochMillis = dateRange.maxOrNull(),
             transactionTypeCounts = typeCounts,
             withinFileDuplicateGroups = duplicateGroups,
+            classificationCounts = counts,
+            ambiguousRows = ambiguousRows,
             validCandidates = candidates
         )
     }

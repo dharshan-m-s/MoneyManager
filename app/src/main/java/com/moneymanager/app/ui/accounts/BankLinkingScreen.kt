@@ -64,7 +64,20 @@ fun BankLinkingScreen(
 
     fun save() {
         if (!state.saving && accountNumber.isNotBlank()) {
-            viewModel.save(bankName, accountNumber, debitCardLast4, isBusiness)
+            val lower = bankName.lowercase()
+            val type = when {
+                lower.contains("loan") -> com.moneymanager.app.domain.model.AccountType.LOAN
+                lower.contains("wallet") -> com.moneymanager.app.domain.model.AccountType.WALLET
+                lower.contains("prepaid") -> com.moneymanager.app.domain.model.AccountType.PREPAID_CARD
+                lower.contains("invest") -> com.moneymanager.app.domain.model.AccountType.INVESTMENT
+                lower.contains("cash") -> com.moneymanager.app.domain.model.AccountType.CASH
+                else -> com.moneymanager.app.domain.model.AccountType.BANK
+            }
+            if (type == com.moneymanager.app.domain.model.AccountType.BANK) {
+                viewModel.save(bankName, accountNumber, debitCardLast4, isBusiness)
+            } else {
+                viewModel.save(bankName, accountNumber, debitCardLast4, isBusiness, type)
+            }
         }
     }
 

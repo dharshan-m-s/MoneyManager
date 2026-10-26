@@ -1,6 +1,10 @@
 package com.moneymanager.app.data.repository
 
+import androidx.room.withTransaction
 import com.moneymanager.app.data.local.dao.AccountDao
+import com.moneymanager.app.data.local.dao.BillDao
+import com.moneymanager.app.data.local.dao.TransactionDao
+import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.local.entity.AccountBalanceSource
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.domain.model.AccountType
@@ -12,7 +16,10 @@ import javax.inject.Singleton
 @Singleton
 class AccountRepository @Inject constructor(
     private val accountDao: AccountDao,
-    private val backupManager: BackupManager
+    private val backupManager: BackupManager,
+    private val transactionDao: TransactionDao,
+    private val billDao: BillDao,
+    private val database: MoneyManagerDatabase
 ) {
     /** Resolve-or-create per spec section 11's "Does account exist? Yes -> map, No -> create"
      *  flow, applied to accounts instead of categories. A candidate with a blank/null source
@@ -144,5 +151,87 @@ class AccountRepository @Inject constructor(
         )
         accountDao.update(updated)
         backupManager.scheduleAfterWrite()
+    }
+
+    data class AccountDeletionCheck(
+        val canDelete: Boolean,
+        val reason: String? = null,
+        val hasTransactions: Boolean = false,
+        val hasLinkedBills: Boolean = false,
+        val hasAllocations: Boolean = false,
+        val hasPendingReimbursements: Boolean = false,
+        val linkedDebitCardsCount: Int = 0
+    )
+
+    suspend fun checkDeletion(accountId: Long): AccountDeletionCheck {
+
+        val account = accountDao.findById(accountId) ?: return AccountDeletionCheck(canDelete = false, reason = "Account not found")
+        val txCount = transactionDao.countByAccountId(accountId)
+        val billCount = billDao.countByLinkedAccountId(accountId)
+        val allocCount = billDao.countAllocationsForAccount(accountId)
+        val reimbursable = transactionDao.countPendingReimbursementsForAccount(accountId)
+        val linkedDebitCards = accountDao.findAll().count { it.parentAccountId == accountId && it.accountType == AccountType.DEBIT_CARD }
+        val hasDeps = txCount > 0 || billCount > 0 || allocCount > 0 || reimbursable > 0 || linkedDebitCards > 0
+        return if (hasDeps) {
+            AccountDeletionCheck(
+                canDelete = false,
+                reason = buildString {
+                    append("This account has financial history or linked items and cannot be permanently deleted safely. ")
+                    if (txCount > 0) append("Transactions: $txCount. ")
+                    if (billCount > 0) append("Linked bills: $billCount. ")
+                    if (allocCount > 0) append("Bill payments: $allocCount. ")
+                    if (reimbursable > 0) append("Pending reimbursements: $reimbursable. ")
+                    if (linkedDebitCards > 0) append("Linked debit cards: $linkedDebitCards. ")
+                    append("You can hide/archive it instead to keep history intact.")
+                },
+                hasTransactions = txCount > 0,
+                hasLinkedBills = billCount > 0,
+                hasAllocations = allocCount > 0,
+                hasPendingReimbursements = reimbursable > 0,
+                linkedDebitCardsCount = linkedDebitCards
+            )
+        } else {
+            AccountDeletionCheck(canDelete = true)
+        }
+    }
+
+    /**
+     * Safely delete an account only if it has no dependencies. If dependencies exist, this
+     * performs a soft-delete/archive (keeps history intact). Returns true if removed/hid.
+     */
+    suspend fun deleteAccountSafely(accountId: Long): Result<Boolean> {
+        val account = accountDao.findById(accountId) ?: return Result.failure(Exception("Account not found"))
+        // Credit cards have their own safe path that also cleans up linked bills.
+        if (account.accountType == AccountType.CREDIT_CARD) {
+            return runCatching {
+                val billCount = billDao.countByLinkedAccountId(accountId)
+                val txCount = transactionDao.countByAccountId(accountId)
+                val allocCount = billDao.countAllocationsForAccount(accountId)
+                if (txCount > 0 || allocCount > 0) {
+                    val now = System.currentTimeMillis()
+                    accountDao.softDeleteById(accountId, now)
+                    true
+                } else {
+                    database.withTransaction {
+                        billDao.deleteByLinkedAccountId(accountId)
+                        accountDao.deleteById(accountId)
+                    }
+                    true
+                }
+            }
+        }
+        val check = checkDeletion(accountId)
+        return runCatching {
+            val now = System.currentTimeMillis()
+            if (check.canDelete) {
+                database.withTransaction {
+                    accountDao.deleteById(accountId)
+                }
+                true
+            } else {
+                accountDao.softDeleteById(accountId, now)
+                true
+            }
+        }.also { if (it.isSuccess) backupManager.scheduleAfterWrite() }
     }
 }

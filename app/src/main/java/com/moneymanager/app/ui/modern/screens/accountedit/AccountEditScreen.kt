@@ -14,25 +14,28 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.Button
+import androidx.compose.material.AlertDialog
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.AccountType
+import com.moneymanager.app.domain.model.AccountTypeCatalog
 import com.moneymanager.app.domain.model.BusinessPersonal
 import com.moneymanager.app.ui.modern.components.MmAmountField
 import com.moneymanager.app.ui.modern.components.MmCard
@@ -53,17 +56,16 @@ fun AccountEditScreen(
     accountId: Long,
     onBack: () -> Unit,
     onSaved: () -> Unit,
+    onDeleted: () -> Unit = onBack,
     viewModel: AccountEditViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    LaunchedEffect(accountId) { viewModel.load(accountId) }
+    LaunchedEffect(accountId) { viewModel.load(accountId); viewModel.checkDelete() }
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
+    LaunchedEffect(state.deleted) { if (state.deleted) onDeleted() }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    val supportsManualBalance = state.accountType == AccountType.BANK ||
-        state.accountType == AccountType.CASH ||
-        state.accountType == AccountType.WALLET ||
-        state.accountType == AccountType.DEBIT_CARD ||
-        state.accountType == AccountType.PREPAID_CARD
+    val supportsManualBalance = AccountTypeCatalog.supportsManualBalance(state.accountType)
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
@@ -214,6 +216,25 @@ fun AccountEditScreen(
                 )
             }
 
+            MmCard {
+                Text("Danger zone", style = MmType.label, color = MmColors.textSecondary)
+                Spacer(Modifier.height(MmSpacing.sm))
+                OutlinedButton(
+                    onClick = { showDeleteConfirm = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(MmSpacing.radiusRow),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MmColors.expense)
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, tint = MmColors.expense)
+                    Spacer(Modifier.padding(horizontal = MmSpacing.xs))
+                    Text("Delete account")
+                }
+                state.deleteBlockedMessage?.let {
+                    Spacer(Modifier.height(MmSpacing.xs))
+                    Text(it, style = MmType.caption, color = MmColors.textSecondary)
+                }
+            }
+
             state.error?.let {
                 Text(it, color = MmColors.expense, style = MmType.caption)
             }
@@ -225,5 +246,33 @@ fun AccountEditScreen(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete this account?") },
+            text = {
+                val accountLabel = AccountTypeCatalog.label(state.accountType)
+                val accountName = state.nickname.ifBlank { state.institutionName.ifBlank { "this $accountLabel" } }
+                val msg = state.deleteBlockedMessage
+                Text(
+                    text = if (msg != null) msg
+                    else
+                        "\"$accountName\" ($accountLabel) has no financial history, so it can be permanently deleted. This cannot be undone.",
+                    style = MmType.body,
+                    color = MmColors.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    viewModel.delete()
+                }) {
+                    Text("Delete", color = MmColors.expense, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") } }
+        )
     }
 }

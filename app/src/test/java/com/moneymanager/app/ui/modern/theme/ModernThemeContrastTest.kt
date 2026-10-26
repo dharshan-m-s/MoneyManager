@@ -59,6 +59,7 @@ class ModernThemeContrastTest {
     fun darkSemanticRolesCarryMeaningAtTextContrast() {
         assertAtLeast(4.5, IncomeDark, DarkSurface, "dark income / surface")
         assertAtLeast(4.5, ExpenseDark, DarkSurface, "dark expense / surface")
+        assertAtLeast(4.5, TransferDark, DarkSurface, "dark transfer / surface")
         assertAtLeast(4.5, WarningDark, DarkSurface, "dark warning / surface")
         assertAtLeast(4.5, PrimaryDark, DarkSurface, "dark accent / surface")
         assertAtLeast(4.5, PrimaryDark, DarkSurfaceContainer, "dark accent / surfaceMuted")
@@ -94,6 +95,7 @@ class ModernThemeContrastTest {
     fun lightSemanticRolesCarryMeaningAtTextContrast() {
         assertAtLeast(4.5, IncomeLight, LightSurface, "light income / surface")
         assertAtLeast(4.5, ExpenseLight, LightSurface, "light expense / surface")
+        assertAtLeast(4.5, TransferLight, LightSurface, "light transfer / surface")
         assertAtLeast(4.5, WarningLight, LightSurface, "light warning / surface")
         assertAtLeast(4.5, PrimaryLight, LightSurface, "light accent / surface")
         assertAtLeast(4.5, OnPrimary, PrimaryLight, "light onAccent / accentFill")

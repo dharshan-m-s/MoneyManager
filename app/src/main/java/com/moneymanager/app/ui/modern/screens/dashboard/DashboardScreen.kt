@@ -63,10 +63,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.dao.CategoryTotal
 import com.moneymanager.app.domain.model.Money
-import com.moneymanager.app.domain.model.TxnSubType
+import com.moneymanager.app.domain.reporting.TransactionDisplayClass
+import com.moneymanager.app.domain.reporting.TransactionDisplayClassifier
 import com.moneymanager.app.ui.modern.components.MmAnimatedAmount
 import com.moneymanager.app.ui.modern.components.MmBottomSheet
-import com.moneymanager.app.ui.modern.components.MmQuickAction
 import com.moneymanager.app.ui.modern.components.MmCard
 import com.moneymanager.app.ui.modern.components.MmChip
 import com.moneymanager.app.ui.modern.components.MmDateField
@@ -79,6 +79,7 @@ import com.moneymanager.app.ui.modern.components.MmSearchField
 import com.moneymanager.app.ui.modern.components.MmSectionHeader
 import com.moneymanager.app.ui.modern.components.MmTransactionRow
 import com.moneymanager.app.ui.modern.components.modernTopInsets
+import com.moneymanager.app.ui.modern.components.LocalDockContentPadding
 import com.moneymanager.app.ui.modern.components.MoneyFormat
 import com.moneymanager.app.ui.modern.components.mmCategoryTint
 import com.moneymanager.app.ui.modern.components.pressableClick
@@ -101,8 +102,9 @@ private val dashboardZone: ZoneId = ZoneId.of("Asia/Kolkata")
 
 private enum class RecentTypeFilter(val label: String) {
     ALL("All"),
-    EXPENSE("Expense"),
+    EXPENSE("Spending"),
     INCOME("Income"),
+    NOT_A_SPEND("Not a spend"),
     TRANSFER("Transfer")
 }
 
@@ -161,12 +163,13 @@ fun DashboardScreen(
                 txn.merchantReceiverSender, txn.rawCategoryName, txn.notes, txn.rawPaymentType
             ).joinToString(" ")
             val matchesQuery = query.isBlank() || haystack.contains(query.trim(), ignoreCase = true)
+            val displayClass = TransactionDisplayClassifier.classify(txn)
             val matchesType = when (activeType) {
                 RecentTypeFilter.ALL -> true
-                RecentTypeFilter.EXPENSE -> txn.txnSubType == TxnSubType.EXPENSE
-                RecentTypeFilter.INCOME -> txn.txnSubType == TxnSubType.INCOME
-                RecentTypeFilter.TRANSFER ->
-                    txn.txnSubType == TxnSubType.TRANSFER_IN || txn.txnSubType == TxnSubType.TRANSFER_OUT
+                RecentTypeFilter.EXPENSE -> TransactionDisplayClassifier.isSpending(displayClass)
+                RecentTypeFilter.INCOME -> TransactionDisplayClassifier.isIncome(displayClass)
+                RecentTypeFilter.NOT_A_SPEND -> displayClass == TransactionDisplayClass.NOT_A_SPEND
+                RecentTypeFilter.TRANSFER -> displayClass == TransactionDisplayClass.TRANSFER
             }
             val date = Instant.ofEpochMilli(txn.occurredAtEpochMillis).atZone(dashboardZone).toLocalDate()
             val matchesFrom = fromEpoch?.let {
@@ -188,7 +191,9 @@ fun DashboardScreen(
             .fillMaxSize()
             .background(MmColors.background)
             .modernTopInsets(),
-        contentPadding = PaddingValues(bottom = MmSpacing.md)
+        contentPadding = PaddingValues(
+            bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.md
+        )
     ) {
             item {
                 BalanceHeroCard(
@@ -205,16 +210,6 @@ fun DashboardScreen(
                     hideAmounts = hideAmounts,
                     onOpenSpent = { onOpenBreakdown(DashboardBreakdownKind.SPENT) },
                     onOpenIncome = { onOpenBreakdown(DashboardBreakdownKind.INCOME) }
-                )
-            }
-
-            item {
-                QuickActions(
-                    onAddExpense = onAddAccountSpend,
-                    onAddIncome = onAddAccountIncome,
-                    onCash = onOpenCash,
-                    onBills = onSeeAllBills,
-                    modifier = Modifier.revealOnAppear(index = 0)
                 )
             }
 
@@ -689,29 +684,6 @@ private fun MonthSummaryCard(
                 overflow = TextOverflow.Ellipsis
             )
         }
-    }
-}
-
-/** Four quick actions with their icon badges — the original dashboard controls. */
-@Composable
-private fun QuickActions(
-    onAddExpense: () -> Unit,
-    onAddIncome: () -> Unit,
-    onCash: () -> Unit,
-    onBills: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        MmQuickAction(Icons.AutoMirrored.Filled.CallMade, "Add expense", MmColors.expense, onAddExpense, Modifier.weight(1f))
-        MmQuickAction(Icons.AutoMirrored.Filled.CallReceived, "Add income", MmColors.income, onAddIncome, Modifier.weight(1f))
-        MmQuickAction(Icons.Filled.AccountBalanceWallet, "Cash", MmColors.accent, onCash, Modifier.weight(1f))
-        // Recurring destination. The one-time CSV import lives in Settings → Data.
-        MmQuickAction(Icons.Filled.Description, "Bills", MmColors.warning, onBills, Modifier.weight(1f))
     }
 }
 

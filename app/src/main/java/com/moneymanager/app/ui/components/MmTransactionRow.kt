@@ -34,8 +34,8 @@ import androidx.compose.ui.unit.sp
 import com.moneymanager.app.data.local.entity.CategoryEntity
 import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.model.Money
-import com.moneymanager.app.domain.model.TxnKind
-import com.moneymanager.app.domain.model.TxnSubType
+import com.moneymanager.app.domain.reporting.TransactionDisplayClass
+import com.moneymanager.app.domain.reporting.TransactionDisplayClassifier
 import com.moneymanager.app.ui.categories.categoryIcon
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -119,10 +119,12 @@ fun MmTransactionRow(
     hideAmounts: Boolean = false
 ) {
     val amount = mmSignedAmount(txn)
-    val isTransfer = txn.txnSubType == TxnSubType.TRANSFER_IN || txn.txnSubType == TxnSubType.TRANSFER_OUT
+    val displayClass = TransactionDisplayClassifier.classify(txn)
+    val isTransfer = displayClass == TransactionDisplayClass.TRANSFER
     // A card refund comes back as money in, but it is NOT income: it cancels what the card
     // already owed, so it must never borrow the income treatment (green, "Income" badge).
-    val isRefund = txn.txnKind == TxnKind.REFUND_REVERSAL
+    val isRefund = displayClass == TransactionDisplayClass.REFUND
+    val isNotSpend = displayClass == TransactionDisplayClass.NOT_A_SPEND
     val title = mmDisplayTitle(txn)
     val tint = category?.let { mmCategoryTint(it.name) } ?: mmCategoryTint(txn.rawCategoryName ?: title)
     val icon = when {
@@ -134,14 +136,15 @@ fun MmTransactionRow(
         subtitle = subtitleFor(txn),
         leading = { MmIconBadge(icon = icon, tint = tint, size = 42.dp) },
         amountText = if (hideAmounts) "••••" else MoneyFormat.rupeesNoDecimals(amount.abs()),
-        amountColor = when {
-            isTransfer -> MmColors.textPrimary
-            amount.isNegative -> MmColors.expense
-            isRefund -> MmColors.accent
-            else -> MmColors.income
+        amountColor = when (displayClass) {
+            TransactionDisplayClass.TRANSFER -> MmColors.transfer
+            TransactionDisplayClass.NOT_A_SPEND -> MmColors.textPrimary
+            TransactionDisplayClass.REFUND -> MmColors.accent
+            TransactionDisplayClass.EXPENSE -> MmColors.expense
+            TransactionDisplayClass.INCOME -> MmColors.income
         },
-        signed = !isTransfer && !hideAmounts,
-        isIncome = !amount.isNegative,
+        signed = !isTransfer && !isNotSpend && !hideAmounts,
+        isIncome = displayClass == TransactionDisplayClass.INCOME,
         isRefund = isRefund,
         onClick = onClick,
         modifier = modifier,

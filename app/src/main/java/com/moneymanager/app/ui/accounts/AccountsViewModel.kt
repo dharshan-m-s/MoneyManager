@@ -11,11 +11,34 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
+/**
+ * One tab per supported [AccountType] (UNKNOWN is the importer's fallback bucket, not a type a
+ * user can choose), plus an [ALL] overview. The Accounts screen shows only a compact subset of
+ * these as chips; the full set lives behind the All account types browser.
+ */
 enum class AccountsTab(val label: String, val types: Set<AccountType>) {
-    BANK("BANK A/C", setOf(AccountType.BANK)),
-    CREDIT_CARDS("CREDIT CARDS", setOf(AccountType.CREDIT_CARD)),
-    WALLETS("WALLETS", setOf(AccountType.WALLET)),
-    LOANS("LOANS & DUES", setOf(AccountType.LOAN))
+    BANK("Bank accounts", setOf(AccountType.BANK)),
+    DEBIT_CARDS("Debit cards", setOf(AccountType.DEBIT_CARD)),
+    CREDIT_CARDS("Credit cards", setOf(AccountType.CREDIT_CARD)),
+    WALLETS("Wallets", setOf(AccountType.WALLET)),
+    PREPAID_CARDS("Prepaid cards", setOf(AccountType.PREPAID_CARD)),
+    CASH("Cash", setOf(AccountType.CASH)),
+    INVESTMENTS("Investments", setOf(AccountType.INVESTMENT)),
+    LOANS("Loans and dues", setOf(AccountType.LOAN)),
+    ALL("All account types", AccountType.entries.filter { it != AccountType.UNKNOWN }.toSet());
+
+    companion object {
+        /** Tabs offered directly on the Accounts screen. Everything else is in the browser. */
+        val primary: List<AccountsTab> = listOf(
+            AccountsTab.BANK,
+            AccountsTab.CREDIT_CARDS,
+            AccountsTab.WALLETS
+        )
+
+        /** The tab that owns an account type. Exactly one per supported type. */
+        fun forType(type: AccountType): AccountsTab =
+            entries.firstOrNull { it != ALL && type in it.types } ?: ALL
+    }
 }
 
 @HiltViewModel

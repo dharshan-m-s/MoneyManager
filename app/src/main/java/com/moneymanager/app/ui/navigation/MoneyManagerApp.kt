@@ -1,6 +1,8 @@
 package com.moneymanager.app.ui.navigation
 
 import android.os.SystemClock
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -23,6 +26,7 @@ import androidx.compose.material.DrawerValue
 import androidx.compose.material.ExtendedFloatingActionButton
 import androidx.compose.material.Icon
 import androidx.compose.material.ModalDrawer
+import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
@@ -33,6 +37,7 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -222,6 +227,10 @@ fun MoneyManagerRoot() {
         }
     }
 
+    if (fabExpanded) {
+        BackHandler { fabExpanded = false }
+    }
+
     // System Back closes an open drawer first instead of popping the screen underneath it.
     if (drawerState.isOpen) {
         androidx.activity.compose.BackHandler {
@@ -250,10 +259,20 @@ fun MoneyManagerRoot() {
         Box(Modifier.fillMaxSize()) {
             MoneyManagerNavHost(
                 navController = navController,
-                onOpenDrawer = { scope.launch { drawerState.open() } },
+                onOpenDrawer = {
+                    fabExpanded = false
+                    scope.launch { drawerState.open() }
+                },
                 modifier = Modifier.fillMaxSize().navigationBarsPadding()
             )
             if (currentRoute == Destination.Dashboard.route) {
+                if (fabExpanded) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .clickable { fabExpanded = false }
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -271,10 +290,30 @@ fun MoneyManagerRoot() {
                                 .align(Alignment.BottomEnd)
                                 .padding(bottom = 64.dp)
                         ) {
-                            SpeedDialOption("Cash spend", Icons.Filled.Payments, MmColors.expense, index = 3) { openAddTransaction("CASH_SPEND") }
-                            SpeedDialOption("Cash income", Icons.Filled.Savings, MmColors.income, index = 2) { openAddTransaction("CASH_INCOME") }
-                            SpeedDialOption("Account spend", Icons.AutoMirrored.Filled.TrendingDown, MmColors.expense, index = 1) { openAddTransaction("ACCOUNT_SPEND") }
-                            SpeedDialOption("Account income", Icons.AutoMirrored.Filled.TrendingUp, MmColors.income, index = 0) { openAddTransaction("ACCOUNT_INCOME") }
+                            Surface(
+                                modifier = Modifier.width(260.dp),
+                                shape = RoundedCornerShape(24.dp),
+                                color = MmColors.surface,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MmColors.outline),
+                                elevation = 8.dp
+                            ) {
+                                Column(Modifier.padding(10.dp)) {
+                                    Text(
+                                        "New transaction",
+                                        style = MmType.sectionTitle,
+                                        color = MmColors.textPrimary,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                    SpeedDialOption("Expense", Icons.AutoMirrored.Filled.TrendingDown, MmColors.expense, index = 0) { openAddTransaction("ACCOUNT_SPEND") }
+                                    SpeedDialOption("Income", Icons.AutoMirrored.Filled.TrendingUp, MmColors.income, index = 1) { openAddTransaction("ACCOUNT_INCOME") }
+                                    SpeedDialOption("Cash expense", Icons.Filled.Payments, MmColors.expense, index = 2) { openAddTransaction("CASH_SPEND") }
+                                    SpeedDialOption("Cash income", Icons.Filled.Savings, MmColors.income, index = 3) { openAddTransaction("CASH_INCOME") }
+                                    SpeedDialOption("Transfer", Icons.Filled.SwapHoriz, MmColors.accent, index = 4) {
+                                        fabExpanded = false
+                                        navController.navigate(Destination.Transfer.route())
+                                    }
+                                }
+                            }
                         }
                     }
                     // The FAB and its halo are one object: the glow is drawn BEHIND the button,
@@ -401,13 +440,11 @@ private fun SpeedDialOption(
 ) {
     Row(
         modifier = Modifier
+            .fillMaxWidth()
             .revealOnAppear(index = index, delayPerItemMillis = 45)
-            .padding(bottom = MmSpacing.sm)
-            .clip(RoundedCornerShape(MmSpacing.touchTarget / 2))
-            .background(MmColors.surface)
-            .border(1.dp, MmColors.outline, RoundedCornerShape(MmSpacing.touchTarget / 2))
+            .clip(RoundedCornerShape(14.dp))
             .pressableClick(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
     ) {
