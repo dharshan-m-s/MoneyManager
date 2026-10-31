@@ -82,31 +82,30 @@ import com.moneymanager.app.MainActivity
 import com.moneymanager.app.data.repository.BackupManager
 import com.moneymanager.app.security.AppLock
 import com.moneymanager.app.security.LockMethod
-import com.moneymanager.app.ui.modern.components.MmCard
-import com.moneymanager.app.ui.modern.components.MmIconBadge
-import com.moneymanager.app.ui.modern.components.MmPill
-import com.moneymanager.app.ui.modern.components.MmSwitchRow
-import com.moneymanager.app.ui.modern.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmPill
+import com.moneymanager.app.ui.components.MmSwitchRow
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.home.HomePreferences
 import com.moneymanager.app.ui.modern.screens.security.PinSetupDialog
 import com.moneymanager.app.ui.modern.screens.security.SystemLockPrompt
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmShape
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmShape
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
-import com.moneymanager.app.ui.modern.components.MmPrimaryButton
-import com.moneymanager.app.ui.modern.components.revealOnAppear
+import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.appearance.AppearanceEntryPoint
 import com.moneymanager.app.ui.appearance.AppearancePreferences
-import com.moneymanager.app.ui.appearance.AppearanceSelector
 import com.moneymanager.app.ui.appearance.MmAppearance
-import com.moneymanager.app.ui.modern.components.MmSecondaryButton
+import com.moneymanager.app.ui.components.MmSecondaryButton
 import com.moneymanager.app.ui.settings.BackupEntryPoint
 import com.moneymanager.app.ui.settings.SettingsEntryPoint
 
@@ -407,21 +406,6 @@ fun SettingsScreen(
                         homePreferences.setDarkMode(it)
                     }
                 )
-                Column(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
-                    AppearanceSelector(
-                        selected = appearance,
-                        onSelect = { picked ->
-                            appearance = picked
-                            appearancePreferences.set(picked)
-                        }
-                    )
-                    Text(
-                        "Switches instantly. Your balances, transactions and settings stay untouched.",
-                        style = MmType.caption,
-                        color = MmColors.textTertiary,
-                        modifier = Modifier.padding(top = MmSpacing.sm, start = 2.dp)
-                    )
-                }
 
                 SettingsSectionHeader("Money & planning", "Keep your monthly picture clear")
                 SettingsRow(

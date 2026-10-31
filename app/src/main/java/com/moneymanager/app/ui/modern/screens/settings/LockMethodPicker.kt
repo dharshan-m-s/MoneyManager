@@ -22,12 +22,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.moneymanager.app.security.LockMethod
-import com.moneymanager.app.ui.modern.components.MmBottomSheet
-import com.moneymanager.app.ui.modern.components.MmCard
-import com.moneymanager.app.ui.modern.components.MmIconBadge
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
+import com.moneymanager.app.ui.components.MmBottomSheet
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 
 /**
  * Chooses how the app lock verifies: the in-app 4-8 digit PIN or Android's own screen lock

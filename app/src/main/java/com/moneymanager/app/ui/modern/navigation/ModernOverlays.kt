@@ -33,9 +33,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.moneymanager.app.ui.modern.components.pressableClick
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmType
+import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.navigation.Destination
 
 private val moreDestinations = listOf(

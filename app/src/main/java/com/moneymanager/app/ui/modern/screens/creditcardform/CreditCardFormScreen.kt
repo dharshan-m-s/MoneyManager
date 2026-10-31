@@ -1,9 +1,9 @@
 package com.moneymanager.app.ui.modern.screens.creditcardform
 
 import androidx.compose.foundation.layout.Arrangement
-import com.moneymanager.app.ui.modern.components.MmTopBarAction
-import com.moneymanager.app.ui.modern.components.MoneyManagerTopBar
-import com.moneymanager.app.ui.modern.components.modernTopInsets
+import com.moneymanager.app.ui.components.MmTopBarAction
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.modernTopInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,20 +49,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.moneymanager.app.ui.modern.components.MmAmountField
-import com.moneymanager.app.ui.modern.components.MmCard
-import com.moneymanager.app.ui.modern.components.MmDateField
-import com.moneymanager.app.ui.modern.components.MmIconBadge
-import com.moneymanager.app.ui.modern.components.MmSegmentedControl
-import com.moneymanager.app.ui.modern.components.MmStepper
-import com.moneymanager.app.ui.modern.components.MmSwitchRow
-import com.moneymanager.app.ui.modern.components.MmTextField
-import com.moneymanager.app.ui.modern.components.mmFieldShape
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
-import com.moneymanager.app.ui.modern.components.MmPrimaryButton
-import com.moneymanager.app.ui.modern.components.revealOnAppear
+import com.moneymanager.app.ui.components.MmAmountField
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmDateField
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmSegmentedControl
+import com.moneymanager.app.ui.components.MmStepper
+import com.moneymanager.app.ui.components.MmSwitchRow
+import com.moneymanager.app.ui.components.MmTextField
+import com.moneymanager.app.ui.components.mmFieldShape
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.creditcardform.CreditCardFormViewModel
 
 @Composable

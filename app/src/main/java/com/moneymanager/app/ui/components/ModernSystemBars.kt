@@ -1,4 +1,4 @@
-package com.moneymanager.app.ui.modern.components
+package com.moneymanager.app.ui.components
 
 import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.Composable

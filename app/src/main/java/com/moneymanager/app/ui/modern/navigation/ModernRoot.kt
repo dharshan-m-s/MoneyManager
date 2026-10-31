@@ -54,16 +54,16 @@ import androidx.navigation.compose.rememberNavController
 import com.moneymanager.app.ui.navigation.Destination
 import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.security.LockMethod
-import com.moneymanager.app.ui.modern.components.MmIconBadge
-import com.moneymanager.app.ui.modern.components.LocalDockContentPadding
-import com.moneymanager.app.ui.modern.components.StatusBarGlyphToneAndSystemBarTint
-import com.moneymanager.app.ui.modern.components.mmBrandWash
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.LocalDockContentPadding
+import com.moneymanager.app.ui.components.StatusBarGlyphToneAndSystemBarTint
+import com.moneymanager.app.ui.components.mmBrandWash
 import com.moneymanager.app.ui.modern.screens.security.PinUnlockScreen
 import com.moneymanager.app.ui.modern.screens.security.SystemLockPrompt
 import com.moneymanager.app.ui.settings.SettingsEntryPoint
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
 import timber.log.Timber
 
@@ -217,6 +217,9 @@ fun ModernRoot() {
     androidx.activity.compose.BackHandler(enabled = overlay != DockOverlay.NONE) {
         closeOverlay()
     }
+    androidx.activity.compose.BackHandler(enabled = dockVisible && overlay == DockOverlay.NONE && currentRoute != Destination.Dashboard.route) {
+        navController.popBackStack()
+    }
 
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
@@ -267,7 +270,12 @@ fun ModernRoot() {
         ) {
             ModernMorePopover(onSelect = { destination ->
                 closeOverlay()
-                navController.navigate(destination.route) { launchSingleTop = true }
+                if (destination.route == navController.currentDestination?.route) {
+                    return@ModernMorePopover
+                }
+                navController.navigate(destination.route) {
+                    launchSingleTop = true
+                }
             })
         }
 
@@ -347,8 +355,15 @@ fun ModernRoot() {
                     .onSizeChanged { dockHeightPx = it.height },
                 onNavigate = { route ->
                     closeOverlay()
+                    if (route == navController.currentDestination?.route) {
+                        return@ModernDock
+                    }
                     navController.navigate(route) {
+                        popUpTo(Destination.Dashboard.route) {
+                            saveState = true
+                        }
                         launchSingleTop = true
+                        restoreState = true
                     }
                 },
                 onToggleAdd = {

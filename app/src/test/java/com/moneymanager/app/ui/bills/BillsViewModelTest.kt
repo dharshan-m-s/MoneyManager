@@ -224,8 +224,7 @@ class BillsViewModelTest {
         )
 
         val row = pumpBills().first { it.bill.id == billId }
-        assertNotNull("a recorded card payment should be surfaced", row.detectedPayment)
-        assertEquals(5_000L, row.detectedPayment!!.creditMinorUnits)
+        // Automatic detection removed - no auto-detected payment
     }
 
     @Test
@@ -279,6 +278,62 @@ class BillsViewModelTest {
         )
 
         val row = pumpBills().first { it.bill.id == billId }
-        assertNull("a partial payment should not be offered as a full settlement", row.detectedPayment)
+    }
+
+    @Test
+    fun selectingTransactionDoesNotCommitPayment() = runBlocking {
+        val bankId = db.accountDao().insert(
+            AccountEntity(
+                sourceAccountId = "b1",
+                institutionName = "HDFC",
+                nickname = "HDFC",
+                accountType = AccountType.BANK,
+                businessPersonal = BusinessPersonal.PERSONAL,
+                openingBalanceMinorUnits = 10000,
+                currentBalanceMinorUnits = 10000,
+                createdAtEpochMillis = 0,
+                updatedAtEpochMillis = 0
+            )
+        )
+        val billId = insertBill("Electricity", 23, linkedAccountId = null, amount = 2000)
+        val instanceId = insertInstance(billId, 23, amount = 2000)
+        val txn = TransactionEntity(
+            occurredAtEpochMillis = at(22),
+            rawDateString = "",
+            txnType = TxnType.DEBIT_TRANSACTION,
+            txnSubType = TxnSubType.EXPENSE,
+            txnKind = TxnKind.REGULAR,
+            paymentType = PaymentType.NETBANKING,
+            rawPaymentType = PaymentType.NETBANKING.raw,
+            businessPersonal = BusinessPersonal.PERSONAL,
+            merchantReceiverSender = "Electricity Board",
+            categoryId = null,
+            rawCategoryName = null,
+            accountId = bankId,
+            creditMinorUnits = 0,
+            debitMinorUnits = 2000,
+            balanceSnapshotMinorUnits = null,
+            outstandingSnapshotMinorUnits = null,
+            availableLimitSnapshotMinorUnits = null,
+            notes = null,
+            reimbursable = false,
+            reimbursed = false,
+            isCreditCardBillPayment = false,
+            paysOffAccountId = null,
+            isHistoricalImport = false,
+            dedupeFingerprint = "sel-txn",
+            createdAtEpochMillis = 0,
+            updatedAtEpochMillis = 0
+        )
+        val txnId = db.transactionDao().insert(txn)
+        val row = pumpBills().first { it.bill.id == billId }
+        viewModel.findPaymentTransactions(row)
+        shadowOf(Looper.getMainLooper()).idle()
+        Thread.sleep(50)
+        shadowOf(Looper.getMainLooper()).idle()
+        viewModel.selectPaymentTransaction(txnId)
+        // No confirmation - bill should remain unpaid
+        val inst = db.billDao().findInstanceById(instanceId)!!
+        assertEquals(false, inst.paid)
     }
 }

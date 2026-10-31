@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.moneymanager.app.ui.theme.MmColors
 
 /** One UI 9 FAB shape: rounded square with generous, confident rounding. */
-private val MmFabShape = RoundedCornerShape(22.dp)
+private val MmFabShape = RoundedCornerShape(20.dp)
 
 /**
  * A soft light under the FAB. It makes the primary action read as the brightest object on the
@@ -31,7 +31,7 @@ private fun MmFabGlow(content: @Composable () -> Unit) {
             .background(
                 androidx.compose.ui.graphics.Brush.radialGradient(
                     colors = listOf(
-                        MmColors.accent.copy(alpha = 0.22f),
+                        MmColors.accentGlow.copy(alpha = 0.30f),
                         androidx.compose.ui.graphics.Color.Transparent
                     )
                 )
@@ -52,11 +52,11 @@ fun CashFab(
     MmFabGlow {
         FloatingActionButton(
             onClick = onAddCashTransaction,
-            backgroundColor = MmColors.accent,
+            backgroundColor = MmColors.accentFill,
             contentColor = MmColors.onAccent,
             shape = MmFabShape,
-            modifier = modifier,
-            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 8.dp)
+            modifier = modifier.mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.7f),
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
         ) {
             Icon(
                 Icons.Filled.Add,
@@ -80,11 +80,11 @@ fun AddBillerFab(
     MmFabGlow {
         FloatingActionButton(
             onClick = onAddBiller,
-            backgroundColor = MmColors.accent,
+            backgroundColor = MmColors.accentFill,
             contentColor = MmColors.onAccent,
             shape = MmFabShape,
-            modifier = modifier,
-            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 8.dp)
+            modifier = modifier.mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.7f),
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
         ) {
             Icon(
                 Icons.Filled.Add,
@@ -106,11 +106,11 @@ fun AccountsFab(
     MmFabGlow {
         FloatingActionButton(
             onClick = onAddAccount,
-            backgroundColor = MmColors.accent,
+            backgroundColor = MmColors.accentFill,
             contentColor = MmColors.onAccent,
             shape = MmFabShape,
-            modifier = modifier,
-            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 8.dp)
+            modifier = modifier.mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.7f),
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
         ) {
             Icon(
                 Icons.Filled.Add,

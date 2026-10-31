@@ -1,4 +1,4 @@
-package com.moneymanager.app.ui.modern.components
+package com.moneymanager.app.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -41,10 +41,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmShape
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmShape
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 import kotlin.math.roundToLong
 
 /**

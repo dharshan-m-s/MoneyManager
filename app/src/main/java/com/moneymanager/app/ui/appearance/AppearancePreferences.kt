@@ -10,39 +10,16 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * The two selectable visual experiences.
- *
- * [MmAppearance.DEFAULT] is the interface the app has always shipped: brand-green chrome, flat
- * cards and the original component geometry. It stays the default for fresh installs, while
- * existing saved choices are preserved, so
- * the appearance update never changes a familiar interface without being asked.
- *
- * [Modern] is the layered midnight-indigo design: deep blue-black surfaces, luminous indigo
- * accents, hairline cards and a floating bottom dock.
- *
- * Appearance is deliberately independent of the light/dark setting: either look can be used in
- * either mode, and switching one never changes the other.
+ * Modern UI is now the only UI of Money Manager.
  */
 enum class MmAppearance(val storageKey: String, val label: String) {
-    // Keep persisted IDs stable so installs made before the rename retain their selection.
-    DEFAULT("classic", "Default"),
     MODERN("vintage", "Modern");
 
     companion object {
         /**
-         * Parses current and legacy persisted IDs. The storage strings remain stable across the
-         * presentation rename, and the former enum names are accepted for builds that wrote them.
-         * Missing, unknown, or corrupted values safely select the original experience.
+         * Any stored appearance value is safely coerced to Modern for backward compatibility.
          */
-        fun fromStorage(raw: String?): MmAppearance {
-            val key = raw?.trim()?.lowercase() ?: return DEFAULT
-            return when (key) {
-                "classic", "default" -> DEFAULT
-                "vintage", "modern" -> MODERN
-                else -> entries.firstOrNull { it.storageKey == key || it.name.lowercase() == key }
-                    ?: DEFAULT
-            }
-        }
+        fun fromStorage(raw: String?): MmAppearance = MODERN
     }
 }
 
@@ -60,21 +37,17 @@ class AppearancePreferences @Inject constructor(
 ) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    private val _appearance = MutableStateFlow(read())
+    private val _appearance = MutableStateFlow(MmAppearance.MODERN)
     val appearance: StateFlow<MmAppearance> = _appearance.asStateFlow()
 
     /** Synchronous read for places that cannot collect (e.g. system-bar tinting at launch). */
-    fun current(): MmAppearance = read()
+    fun current(): MmAppearance = MmAppearance.MODERN
 
     fun set(value: MmAppearance) {
-        if (prefs.getString(KEY_APPEARANCE, null) != value.storageKey) {
-            prefs.edit { putString(KEY_APPEARANCE, value.storageKey) }
-        }
-        _appearance.value = value
+        _appearance.value = MmAppearance.MODERN
     }
 
-    private fun read(): MmAppearance =
-        MmAppearance.fromStorage(prefs.getString(KEY_APPEARANCE, null))
+    private fun read(): MmAppearance = MmAppearance.MODERN
 
     companion object {
         const val PREFS_NAME = "moneymanager_settings"

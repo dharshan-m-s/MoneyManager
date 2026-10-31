@@ -72,7 +72,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.moneymanager.app.data.local.entity.CategoryEntity
-import com.moneymanager.app.ui.modern.theme.MmColors
+import com.moneymanager.app.ui.theme.MmColors
 
 @Composable
 fun CategoryVisual(

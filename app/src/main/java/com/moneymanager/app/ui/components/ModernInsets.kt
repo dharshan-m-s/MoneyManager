@@ -1,4 +1,4 @@
-package com.moneymanager.app.ui.modern.components
+package com.moneymanager.app.ui.components
 
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides

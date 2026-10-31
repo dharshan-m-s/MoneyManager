@@ -26,6 +26,8 @@ import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.CallMade
+import androidx.compose.material.icons.automirrored.filled.CallReceived
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Description
@@ -55,10 +57,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.dao.CategoryTotal
 import com.moneymanager.app.domain.model.Money
-import com.moneymanager.app.domain.reporting.TransactionDisplayClass
-import com.moneymanager.app.domain.reporting.TransactionDisplayClassifier
+import com.moneymanager.app.domain.model.TxnSubType
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmBottomSheet
+import com.moneymanager.app.ui.components.MmQuickAction
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmChip
 import com.moneymanager.app.ui.components.MmDateField
@@ -82,14 +84,14 @@ import com.moneymanager.app.ui.theme.MmType
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 private val dashboardZone: ZoneId = ZoneId.of("Asia/Kolkata")
 
 private enum class RecentTypeFilter(val label: String) {
     ALL("All"),
-    EXPENSE("Spending"),
+    EXPENSE("Expense"),
     INCOME("Income"),
-    NOT_A_SPEND("Not a spend"),
     TRANSFER("Transfer")
 }
 
@@ -144,13 +146,12 @@ fun DashboardScreen(
                 txn.merchantReceiverSender, txn.rawCategoryName, txn.notes, txn.rawPaymentType
             ).joinToString(" ")
             val matchesQuery = query.isBlank() || haystack.contains(query.trim(), ignoreCase = true)
-            val displayClass = TransactionDisplayClassifier.classify(txn)
             val matchesType = when (activeType) {
                 RecentTypeFilter.ALL -> true
-                RecentTypeFilter.EXPENSE -> TransactionDisplayClassifier.isSpending(displayClass)
-                RecentTypeFilter.INCOME -> TransactionDisplayClassifier.isIncome(displayClass)
-                RecentTypeFilter.NOT_A_SPEND -> displayClass == TransactionDisplayClass.NOT_A_SPEND
-                RecentTypeFilter.TRANSFER -> displayClass == TransactionDisplayClass.TRANSFER
+                RecentTypeFilter.EXPENSE -> txn.txnSubType == TxnSubType.EXPENSE
+                RecentTypeFilter.INCOME -> txn.txnSubType == TxnSubType.INCOME
+                RecentTypeFilter.TRANSFER ->
+                    txn.txnSubType == TxnSubType.TRANSFER_IN || txn.txnSubType == TxnSubType.TRANSFER_OUT
             }
             val date = Instant.ofEpochMilli(txn.occurredAtEpochMillis).atZone(dashboardZone).toLocalDate()
             val matchesFrom = fromEpoch?.let {
@@ -179,6 +180,16 @@ fun DashboardScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 128.dp)
         ) {
+            item {
+                QuickActions(
+                    onAddExpense = onAddAccountSpend,
+                    onAddIncome = onAddAccountIncome,
+                    onCash = onOpenCash,
+                    onBills = onSeeAllBills,
+                    modifier = Modifier.revealOnAppear(index = 0)
+                )
+            }
+
             if (!state.hasAnyData) {
                 item {
                     MmCard(modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
@@ -220,17 +231,11 @@ fun DashboardScreen(
                     onAction = onSeeAllSpendAreas
                 ) {
                     if (state.topCategoryTotals.isEmpty()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.md, vertical = MmSpacing.sm),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)
-                        ) {
-                            MmIconBadge(icon = Icons.Filled.PieChart, tint = MmColors.textTertiary, size = 40.dp)
-                            Column {
-                                Text("No spending this month", style = MmType.body, color = MmColors.textPrimary)
-                                Text("Category totals appear after spending is recorded.", style = MmType.caption, color = MmColors.textSecondary)
-                            }
-                        }
+                        MmEmptyState(
+                            icon = Icons.Filled.PieChart,
+                            title = "No spending this month",
+                            message = "Your category breakdown appears here once you spend."
+                        )
                     } else {
                         SpendingBreakdown(
                             rows = state.topCategoryTotals,
@@ -431,7 +436,14 @@ private fun DashboardHero(
                 IconButton(onClick = onOpenDrawer) {
                     Icon(Icons.Filled.Menu, contentDescription = "Open menu", tint = MMWhite)
                 }
-                Spacer(Modifier.weight(1f))
+                Column(Modifier.weight(1f).padding(start = MmSpacing.xs)) {
+                    Text(greeting(), color = MMWhite.copy(alpha = 0.75f), style = MmType.caption)
+                    Text(
+                        DateTimeFormatter.ofPattern("MMMM yyyy").format(LocalDate.now(dashboardZone)),
+                        color = MMWhite,
+                        style = MmType.screenTitle
+                    )
+                }
                 IconButton(onClick = onOpenSearch) {
                     Icon(Icons.Filled.Search, contentDescription = "Search", tint = MMWhite)
                 }
@@ -551,6 +563,38 @@ private fun HeroTile(
                 color = MMWhite
             )
         }
+    }
+}
+
+private fun greeting(): String {
+    val hour = java.time.LocalTime.now(dashboardZone).hour
+    return when {
+        hour < 12 -> "Good morning"
+        hour < 17 -> "Good afternoon"
+        else -> "Good evening"
+    }
+}
+
+/** Four quick actions with their icon badges — the original dashboard controls. */
+@Composable
+private fun QuickActions(
+    onAddExpense: () -> Unit,
+    onAddIncome: () -> Unit,
+    onCash: () -> Unit,
+    onBills: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        MmQuickAction(Icons.AutoMirrored.Filled.CallMade, "Add expense", MmColors.expense, onAddExpense, Modifier.weight(1f))
+        MmQuickAction(Icons.AutoMirrored.Filled.CallReceived, "Add income", MmColors.income, onAddIncome, Modifier.weight(1f))
+        MmQuickAction(Icons.Filled.AccountBalanceWallet, "Cash", MmColors.accent, onCash, Modifier.weight(1f))
+        // Recurring destination. The one-time CSV import lives in Settings → Data.
+        MmQuickAction(Icons.Filled.Description, "Bills", MmColors.warning, onBills, Modifier.weight(1f))
     }
 }
 

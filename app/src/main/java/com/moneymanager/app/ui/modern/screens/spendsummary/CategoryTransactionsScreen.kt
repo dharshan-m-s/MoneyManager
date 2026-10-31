@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.Text
@@ -32,17 +33,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
-import com.moneymanager.app.ui.modern.components.MmEmptyState
-import com.moneymanager.app.ui.modern.components.MmPill
-import com.moneymanager.app.ui.modern.components.MmTransactionRow
-import com.moneymanager.app.ui.modern.components.MoneyFormat
-import com.moneymanager.app.ui.modern.components.MoneyManagerTopBar
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
-import com.moneymanager.app.ui.modern.components.revealOnAppear
+import com.moneymanager.app.ui.components.MmEmptyState
+import com.moneymanager.app.ui.components.MmPill
+import com.moneymanager.app.ui.components.MmTransactionRow
+import com.moneymanager.app.ui.components.MoneyFormat
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.revealOnAppear
 import androidx.compose.foundation.lazy.itemsIndexed
 import com.moneymanager.app.ui.spendsummary.CategoryTransactionsViewModel
+import com.moneymanager.app.ui.spendsummary.MonthWindow
+import com.moneymanager.app.ui.components.pressableClick
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 /**
  * Transactions for one category within the SELECTED Spend Areas month (never all-time). Uses the
@@ -56,11 +61,14 @@ fun CategoryTransactionsScreen(
     onTransactionClick: (Long) -> Unit,
     viewModel: CategoryTransactionsViewModel = hiltViewModel()
 ) {
-    val rowsFlow = remember(categoryId) { viewModel.transactions(categoryId) }
+    val rowsFlow = remember(categoryId, viewModel) { viewModel.transactions(categoryId) }
     val rows by rowsFlow.collectAsState()
     var title by remember { mutableStateOf("Category") }
     LaunchedEffect(categoryId) { title = viewModel.categoryName(categoryId) }
-    val monthLabel = remember { viewModel.monthLabel() }
+    val monthWindow by viewModel.spendAreasSelection.window.collectAsState()
+    val monthLabel = remember(monthWindow) { viewModel.monthLabel(monthWindow) }
+    val months = viewModel.availableMonths
+    val selectedIdx by viewModel.selectedMonthIndex.collectAsState()
 
     val spent = rows.sumOf { it.debitMinorUnits - it.creditMinorUnits }
 
@@ -70,6 +78,17 @@ fun CategoryTransactionsScreen(
             subtitle = "${rows.size} ${if (rows.size == 1) "transaction" else "transactions"} • $monthLabel",
             onBack = onBack
         )
+        if (months.isNotEmpty()) {
+            MonthBarGraph(
+                months = months,
+                monthlyTotals = List(months.size) { index ->
+                    if (index == selectedIdx) spent else 0L
+                },
+                selectedIdx = selectedIdx,
+                onSelect = viewModel::selectMonth
+            )
+            Spacer(Modifier.height(MmSpacing.sm))
+        }
 
         if (rows.isEmpty()) {
             MmEmptyState(
@@ -129,6 +148,73 @@ fun CategoryTransactionsScreen(
                     onClick = { onTransactionClick(txn.id) },
                     modifier = Modifier.revealOnAppear(index = index)
                 )
+            }
+        }
+    }
+}
+
+/**
+ * One bar per month for quick selection in category drill-down.
+ */
+@Composable
+private fun MonthBarGraph(
+    months: List<MonthWindow>,
+    monthlyTotals: List<Long>,
+    selectedIdx: Int,
+    onSelect: (Int) -> Unit
+) {
+    val maxTotal = (monthlyTotals.maxOrNull() ?: 0L).coerceAtLeast(1L)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(96.dp)
+            .padding(horizontal = MmSpacing.lg),
+        horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+    ) {
+        months.asReversed().forEachIndexed { reversedIdx, month ->
+            val idx = months.lastIndex - reversedIdx
+            val totalForMonth = monthlyTotals.getOrNull(idx) ?: 0L
+            val hasData = totalForMonth > 0L
+            val isSelected = idx == selectedIdx
+            val fillFraction = if (hasData) (totalForMonth.toFloat() / maxTotal).coerceIn(0.12f, 1f) else 0f
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (hasData) MmColors.accent.copy(alpha = 0.14f) else MmColors.surfaceMuted)
+                        .pressableClick { onSelect(idx) },
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height((96.dp * fillFraction))
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                when {
+                                    isSelected -> MmColors.accent
+                                    hasData -> MmColors.accent.copy(alpha = 0.55f)
+                                    else -> MmColors.textTertiary.copy(alpha = 0.35f)
+                                }
+                            )
+                    )
+                }
+                Spacer(Modifier.height(MmSpacing.xs))
+                Text(
+                    month.label,
+                    style = MmType.caption.copy(fontSize = 9.sp),
+                    color = if (isSelected) MmColors.accent else MmColors.textSecondary,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1
+                )
+            }
+            if (reversedIdx != months.lastIndex) {
+                Spacer(Modifier.width(MmSpacing.xs))
             }
         }
     }

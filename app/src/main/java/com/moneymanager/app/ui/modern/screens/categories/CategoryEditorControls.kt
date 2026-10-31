@@ -61,13 +61,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.moneymanager.app.data.local.entity.CategoryEntity
-import com.moneymanager.app.ui.modern.components.MmOption
-import com.moneymanager.app.ui.modern.components.MmPickerField
-import com.moneymanager.app.ui.modern.components.MmPickerSheet
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
-import com.moneymanager.app.ui.modern.components.pressableClick
+import com.moneymanager.app.ui.components.MmOption
+import com.moneymanager.app.ui.components.MmPickerField
+import com.moneymanager.app.ui.components.MmPickerSheet
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.pressableClick
 
 /** One selectable category icon. [key] is persisted in [CategoryEntity.iconKey]. */
 data class CategoryIconOption(val key: String, val label: String, val icon: ImageVector)

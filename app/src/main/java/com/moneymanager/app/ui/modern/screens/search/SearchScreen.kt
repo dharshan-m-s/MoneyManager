@@ -22,14 +22,14 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.moneymanager.app.ui.modern.components.MmEmptyState
-import com.moneymanager.app.ui.modern.components.MmSearchField
-import com.moneymanager.app.ui.modern.components.MmTransactionRow
-import com.moneymanager.app.ui.modern.components.MoneyManagerTopBar
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
-import com.moneymanager.app.ui.modern.components.revealOnAppear
+import com.moneymanager.app.ui.components.MmEmptyState
+import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.MmTransactionRow
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.revealOnAppear
 import androidx.compose.foundation.lazy.itemsIndexed
 import com.moneymanager.app.ui.search.SearchViewModel
 

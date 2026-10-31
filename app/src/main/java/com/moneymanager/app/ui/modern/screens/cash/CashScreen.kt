@@ -42,23 +42,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
-import com.moneymanager.app.ui.modern.components.MmAnimatedAmount
-import com.moneymanager.app.ui.modern.components.MmCard
-import com.moneymanager.app.ui.modern.components.MmIconBadge
-import com.moneymanager.app.ui.modern.components.MmSearchField
-import com.moneymanager.app.ui.modern.components.MmTopBarAction
-import com.moneymanager.app.ui.modern.components.MoneyManagerTopBar
-import com.moneymanager.app.ui.modern.components.MmTransactionRow
-import com.moneymanager.app.ui.modern.components.MoneyFormat
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
+import com.moneymanager.app.ui.components.MmAnimatedAmount
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.MmTopBarAction
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.MmTransactionRow
+import com.moneymanager.app.ui.components.MoneyFormat
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import com.moneymanager.app.ui.modern.components.pressableClick
-import com.moneymanager.app.ui.modern.components.revealOnAppear
+import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.cash.CashViewModel
 
 /**

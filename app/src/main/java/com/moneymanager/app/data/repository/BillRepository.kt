@@ -67,6 +67,22 @@ class BillRepository @Inject constructor(
             val remaining =
                 (current.amountDueMinorUnits - current.paidAmountMinorUnits).coerceAtLeast(0L)
 
+            // Allow zero-value bills to be marked paid directly without requiring a transaction
+            if (remaining == 0L && amountMinorUnits == 0L && paymentTransactionId == null) {
+                billDao.insertAllocation(
+                    BillPaymentAllocationEntity(
+                        billInstanceId = current.id,
+                        transactionId = null,
+                        amountMinorUnits = 0L,
+                        paidAtEpochMillis = System.currentTimeMillis(),
+                        createdAtEpochMillis = System.currentTimeMillis()
+                    )
+                )
+                val newState = requireNotNull(syncInstancePaymentState(current.id))
+                if (newState.paid) settledBillId = current.billId
+                return@withTransaction newState
+            }
+
             var effectivePaymentId: Long? = paymentTransactionId
             var moneyMoved: Long
             var paidAt: Long = System.currentTimeMillis()
@@ -152,19 +168,24 @@ class BillRepository @Inject constructor(
                     payment.id
                 }
             } else {
-                moneyMoved = amountMinorUnits ?: remaining
-                if (cardId != null) {
-                    // Settling a card bill outside the app (cash at the issuer, net banking in
-                    // another app) still clears what the card owes. The card-side leg is
-                    // recorded so the card's outstanding falls by the amount that was paid -
-                    // without it the user would have to re-type the outstanding by hand after
-                    // every single card payment.
-                    effectivePaymentId = createOutOfBandCardPayment(
-                        cardAccountId = cardId,
-                        amountMinorUnits = moneyMoved,
-                        occurredAtEpochMillis = paidAt,
-                        cardName = bill?.billerName ?: "Credit card"
-                    )
+                if (amountMinorUnits == 0L && remaining == 0L) {
+                    moneyMoved = 0L
+                    effectivePaymentId = null
+                } else {
+                    moneyMoved = amountMinorUnits ?: remaining
+                    if (cardId != null) {
+                        // Settling a card bill outside the app (cash at the issuer, net banking in
+                        // another app) still clears what the card owes. The card-side leg is
+                        // recorded so the card's outstanding falls by the amount that was paid -
+                        // without it the user would have to re-type the outstanding by hand after
+                        // every single card payment.
+                        effectivePaymentId = createOutOfBandCardPayment(
+                            cardAccountId = cardId,
+                            amountMinorUnits = moneyMoved,
+                            occurredAtEpochMillis = paidAt,
+                            cardName = bill?.billerName ?: "Credit card"
+                        )
+                    }
                 }
             }
 
@@ -174,7 +195,22 @@ class BillRepository @Inject constructor(
                 }
                 moneyMoved = amountMinorUnits
             }
-            require(moneyMoved > 0L) { "Enter a payment amount" }
+            if (!(amountMinorUnits == 0L && remaining == 0L && paymentTransactionId == null)) {
+                require(moneyMoved > 0L) { "Enter a payment amount" }
+            } else if (moneyMoved == 0L) {
+                billDao.insertAllocation(
+                    BillPaymentAllocationEntity(
+                        billInstanceId = current.id,
+                        transactionId = null,
+                        amountMinorUnits = 0L,
+                        paidAtEpochMillis = paidAt,
+                        createdAtEpochMillis = System.currentTimeMillis()
+                    )
+                )
+                val newState = requireNotNull(syncInstancePaymentState(current.id))
+                if (newState.paid) settledBillId = current.billId
+                return@withTransaction newState
+            }
 
             billDao.insertAllocation(
                 BillPaymentAllocationEntity(
@@ -390,18 +426,26 @@ class BillRepository @Inject constructor(
         val instance = billDao.findInstanceById(instanceId) ?: return null
         val allocations = billDao.findAllocationsForInstance(instanceId)
         val sum = allocations.sumOf { it.amountMinorUnits }
-        val settled = allocations.isNotEmpty() && sum >= instance.amountDueMinorUnits
+        val settled = if (instance.amountDueMinorUnits <= 0L) {
+            allocations.isNotEmpty()
+        } else {
+            allocations.isNotEmpty() && sum >= instance.amountDueMinorUnits
+        }
         val completedAt = if (settled) {
-            var running = 0L
-            var crossedAt: Long? = null
-            for (allocation in allocations) {
-                running += allocation.amountMinorUnits
-                if (running >= instance.amountDueMinorUnits) {
-                    crossedAt = allocation.paidAtEpochMillis
-                    break
+            if (instance.amountDueMinorUnits <= 0L) {
+                allocations.lastOrNull()?.paidAtEpochMillis ?: System.currentTimeMillis()
+            } else {
+                var running = 0L
+                var crossedAt: Long? = null
+                for (allocation in allocations) {
+                    running += allocation.amountMinorUnits
+                    if (running >= instance.amountDueMinorUnits) {
+                        crossedAt = allocation.paidAtEpochMillis
+                        break
+                    }
                 }
+                crossedAt
             }
-            crossedAt
         } else {
             null
         }

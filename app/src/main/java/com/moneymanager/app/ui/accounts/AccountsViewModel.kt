@@ -28,11 +28,12 @@ enum class AccountsTab(val label: String, val types: Set<AccountType>) {
     ALL("All account types", AccountType.entries.filter { it != AccountType.UNKNOWN }.toSet());
 
     companion object {
-        /** Tabs offered directly on the Accounts screen. Everything else is in the browser. */
+        /** Tabs offered directly on the Accounts screen. */
         val primary: List<AccountsTab> = listOf(
             AccountsTab.BANK,
             AccountsTab.CREDIT_CARDS,
-            AccountsTab.WALLETS
+            AccountsTab.WALLETS,
+            AccountsTab.PREPAID_CARDS
         )
 
         /** The tab that owns an account type. Exactly one per supported type. */

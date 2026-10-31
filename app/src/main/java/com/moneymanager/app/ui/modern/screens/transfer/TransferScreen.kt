@@ -39,19 +39,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.AccountType
-import com.moneymanager.app.ui.modern.components.MmAmountField
-import com.moneymanager.app.ui.modern.components.MmPrimaryButton
-import com.moneymanager.app.ui.modern.components.MmCard
-import com.moneymanager.app.ui.modern.components.MmEmptyState
-import com.moneymanager.app.ui.modern.components.MmOption
-import com.moneymanager.app.ui.modern.components.MmPickerField
-import com.moneymanager.app.ui.modern.components.MmPickerSheet
-import com.moneymanager.app.ui.modern.components.MmTextField
-import com.moneymanager.app.ui.modern.components.MoneyManagerTopBar
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
-import com.moneymanager.app.ui.modern.components.pressableClick
+import com.moneymanager.app.ui.components.MmAmountField
+import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmEmptyState
+import com.moneymanager.app.ui.components.MmOption
+import com.moneymanager.app.ui.components.MmPickerField
+import com.moneymanager.app.ui.components.MmPickerSheet
+import com.moneymanager.app.ui.components.MmTextField
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.transfer.TransferViewModel
 
 @Composable

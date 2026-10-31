@@ -22,8 +22,6 @@ import kotlinx.coroutines.flow.stateIn
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
-enum class DashboardBreakdownKind { BALANCE, SPENT, INCOME, NET_WORTH, BILLS }
-
 data class AccountLine(val account: AccountEntity, val amountMinorUnits: Long)
 data class BillLine(val instance: BillInstanceEntity, val bill: BillEntity?)
 

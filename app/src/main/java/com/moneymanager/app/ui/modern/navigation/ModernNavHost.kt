@@ -63,6 +63,7 @@ fun ModernNavHost(
 
     fun go(route: String) {
         // launchSingleTop guards against duplicate navigations from a double tap.
+        if (route == navController.currentDestination?.route) return
         navController.navigate(route) { launchSingleTop = true }
     }
 

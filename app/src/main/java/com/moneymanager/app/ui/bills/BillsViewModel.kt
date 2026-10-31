@@ -25,11 +25,7 @@ import javax.inject.Inject
 data class BillRow(
     val bill: BillEntity,
     val nextInstance: BillInstanceEntity?,
-    val latestPaid: BillInstanceEntity?,
-    /** A recorded payment that already reached this bill's credit card but is not yet
-     *  allocated to any bill. Surfaced so the user can confirm it with one tap instead of
-     *  hunting for the transaction. */
-    val detectedPayment: TransactionEntity? = null
+    val latestPaid: BillInstanceEntity?
 )
 
 data class BillPaymentCandidate(
@@ -69,21 +65,15 @@ class BillsViewModel @Inject constructor(
     val bills = combine(
         billDao.observeActive(),
         billDao.observeUpcomingUnpaid(),
-        billDao.observePaid(),
-        transactionDao.observeCardPaymentLegs()
-    ) { bills, unpaid, paid, cardPayments ->
-        val allocated = billDao.findAllocatedTransactionIds().filterNotNull().toSet()
-        val unallocatedCardPayments = cardPayments.filter { it.id !in allocated }
+        billDao.observePaid()
+    ) { bills, unpaid, paid ->
         bills.map { bill ->
             val next = unpaid.filter { it.billId == bill.id }.minByOrNull { it.dueDateEpochMillis }
             val settled = paid.filter { it.billId == bill.id }.maxByOrNull { it.paidAtEpochMillis ?: 0L }
             BillRow(
                 bill = bill,
                 nextInstance = next,
-                latestPaid = settled,
-                detectedPayment = next?.let { instance ->
-                    detectCardPayment(bill, instance, unallocatedCardPayments)
-                }
+                latestPaid = settled
             )
         }.sortedWith(
             // Open occurrences first (soonest due date at the top), settled bills afterwards.
@@ -97,29 +87,20 @@ class BillsViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /**
-     * Finds a recorded payment that already reached this bill's credit card and covers (at
-     * least most of) the amount still due. Only unallocated card payments qualify, so a
-     * payment that already settles another bill is never offered twice.
-     */
-    private fun detectCardPayment(
-        bill: BillEntity,
-        instance: BillInstanceEntity,
-        candidates: List<TransactionEntity>
-    ): TransactionEntity? {
-        val cardId = bill.linkedAccountId ?: return null
-        val remaining = (instance.amountDueMinorUnits - instance.paidAmountMinorUnits).coerceAtLeast(0L)
-        return candidates.asSequence()
-            .filter { it.accountId == cardId }
-            .filter { it.creditMinorUnits > 0L }
-            .filter { it.creditMinorUnits >= remaining || remaining == 0L }
-            .maxByOrNull { it.occurredAtEpochMillis }
-    }
+    // Automatic card-payment detection removed per requirements - only explicit selection+confirmation
 
     private val _paymentSearch = MutableStateFlow(BillPaymentSearchState())
     val paymentSearch = _paymentSearch
 
-    fun findPaymentTransactions(row: BillRow) {
+    companion object {
+        // Explicit candidate window around due date to avoid pulling unrelated history
+        // Support early payments (up to 90 days before) and short post-due window (up to 60 days after)
+        private const val DEFAULT_WINDOW_BEFORE_DAYS = 90L
+        private const val DEFAULT_WINDOW_AFTER_DAYS = 60L
+        private const val DAY_MS = 86_400_000L
+    }
+
+    fun findPaymentTransactions(row: BillRow, searchOlder: Boolean = false) {
         val instance = row.nextInstance ?: return
         _paymentSearch.value = BillPaymentSearchState(
             billRow = row,
@@ -130,29 +111,52 @@ class BillsViewModel @Inject constructor(
         )
         viewModelScope.launch {
             runCatching {
-                // Search a useful window around the due date first. If that produces no good
-                // match, fall back to the latest 500 transactions so an early payment can still
-                // be found without loading the whole 13k+ ledger into memory.
-                val start = instance.dueDateEpochMillis - 60L * 86_400_000L
-                val end = instance.dueDateEpochMillis + 30L * 86_400_000L
-                val inWindow = transactionDao.findInRange(start, end)
-                val recent = transactionDao.findRecent(500)
-                val source = (inWindow + recent).distinctBy { it.id }
-                val accountsById = accountDao.findByIds(source.map { it.accountId }.toSet())
-                    .associateBy { it.id }
-                // One transaction can settle exactly one bill, ever - exclude everything the
-                // ledger has already counted as a payment.
                 val allocated = billDao.findAllocatedTransactionIds().filterNotNull().toSet()
-                val linkedCardId = row.bill.linkedAccountId
-                val available = source.filter {
-                    BillPaymentEligibility.isEligible(
-                        txn = it,
-                        account = accountsById[it.accountId],
-                        linkedCardAccountId = linkedCardId,
-                        allocatedTransactionIds = allocated
-                    )
+                // Also exclude linked peers of allocated transactions
+                val allocatedPeers = mutableSetOf<Long>()
+                allocated.forEach { allocId ->
+                    transactionDao.findById(allocId)?.linkedTransferTransactionId?.let { allocatedPeers.add(it) }
                 }
-                val manualSource = available
+                val excluded = (allocated + allocatedPeers).toSet()
+                val linkedCardId = row.bill.linkedAccountId
+                val accountsByIdAll = mutableMapOf<Long, AccountEntity>()
+
+                val availableList = if (searchOlder) {
+                    // Deliberate search of older transactions - still apply all eligibility rules
+                    val recent = transactionDao.findRecent(2000)
+                    val accountsById = accountDao.findByIds(recent.map { it.accountId }.toSet())
+                        .associateBy { it.id }
+                    accountsByIdAll.putAll(accountsById)
+                    recent.filter {
+                        if (it.id in excluded) return@filter false
+                        BillPaymentEligibility.isEligible(
+                            txn = it,
+                            account = accountsById[it.accountId],
+                            linkedCardAccountId = linkedCardId,
+                            allocatedTransactionIds = excluded
+                        )
+                    }
+                } else {
+                    // Use explicit window only - no blanket fallback to entire history
+                    val start = instance.dueDateEpochMillis - DEFAULT_WINDOW_BEFORE_DAYS * DAY_MS
+                    val end = instance.dueDateEpochMillis + DEFAULT_WINDOW_AFTER_DAYS * DAY_MS
+                    val inWindow = transactionDao.findInRange(start, end)
+                    val accountsById = accountDao.findByIds(inWindow.map { it.accountId }.toSet())
+                        .associateBy { it.id }
+                    accountsByIdAll.putAll(accountsById)
+                    inWindow.filter {
+                        if (it.id in excluded) return@filter false
+                        BillPaymentEligibility.isEligible(
+                            txn = it,
+                            account = accountsById[it.accountId],
+                            linkedCardAccountId = linkedCardId,
+                            allocatedTransactionIds = excluded
+                        )
+                    }
+                }
+
+                val accountsById = accountsByIdAll
+                val manualSource = availableList
                     .sortedByDescending { it.occurredAtEpochMillis }
                     .take(800)
                 val recentCandidates = manualSource.map { BillPaymentCandidate(it, accountsById[it.accountId]) }
@@ -160,16 +164,19 @@ class BillsViewModel @Inject constructor(
                     billName = row.bill.billerName,
                     billAmountMinorUnits = instance.amountDueMinorUnits,
                     dueDateEpochMillis = instance.dueDateEpochMillis,
-                    transactions = available
+                    transactions = availableList
                 )
                 val matchCandidates = matches.map { BillPaymentCandidate(it.transaction, accountsById[it.transaction.accountId]) }
+                // Ensure no transaction appears in both suggestions and recent list
+                val matchIds = matchCandidates.map { it.transaction.id }.toSet()
+                val dedupedRecent = recentCandidates.filter { it.transaction.id !in matchIds }
                 val paymentAccounts = accountDao.findAll()
                     .filter {
                         it.active && !it.deleted && it.accountType != AccountType.CREDIT_CARD &&
                             !it.isSyntheticUnlinkedAccount
                     }
                     .sortedBy { it.nickname.lowercase() }
-                Triple(matchCandidates, recentCandidates, paymentAccounts)
+                Triple(matchCandidates, dedupedRecent, paymentAccounts)
             }.onSuccess { (matches, recentCandidates, paymentAccounts) ->
                 if (_paymentSearch.value.billRow?.bill?.id != row.bill.id) return@onSuccess
                 _paymentSearch.value = _paymentSearch.value.copy(
@@ -191,6 +198,11 @@ class BillsViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    fun searchOlderTransactions() {
+        val row = _paymentSearch.value.billRow ?: return
+        findPaymentTransactions(row, searchOlder = true)
     }
 
     fun selectPaymentTransaction(transactionId: Long?) {
@@ -282,26 +294,15 @@ class BillsViewModel @Inject constructor(
         }
     }
 
+    fun markAsPaidDirect(instance: BillInstanceEntity, amountMinorUnits: Long = 0L) {
+        markAsPaid(instance, null, amountMinorUnits)
+    }
+
     /** Links a payment that has already been recorded against the card (the "payment detected"
      *  path). The money already moved and the card's outstanding already fell, so this only
      *  records that the bill occurrence is settled. */
     fun markDetectedPaymentPaid(row: BillRow) {
-        val instance = row.nextInstance ?: return
-        val payment = row.detectedPayment ?: return
-        if (_paymentSearch.value.saving) return
-        _paymentSearch.value = _paymentSearch.value.copy(saving = true, error = null)
-        viewModelScope.launch {
-            runCatching {
-                billRepository.markCardBillPaidWithRecordedPayment(instance, payment.id)
-            }.onSuccess { result ->
-                _paymentSearch.value = BillPaymentSearchState(message = paymentMessage(result))
-            }.onFailure {
-                _paymentSearch.value = _paymentSearch.value.copy(
-                    saving = false,
-                    error = it.message ?: "Could not mark bill as paid"
-                )
-            }
-        }
+        // Automatic detected payment shortcut removed
     }
 
     private fun paymentMessage(result: BillInstanceEntity): String {

@@ -1,6 +1,6 @@
 package com.moneymanager.app.ui.modern.screens.security
 
-import com.moneymanager.app.ui.modern.components.modernTopInsets
+import com.moneymanager.app.ui.components.modernTopInsets
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,12 +49,12 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.moneymanager.app.security.PinHasher
-import com.moneymanager.app.ui.modern.components.pressableClick
-import com.moneymanager.app.ui.modern.components.MmIconBadge
-import com.moneymanager.app.ui.modern.components.mmBrandWash
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
+import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.mmBrandWash
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

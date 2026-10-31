@@ -1,7 +1,7 @@
 package com.moneymanager.app.ui.modern.screens.updater
 
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmType
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmType
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,9 +56,9 @@ import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.updater.domain.ApkInstaller
 import com.moneymanager.app.updater.model.UpdateError
 import com.moneymanager.app.updater.model.UpdateState
-import com.moneymanager.app.ui.modern.components.MmCard
-import com.moneymanager.app.ui.modern.components.MmIconBadge
-import com.moneymanager.app.ui.modern.components.MmSwitchRow
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.modern.screens.settings.SimpleTopBar
 
 @Composable

@@ -65,42 +65,29 @@ class MainActivity : FragmentActivity() {
         }
 
         var darkMode by mutableStateOf(prefs.getBoolean(darkModeKey, false))
-        var appearance by mutableStateOf(appearancePreferences.current())
-        fun applySystemBarAppearance(isDark: Boolean, look: MmAppearance) {
-            // The app's dark mode is a setting of its own (not system night mode), so the window
-            // colours must follow the pref at runtime. statusBarColor/navigationBarColor are
-            // deprecated and ignored from API 35 — there the bars stay transparent and the app
-            // paints behind them. Modern keeps the navigation bar transparent on API 29+ too;
-            // Default retains its established solid system-bar treatment.
-            window.statusBarColor = android.graphics.Color.TRANSPARENT
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                window.isStatusBarContrastEnforced = look == MmAppearance.DEFAULT
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                look == MmAppearance.MODERN
-            ) {
-                window.navigationBarColor = android.graphics.Color.TRANSPARENT
-                window.isNavigationBarContrastEnforced = false
-            } else {
-                window.navigationBarColor = navigationBarColor(look, isDark)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    window.isNavigationBarContrastEnforced = true
-                }
-            }
-            // The Modern shell adjusts glyph contrast per route. Default keeps its original
-            // white status-bar treatment.
-            val controller = WindowInsetsControllerCompat(window, window.decorView)
-            controller.isAppearanceLightStatusBars = false
-            controller.isAppearanceLightNavigationBars = !isDark
+        var appearance by mutableStateOf(MmAppearance.MODERN)
+        fun applySystemBarAppearance(isDark: Boolean, look: MmAppearance = MmAppearance.MODERN) {
+            // Modern UI is the only UI.
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            window.isNavigationBarContrastEnforced = false
+        } else {
+            window.navigationBarColor = navigationBarColor(MmAppearance.MODERN, isDark)
+        }
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.isAppearanceLightStatusBars = false
+        controller.isAppearanceLightNavigationBars = !isDark
         }
 
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == darkModeKey) {
                 darkMode = prefs.getBoolean(darkModeKey, false)
-                applySystemBarAppearance(darkMode, appearance)
+                applySystemBarAppearance(darkMode, MmAppearance.MODERN)
             }
         }
-        applySystemBarAppearance(darkMode, appearance)
+        applySystemBarAppearance(darkMode, MmAppearance.MODERN)
         prefs.registerOnSharedPreferenceChangeListener(listener)
 
         // The app may have been backgrounded across a bill's lead date. Reconcile on every
@@ -116,10 +103,8 @@ class MainActivity : FragmentActivity() {
             DisposableEffect(Unit) {
                 onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
             }
-            // The single source of truth for the look, streamed from the persisted preference.
-            // A change recomposes the whole tree once — no restart, no recreated ViewModels and
-            // no database work.
-            val selectedAppearance by appearancePreferences.appearance.collectAsState()
+            // Modern UI is the only UI.
+            val selectedAppearance = MmAppearance.MODERN
             androidx.compose.runtime.LaunchedEffect(selectedAppearance, darkMode) {
                 appearance = selectedAppearance
                 applySystemBarAppearance(darkMode, selectedAppearance)

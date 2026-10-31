@@ -42,23 +42,23 @@ import com.moneymanager.app.data.local.dao.AccountDao
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.Money
-import com.moneymanager.app.ui.modern.components.MmCard
-import com.moneymanager.app.ui.modern.components.MmEmptyState
-import com.moneymanager.app.ui.modern.components.MmIconBadge
-import com.moneymanager.app.ui.modern.components.MmSearchField
-import com.moneymanager.app.ui.modern.components.MoneyFormat
-import com.moneymanager.app.ui.modern.components.MoneyManagerTopBar
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmEmptyState
+import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.MoneyFormat
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import com.moneymanager.app.ui.modern.components.MmAnimatedAmount
-import com.moneymanager.app.ui.modern.components.revealOnAppear
+import com.moneymanager.app.ui.components.MmAnimatedAmount
+import com.moneymanager.app.ui.components.revealOnAppear
 import androidx.compose.foundation.lazy.itemsIndexed
 
 @HiltViewModel

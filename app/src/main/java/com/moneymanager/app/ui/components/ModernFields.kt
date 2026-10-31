@@ -4,6 +4,7 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
@@ -41,6 +43,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -48,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import java.time.Instant
@@ -55,9 +60,8 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import com.moneymanager.app.ui.components.pressableClick
 
-val mmFieldShape = RoundedCornerShape(MmSpacing.radiusField)
+val mmFieldShape = RoundedCornerShape(18.dp)
 internal val mmZone: ZoneId = ZoneId.of("Asia/Kolkata")
 
 private val shortDate = DateTimeFormatter.ofPattern("dd MMM yyyy")
@@ -71,7 +75,11 @@ internal fun formatFullDate(epochMillis: Long): String =
 internal fun formatDateTime(epochMillis: Long): String =
     DateTimeFormatter.ofPattern("dd MMM yyyy • HH:mm").format(Instant.ofEpochMilli(epochMillis).atZone(mmZone))
 
-/** Standard text input with the app's field geometry and colours. */
+/**
+ * Standard text input: a filled, rounded field with a hairline edge that becomes the indigo accent
+ * on focus. Labels stay outside the field (like the reference's filter sheet), so they never float
+ * over the value.
+ */
 @Composable
 fun MmTextField(
     value: String,
@@ -89,12 +97,19 @@ fun MmTextField(
     trailing: (@Composable () -> Unit)? = null
 ) {
     Column(modifier.fillMaxWidth()) {
+        Text(
+            label,
+            style = MmType.label,
+            color = if (isError) MmColors.expense else MmColors.textSecondary,
+            modifier = Modifier.padding(start = 3.dp, bottom = 6.dp)
+        )
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(label, fontSize = 13.sp) },
-            placeholder = placeholder?.let { { Text(it, fontSize = 13.sp, color = MmColors.textTertiary) } },
+            placeholder = placeholder?.let {
+                { Text(it, fontSize = 14.sp, color = MmColors.textTertiary) }
+            },
             singleLine = singleLine,
             minLines = minLines,
             isError = isError,
@@ -110,13 +125,59 @@ fun MmTextField(
                 supportingText,
                 fontSize = 11.sp,
                 color = if (isError) MmColors.expense else MmColors.textSecondary,
-                modifier = Modifier.padding(start = MmSpacing.md, top = 3.dp)
+                modifier = Modifier.padding(start = MmSpacing.md, top = 4.dp)
             )
         }
     }
 }
 
-/** Currency input with a proper ₹ prefix and numeric keyboard (never a raw decimal string). */
+/** Large, quiet currency entry used at the top of transaction forms. */
+@Composable
+fun MmAmountHero(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String = "Amount"
+) {
+    Column(modifier.fillMaxWidth()) {
+        Text(
+            label,
+            style = MmType.label,
+            color = MmColors.textSecondary,
+            modifier = Modifier.padding(start = 3.dp, bottom = 4.dp)
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("₹", style = MmType.amountHero, color = MmColors.textSecondary)
+            BasicTextField(
+                value = value,
+                onValueChange = { raw ->
+                    val cleaned = raw.filter { it.isDigit() || it == '.' || it == ',' }.replace(",", "")
+                    val parts = cleaned.split('.')
+                    val normalised = when {
+                        parts.size <= 1 -> parts[0].take(12)
+                        else -> parts[0].take(12) + "." + parts[1].take(2)
+                    }
+                    onValueChange(normalised)
+                },
+                textStyle = MmType.amountHero.copy(color = MmColors.textPrimary),
+                singleLine = true,
+                cursorBrush = SolidColor(MmColors.accent),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                decorationBox = { inner ->
+                    Box {
+                        if (value.isBlank()) {
+                            Text("0", style = MmType.amountHero, color = MmColors.textTertiary)
+                        }
+                        inner()
+                    }
+                },
+                modifier = Modifier.weight(1f).padding(start = MmSpacing.sm)
+            )
+        }
+    }
+}
+
+/** Currency input with a proper ₹ prefix and numeric keyboard. */
 @Composable
 fun MmAmountField(
     value: String,
@@ -129,7 +190,6 @@ fun MmAmountField(
     MmTextField(
         value = value,
         onValueChange = { raw ->
-            // Keep it numeric: digits plus a single decimal separator, max 2 decimals.
             val cleaned = raw.filter { it.isDigit() || it == '.' || it == ',' }.replace(",", "")
             val parts = cleaned.split('.')
             val normalised = when {
@@ -161,14 +221,20 @@ fun MmPickerField(
     leading: (@Composable () -> Unit)? = null
 ) {
     Column(modifier.fillMaxWidth()) {
-        Text(label, style = MmType.label, color = MmColors.textSecondary, modifier = Modifier.padding(start = 3.dp, bottom = 5.dp))
+        Text(
+            label,
+            style = MmType.label,
+            color = MmColors.textSecondary,
+            modifier = Modifier.padding(start = 3.dp, bottom = 6.dp)
+        )
         Row(
             Modifier
                 .fillMaxWidth()
                 .clip(mmFieldShape)
                 .background(MmColors.surfaceMuted)
+                .border(1.dp, MmColors.hairline, mmFieldShape)
                 .pressableClick(onClick = onClick)
-                .padding(horizontal = MmSpacing.md, vertical = 14.dp),
+                .padding(horizontal = MmSpacing.md, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (leading != null) {
@@ -188,10 +254,7 @@ fun MmPickerField(
     }
 }
 
-/**
- * Searchable single-choice picker rendered in a bottom sheet. Used for categories, accounts and
- * any other list selection so users never scroll a wall of dropdowns.
- */
+/** Searchable single-choice picker rendered in a bottom sheet. */
 @Composable
 fun MmPickerSheet(
     title: String,
@@ -229,11 +292,7 @@ fun MmPickerSheet(
                 modifier = Modifier.padding(vertical = MmSpacing.lg)
             )
         } else {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 420.dp)
-            ) {
+            Column(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
                 LazyColumn {
                     items(filtered) { option ->
                         PickerRow(
@@ -258,9 +317,10 @@ private fun PickerRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(MmSpacing.radiusRow))
+            .clip(MmShape.row)
+            .background(if (selected) MmColors.accentFill.copy(alpha = 0.14f) else Color.Transparent)
             .pressableClick(onClick = onClick)
-            .padding(horizontal = MmSpacing.sm, vertical = MmSpacing.md),
+            .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
@@ -280,10 +340,7 @@ private fun PickerRow(
     }
 }
 
-/**
- * Date (and optionally time) selection using the platform pickers: no raw "dd MMM yyyy" typing,
- * no extra permissions, and it respects the device's locale and accessibility settings.
- */
+/** Date (and optionally time) selection using the platform pickers. */
 @Composable
 fun MmDateField(
     label: String,
@@ -294,19 +351,30 @@ fun MmDateField(
 ) {
     val context = LocalContext.current
     Column(modifier.fillMaxWidth()) {
-        Text(label, style = MmType.label, color = MmColors.textSecondary, modifier = Modifier.padding(start = 3.dp, bottom = 5.dp))
+        Text(
+            label,
+            style = MmType.label,
+            color = MmColors.textSecondary,
+            modifier = Modifier.padding(start = 3.dp, bottom = 6.dp)
+        )
         Row(
             Modifier
                 .fillMaxWidth()
                 .clip(mmFieldShape)
                 .background(MmColors.surfaceMuted)
+                .border(1.dp, MmColors.hairline, mmFieldShape)
                 .pressableClick {
                     showDatePicker(context, epochMillis, includeTime) { picked -> onChange(picked) }
                 }
-                .padding(horizontal = MmSpacing.md, vertical = 14.dp),
+                .padding(horizontal = MmSpacing.md, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = MmColors.textSecondary, modifier = Modifier.size(19.dp))
+            Icon(
+                Icons.Filled.CalendarMonth,
+                contentDescription = null,
+                tint = MmColors.textSecondary,
+                modifier = Modifier.size(19.dp)
+            )
             Spacer(Modifier.width(MmSpacing.md))
             Text(
                 epochMillis?.let { if (includeTime) formatDateTime(it) else formatFullDate(it) } ?: "Select a date",
@@ -318,7 +386,12 @@ fun MmDateField(
     }
 }
 
-private fun showDatePicker(context: Context, epochMillis: Long?, includeTime: Boolean, onPicked: (Long) -> Unit) {
+private fun showDatePicker(
+    context: Context,
+    epochMillis: Long?,
+    includeTime: Boolean,
+    onPicked: (Long) -> Unit
+) {
     val initial = (epochMillis ?: System.currentTimeMillis()).let { Instant.ofEpochMilli(it).atZone(mmZone) }
     val dialog = DatePickerDialog(
         context,
@@ -357,12 +430,18 @@ fun MmStepper(
     supportingText: String? = null
 ) {
     Column(modifier.fillMaxWidth()) {
-        Text(label, style = MmType.label, color = MmColors.textSecondary, modifier = Modifier.padding(start = 3.dp, bottom = 5.dp))
+        Text(
+            label,
+            style = MmType.label,
+            color = MmColors.textSecondary,
+            modifier = Modifier.padding(start = 3.dp, bottom = 6.dp)
+        )
         Row(
             Modifier
                 .fillMaxWidth()
                 .clip(mmFieldShape)
                 .background(MmColors.surfaceMuted)
+                .border(1.dp, MmColors.hairline, mmFieldShape)
                 .padding(horizontal = MmSpacing.sm, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -380,18 +459,28 @@ fun MmStepper(
             }
         }
         supportingText?.takeIf { it.isNotBlank() }?.let {
-            Text(it, fontSize = 11.sp, color = MmColors.textSecondary, modifier = Modifier.padding(start = MmSpacing.md, top = 3.dp))
+            Text(
+                it,
+                fontSize = 11.sp,
+                color = MmColors.textSecondary,
+                modifier = Modifier.padding(start = MmSpacing.md, top = 4.dp)
+            )
         }
     }
 }
 
 @Composable
-private fun StepButton(enabled: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+private fun StepButton(
+    enabled: Boolean,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
     Box(
         Modifier
-            .size(36.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .size(38.dp)
+            .clip(RoundedCornerShape(13.dp))
             .background(if (enabled) MmColors.surface else MmColors.surfaceMuted)
+            .border(1.dp, MmColors.hairline, RoundedCornerShape(13.dp))
             .pressableClick(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -404,7 +493,7 @@ private fun StepButton(enabled: Boolean, icon: androidx.compose.ui.graphics.vect
     }
 }
 
-/** Search input with icon and a clear button. */
+/** Search input: a filled pill with icon and a clear button. */
 @Composable
 fun MmSearchField(
     value: String,
@@ -418,7 +507,9 @@ fun MmSearchField(
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
         placeholder = { Text(hint, fontSize = 14.sp, color = MmColors.textTertiary) },
-        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MmColors.textSecondary) },
+        leadingIcon = {
+            Icon(Icons.Filled.Search, contentDescription = null, tint = MmColors.textSecondary)
+        },
         trailingIcon = if (value.isNotBlank()) {
             {
                 IconButton(onClick = { onValueChange("") }) {
@@ -435,10 +526,10 @@ fun MmSearchField(
 @Composable
 internal fun mmFieldColors() = TextFieldDefaults.outlinedTextFieldColors(
     textColor = MmColors.textPrimary,
-    backgroundColor = MmColors.surface,
+    backgroundColor = MmColors.surfaceMuted,
     cursorColor = MmColors.accent,
-    focusedBorderColor = MmColors.accent,
-    unfocusedBorderColor = MmColors.outline,
+    focusedBorderColor = MmColors.accentFill,
+    unfocusedBorderColor = MmColors.hairline,
     focusedLabelColor = MmColors.accent,
     unfocusedLabelColor = MmColors.textSecondary,
     placeholderColor = MmColors.textTertiary,
@@ -450,7 +541,7 @@ internal fun mmFieldColors() = TextFieldDefaults.outlinedTextFieldColors(
 fun MmText(
     text: String,
     style: androidx.compose.ui.text.TextStyle = MmType.body,
-    color: androidx.compose.ui.graphics.Color = MmColors.textPrimary,
+    color: Color = MmColors.textPrimary,
     modifier: Modifier = Modifier,
     maxLines: Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Ellipsis

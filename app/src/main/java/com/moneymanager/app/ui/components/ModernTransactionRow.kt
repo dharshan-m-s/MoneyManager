@@ -1,4 +1,4 @@
-package com.moneymanager.app.ui.modern.components
+package com.moneymanager.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -33,10 +33,10 @@ import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.reporting.TransactionDisplayClass
 import com.moneymanager.app.domain.reporting.TransactionDisplayClassifier
-import com.moneymanager.app.ui.modern.screens.categories.categoryIcon
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
+import com.moneymanager.app.ui.categories.categoryIcon
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter

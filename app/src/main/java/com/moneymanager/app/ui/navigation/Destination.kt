@@ -1,4 +1,5 @@
 package com.moneymanager.app.ui.navigation
+import com.moneymanager.app.ui.dashboard.DashboardBreakdownKind
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
@@ -95,7 +96,7 @@ sealed class Destination(val route: String, val label: String, val icon: ImageVe
         "Breakdown",
         Icons.Filled.PieChart
     ) {
-        fun route(kind: com.moneymanager.app.ui.dashboard.DashboardBreakdownKind) =
+        fun route(kind: DashboardBreakdownKind) =
             "dashboard_breakdown/${kind.name}"
     }
 

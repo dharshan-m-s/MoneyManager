@@ -37,18 +37,18 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.AccountTypeCatalog
 import com.moneymanager.app.domain.model.BusinessPersonal
-import com.moneymanager.app.ui.modern.components.MmAmountField
-import com.moneymanager.app.ui.modern.components.MmCard
-import com.moneymanager.app.ui.modern.components.MmSegmentedControl
-import com.moneymanager.app.ui.modern.components.MmSwitchRow
-import com.moneymanager.app.ui.modern.components.MmTextField
-import com.moneymanager.app.ui.modern.components.MmTopBarAction
-import com.moneymanager.app.ui.modern.components.MoneyManagerTopBar
-import com.moneymanager.app.ui.modern.theme.MmColors
-import com.moneymanager.app.ui.modern.theme.MmSpacing
-import com.moneymanager.app.ui.modern.theme.MmType
-import com.moneymanager.app.ui.modern.components.MmPrimaryButton
-import com.moneymanager.app.ui.modern.components.revealOnAppear
+import com.moneymanager.app.ui.components.MmAmountField
+import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmSegmentedControl
+import com.moneymanager.app.ui.components.MmSwitchRow
+import com.moneymanager.app.ui.components.MmTextField
+import com.moneymanager.app.ui.components.MmTopBarAction
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.accountedit.AccountEditViewModel
 
 @Composable

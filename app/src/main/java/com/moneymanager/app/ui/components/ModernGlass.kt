@@ -1,4 +1,4 @@
-package com.moneymanager.app.ui.modern.components
+package com.moneymanager.app.ui.components
 
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
@@ -28,7 +28,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.onSizeChanged
-import com.moneymanager.app.ui.modern.theme.MmColors
+import com.moneymanager.app.ui.theme.MmColors
 import timber.log.Timber
 
 /**
