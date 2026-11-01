@@ -167,6 +167,10 @@ data class AccountEntity(
      *  purchases/payments still move it. Null means no user checkpoint has been applied. */
     val outstandingCheckpointMinorUnits: Long? = null,
     val outstandingCheckpointAtEpochMillis: Long? = null,
+    /** Highest transaction row id present when this checkpoint was recorded. New rows are
+     * included by id, not occurrence date, so backdated transactions entered later still
+     * move live outstanding while edits to pre-checkpoint imported rows do not. */
+    val outstandingCheckpointTransactionId: Long? = null,
     val outstandingAdjustmentMinorUnits: Long? = null,
 
     /** Credit card billing fields (spec section 8). Null for non-credit-card accounts.

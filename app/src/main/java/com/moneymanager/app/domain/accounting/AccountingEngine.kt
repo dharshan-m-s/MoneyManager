@@ -609,16 +609,14 @@ object AccountingEngine {
     private val cycleDateFormatter = DateTimeFormatter.ofPattern("dd MMM")
 
     private fun cycleStartDateFor(cycleStartDay: Int, anchorDate: java.time.LocalDate): java.time.LocalDate {
-        val day = cycleStartDay.coerceIn(1, 28)
-        val thisMonthStart = YearMonth.from(anchorDate).atDay(day)
-        val candidate = thisMonthStart.minusMonths(1).withDayOfMonth(day).let { prev ->
-            if (thisMonthStart.isAfter(anchorDate)) prev else thisMonthStart
-        }
-        return if (candidate.isAfter(anchorDate)) {
-            YearMonth.from(candidate).minusMonths(1).atDay(day)
-        } else {
-            candidate
-        }
+        // Preserve the configured day (1..31). Clamp only in a short month; calculate the
+        // following month from the original anchor so a 31st never drifts permanently.
+        val day = cycleStartDay.coerceIn(1, 31)
+        val thisMonth = YearMonth.from(anchorDate)
+        val thisMonthStart = thisMonth.atDay(minOf(day, thisMonth.lengthOfMonth()))
+        if (!thisMonthStart.isAfter(anchorDate)) return thisMonthStart
+        val previousMonth = thisMonth.minusMonths(1)
+        return previousMonth.atDay(minOf(day, previousMonth.lengthOfMonth()))
     }
 
     /**

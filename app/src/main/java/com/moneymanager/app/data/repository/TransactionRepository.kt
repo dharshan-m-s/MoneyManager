@@ -154,6 +154,14 @@ class TransactionRepository @Inject constructor(
             } else null
             val isBillPaymentPair = existing.isCreditCardBillPayment || existing.paysOffAccountId != null ||
                 peer?.isCreditCardBillPayment == true || (peer != null && peer.paysOffAccountId != null)
+            val linkedBillInstances = billRepository.instanceIdsReferencingTransactions(
+                setOfNotNull(existing.id, peer?.id)
+            )
+            if (linkedBillInstances.isNotEmpty()) {
+                require(amount == null && accountId == null && isIncome == null) {
+                    "This transaction is allocated to a bill. Amount, direction and account cannot be changed here; correct the bill payment allocation first."
+                }
+            }
 
             if (accountId != null && peer != null && accountId == peer.accountId) {
                 throw IllegalArgumentException(

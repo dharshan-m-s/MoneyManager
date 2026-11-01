@@ -286,6 +286,18 @@ object AppDatabaseMigrations {
     }
 
     /**
+     * Migration 13 -> 14: add an event-id watermark to manual card-outstanding checkpoints
+     * and an explicit type for non-cash bill discounts. Existing allocation rows remain
+     * PAYMENT rows; existing checkpoints retain their legacy offset semantics.
+     */
+    val MIGRATION_13_14 = object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `accounts` ADD COLUMN `outstandingCheckpointTransactionId` INTEGER")
+            db.execSQL("ALTER TABLE `bill_payment_allocations` ADD COLUMN `allocationType` TEXT NOT NULL DEFAULT 'PAYMENT'")
+        }
+    }
+
+    /**
      * Add new migrations above this line. Each migration must:
      * 1. Be backward-safe (can't drop columns used by older code)
      * 2. Preserve all existing data
@@ -304,12 +316,13 @@ object AppDatabaseMigrations {
         MIGRATION_9_10,
         MIGRATION_10_11,
         MIGRATION_11_12,
-        MIGRATION_12_13
+        MIGRATION_12_13,
+        MIGRATION_13_14
     )
 
     /**
      * Returns the latest database version. Used by DatabaseModule to set the version
      * parameter dynamically so it stays in sync with migrations.
      */
-    fun latestVersion(): Int = 13
+    fun latestVersion(): Int = 14
 }

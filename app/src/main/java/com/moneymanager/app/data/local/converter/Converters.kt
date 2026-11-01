@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.room.TypeConverter
 import com.moneymanager.app.data.local.entity.AccountBalanceSource
 import com.moneymanager.app.data.local.entity.BillerType
+import com.moneymanager.app.data.local.entity.BillPaymentAllocationType
 import com.moneymanager.app.data.local.entity.BillingCycle
 import com.moneymanager.app.data.local.entity.CategoryKind
 import com.moneymanager.app.data.local.entity.ImportRowStatus
@@ -35,6 +36,10 @@ class Converters {
 
     @TypeConverter fun accountTypeToString(v: AccountType): String = v.name
     @TypeConverter fun stringToAccountType(v: String): AccountType = safeEnum(v, AccountType.entries.toTypedArray())
+
+    @TypeConverter fun billPaymentAllocationTypeToString(v: BillPaymentAllocationType): String = v.name
+    @TypeConverter fun stringToBillPaymentAllocationType(v: String): BillPaymentAllocationType =
+        safeEnum(v, BillPaymentAllocationType.entries.toTypedArray())
 
     @TypeConverter fun billingCycleToString(v: BillingCycle): String = v.name
     @TypeConverter fun stringToBillingCycle(v: String): BillingCycle = safeEnum(v, BillingCycle.entries.toTypedArray())

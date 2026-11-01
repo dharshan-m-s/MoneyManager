@@ -47,6 +47,10 @@ interface TransactionDao {
     @Query("SELECT COUNT(*) FROM transactions WHERE accountId = :accountId")
     suspend fun countByAccountId(accountId: Long): Int
 
+    /** Monotonic event boundary for a card checkpoint. */
+    @Query("SELECT COALESCE(MAX(id), 0) FROM transactions WHERE accountId = :accountId")
+    suspend fun maxIdForAccount(accountId: Long): Long
+
     @Query("SELECT * FROM transactions WHERE accountId = :accountId ORDER BY occurredAtEpochMillis DESC LIMIT :limit")
     fun observeByAccountLimited(accountId: Long, limit: Int): Flow<List<TransactionEntity>>
 

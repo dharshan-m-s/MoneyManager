@@ -297,6 +297,26 @@ class BillsViewModel @Inject constructor(
     fun markAsPaidDirect(instance: BillInstanceEntity, amountMinorUnits: Long = 0L) {
         markAsPaid(instance, null, amountMinorUnits)
     }
+    
+    /** Records a confirmed non-cash offer/discount separately from the real payment. */
+    fun applyDiscount(instance: BillInstanceEntity, amountMinorUnits: Long, reason: String) {
+        val s = _paymentSearch.value
+        if (s.saving) return
+        _paymentSearch.value = s.copy(saving = true, error = null)
+        viewModelScope.launch {
+            runCatching {
+                billRepository.applyBillDiscount(instance.id, amountMinorUnits, reason)
+            }.onSuccess { result ->
+                _paymentSearch.value = BillPaymentSearchState(message = paymentMessage(result))
+            }.onFailure {
+                _paymentSearch.value = _paymentSearch.value.copy(
+                    error = it.message ?: "Could not apply the discount",
+                    loading = false,
+                    saving = false
+                )
+            }
+        }
+    }
 
     /** Links a payment that has already been recorded against the card (the "payment detected"
      *  path). The money already moved and the card's outstanding already fell, so this only

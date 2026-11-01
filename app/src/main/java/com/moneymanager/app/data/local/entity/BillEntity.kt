@@ -16,6 +16,8 @@ import com.moneymanager.app.domain.model.BusinessPersonal
  */
 enum class BillingCycle { WEEKLY, MONTHLY, BIMONTHLY, QUARTERLY, YEARLY, CUSTOM }
 
+enum class BillPaymentAllocationType { PAYMENT, DISCOUNT }
+
 enum class BillerType {
     ELECTRICITY, GAS, WATER, MOBILE, BROADBAND_WIFI, DTH, INSURANCE,
     LOAN_EMI, CREDIT_CARD, PENSION, RENT, OTHER
@@ -187,5 +189,8 @@ data class BillPaymentAllocationEntity(
     val amountMinorUnits: Long,
     val paidAtEpochMillis: Long,
     val note: String? = null,
+    /** Non-cash reduction such as a confirmed instant offer; never creates ledger movement. */
+    @ColumnInfo(defaultValue = "'PAYMENT'")
+    val allocationType: BillPaymentAllocationType = BillPaymentAllocationType.PAYMENT,
     val createdAtEpochMillis: Long
 )

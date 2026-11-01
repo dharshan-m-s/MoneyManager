@@ -247,10 +247,14 @@ class CreditCardFormViewModel @Inject constructor(
                     cardId = existing.id
                     val derivedOutstanding = accountingService.derivedBalancesFor(existing).baseOutstandingMinorUnits
                     val effectiveOutstanding = if (s.outstandingEdited) outstanding else existing.outstandingMinorUnits ?: derivedOutstanding
-                    val adjustment = if (s.outstandingEdited) {
-                        com.moneymanager.app.domain.accounting.AccountingEngine.checkpointAdjustment(outstanding, derivedOutstanding)
-                    } else existing.outstandingAdjustmentMinorUnits
+                    // Keep the legacy adjustment populated for older readers and backups. The transaction
+                    // watermark is authoritative for current calculations, so this does not double-count.
+                    val adjustment = if (s.outstandingEdited) outstanding else existing.outstandingAdjustmentMinorUnits
                     database.withTransaction {
+                        // Read the event boundary in the same SQLite transaction as the checkpoint.
+                        val checkpointWatermark = if (s.outstandingEdited) {
+                            accountingService.transactionWatermarkFor(existing.id)
+                        } else existing.outstandingCheckpointTransactionId
                         accountDao.update(
                             existing.copy(
                                 institutionName = s.billerName.trim(),
@@ -259,6 +263,7 @@ class CreditCardFormViewModel @Inject constructor(
                                 outstandingMinorUnits = effectiveOutstanding,
                                 outstandingCheckpointMinorUnits = if (s.outstandingEdited) outstanding else existing.outstandingCheckpointMinorUnits,
                                 outstandingCheckpointAtEpochMillis = if (s.outstandingEdited) now else existing.outstandingCheckpointAtEpochMillis,
+                                outstandingCheckpointTransactionId = checkpointWatermark,
                                 outstandingAdjustmentMinorUnits = adjustment,
                                 creditLimitMinorUnits = limit,
                                 creditLimitOverrideMinorUnits = if (s.creditLimitEdited) limit else existing.creditLimitOverrideMinorUnits,
@@ -296,7 +301,8 @@ class CreditCardFormViewModel @Inject constructor(
                                 outstandingMinorUnits = outstanding,
                                 outstandingCheckpointMinorUnits = outstanding,
                                 outstandingCheckpointAtEpochMillis = now,
-                                outstandingAdjustmentMinorUnits = outstanding,
+                                outstandingCheckpointTransactionId = 0L,
+                                outstandingAdjustmentMinorUnits = null,
                                 creditLimitMinorUnits = limit,
                                 creditLimitOverrideMinorUnits = limit,
                                 availableLimitMinorUnits = available,

@@ -189,10 +189,11 @@ class BillRepository @Inject constructor(
                 }
             }
 
-            if (amountMinorUnits != null && paymentTransactionId != null) {
-                require(amountMinorUnits in 1L..moneyMoved) {
-                    "Payment amount must match the selected transaction"
+            if (paymentTransactionId != null) {
+                require(amountMinorUnits == null || amountMinorUnits == moneyMoved) {
+                    "The bill allocation must match the full transaction amount. Split a partial payment into separate transactions."
                 }
+            } else if (amountMinorUnits != null) {
                 moneyMoved = amountMinorUnits
             }
             if (!(amountMinorUnits == 0L && remaining == 0L && paymentTransactionId == null)) {
@@ -228,6 +229,47 @@ class BillRepository @Inject constructor(
         // Advance the schedule past the settled occurrence so the template's next due date
         // reflects the recurrence immediately, not at the next app start. Partial payments
         // leave the schedule alone - the occurrence is still owed.
+        settledBillId?.let { billRecurrenceService.reconcileBill(it) }
+        backupManager.scheduleAfterWrite()
+        return updated
+    }
+
+    /**
+     * Applies a confirmed non-cash discount (for example an instant CRED offer). It reduces
+     * the amount required to settle the bill but creates no transaction and no card-payment
+     * leg. The actual bank payment remains recorded at its real amount.
+     */
+    suspend fun applyBillDiscount(
+        instanceId: Long,
+        amountMinorUnits: Long,
+        reason: String
+    ): BillInstanceEntity {
+        require(amountMinorUnits > 0L) { "Enter a discount amount" }
+        require(reason.isNotBlank()) { "Enter the discount reason or offer reference" }
+        var settledBillId: Long? = null
+        val updated = database.withTransaction {
+            val current = requireNotNull(billDao.findInstanceById(instanceId)) {
+                "Bill occurrence no longer exists"
+            }
+            require(!current.paid) { "This bill is already fully settled" }
+            val remaining = (current.amountDueMinorUnits - current.paidAmountMinorUnits).coerceAtLeast(0L)
+            require(amountMinorUnits <= remaining) { "Discount cannot exceed the remaining bill amount" }
+            val now = System.currentTimeMillis()
+            billDao.insertAllocation(
+                BillPaymentAllocationEntity(
+                    billInstanceId = current.id,
+                    transactionId = null,
+                    amountMinorUnits = amountMinorUnits,
+                    paidAtEpochMillis = now,
+                    note = reason.trim(),
+                    allocationType = com.moneymanager.app.data.local.entity.BillPaymentAllocationType.DISCOUNT,
+                    createdAtEpochMillis = now
+                )
+            )
+            requireNotNull(syncInstancePaymentState(current.id)).also {
+                if (it.paid) settledBillId = current.billId
+            }
+        }
         settledBillId?.let { billRecurrenceService.reconcileBill(it) }
         backupManager.scheduleAfterWrite()
         return updated

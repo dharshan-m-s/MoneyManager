@@ -47,8 +47,11 @@ class CreditCardStatementService @Inject constructor(
         cycle: AccountingEngine.BillingCycleWindow,
         nowEpochMillis: Long
     ): Long? {
-        val outstandingNow = currentStatementMinorUnits(card)
-        val movementSinceEnd = movementSince(card, cycle.endExclusive)
+        val cycleAlreadyClosed = cycle.endExclusive <= nowEpochMillis
+        val outstandingNow = if (cycleAlreadyClosed) {
+            outstandingAt(card, cycle.endExclusive)
+        } else currentStatementMinorUnits(card)
+        val movementSinceEnd = if (cycleAlreadyClosed) 0L else movementSince(card, cycle.endExclusive)
         return CreditCardStatement.statementFor(
             cycle = cycle,
             nowEpochMillis = nowEpochMillis,
@@ -126,6 +129,29 @@ class CreditCardStatementService @Inject constructor(
             credit = txn.creditMinorUnits,
             debit = txn.debitMinorUnits
         ).cardOutstandingDeltaMinorUnits
+    }
+
+    /** Rebuild the exact outstanding at a historical cycle boundary from only the ledger
+     * prefix that existed by then. Later checkpoints and snapshots cannot rewrite a closed bill. */
+    private suspend fun outstandingAt(card: AccountEntity, endExclusive: Long): Long {
+        val prefix = transactionDao.findByAccount(card.id)
+            .filter { it.occurredAtEpochMillis < endExclusive }
+            .sortedWith(compareBy<TransactionEntity> { it.occurredAtEpochMillis }.thenBy { it.id })
+        val ledger = prefix.mapIndexed { index, txn ->
+            AccountingEngine.LedgerRow.of(
+                occurredAtEpochMillis = txn.occurredAtEpochMillis,
+                sequence = index,
+                creditMinorUnits = txn.creditMinorUnits,
+                debitMinorUnits = txn.debitMinorUnits,
+                semantics = TransactionClassifier.classify(txn.txnSubType, txn.txnKind, card.accountType),
+                accountType = card.accountType,
+                reportedBalanceMinorUnits = txn.balanceSnapshotMinorUnits,
+                reportedOutstandingMinorUnits = txn.outstandingSnapshotMinorUnits,
+                reportedAvailableLimitMinorUnits = txn.availableLimitSnapshotMinorUnits
+            )
+        }
+        return AccountingEngine.balanceState(ledger).outstandingMinorUnits
+            ?: ledger.sumOf { it.movement.cardOutstandingDeltaMinorUnits }
     }
 
     /** The card's outstanding rebuilt from its ledger alone (no user checkpoint applied). */

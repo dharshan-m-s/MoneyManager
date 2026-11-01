@@ -142,14 +142,21 @@ class AccountingService @Inject constructor(
         // is used. The user checkpoint is applied as an offset on top of that base, which is
         // what makes an edited outstanding survive every recalculation while future purchases
         // and payments still move it.
-        val baseOutstanding = if (isCard) {
-            state.outstandingMinorUnits
-                ?: ledger.sumOf { it.movement.cardOutstandingDeltaMinorUnits }
-        } else 0L
-        var checkoutAdjustment = account.outstandingAdjustmentMinorUnits
         var checkpointAmount = account.outstandingCheckpointMinorUnits
         var checkpointAt = account.outstandingCheckpointAtEpochMillis
-        if (isCard && checkoutAdjustment == null && account.outstandingMinorUnits != null) {
+        val checkpointWatermark = account.outstandingCheckpointTransactionId
+        val baseOutstanding = if (isCard) {
+            if (checkpointAmount != null && checkpointWatermark != null) {
+                val postCheckpoint = transactionDao.findByAccount(account.id)
+                    .filter { it.id > checkpointWatermark && !it.isHistoricalImport }
+                checkpointAmount + ledgerRowsFor(postCheckpoint, account.accountType)
+                    .sumOf { it.movement.cardOutstandingDeltaMinorUnits }
+            } else {
+                state.outstandingMinorUnits ?: ledger.sumOf { it.movement.cardOutstandingDeltaMinorUnits }
+            }
+        } else 0L
+        var checkoutAdjustment = account.outstandingAdjustmentMinorUnits
+        if (isCard && checkpointWatermark == null && checkoutAdjustment == null && account.outstandingMinorUnits != null) {
             // One-time capture of the value an existing user already sees.
             checkoutAdjustment = AccountingEngine.checkpointAdjustment(
                 enteredBalanceMinorUnits = account.outstandingMinorUnits,
@@ -159,10 +166,9 @@ class AccountingService @Inject constructor(
             checkpointAt = account.updatedAtEpochMillis
         }
         val effectiveOutstanding = if (isCard) {
-            AccountingEngine.effectiveBalanceWithCheckpoint(baseOutstanding, checkoutAdjustment)
-        } else {
-            account.outstandingMinorUnits
-        }
+            if (checkpointAmount != null && checkpointWatermark != null) baseOutstanding
+            else AccountingEngine.effectiveBalanceWithCheckpoint(baseOutstanding, checkoutAdjustment)
+        } else account.outstandingMinorUnits
         // The limit the USER typed wins over the one the engine can derive from imported
         // statement snapshots - otherwise an imported card's limit could never be corrected.
         val creditLimit = if (isCard) {
@@ -194,6 +200,7 @@ class AccountingService @Inject constructor(
             manualBalanceAdjustmentMinorUnits = if (isCard) account.manualBalanceAdjustmentMinorUnits else balanceAdjustment,
             outstandingCheckpointMinorUnits = checkpointAmount,
             outstandingCheckpointAtEpochMillis = checkpointAt,
+            outstandingCheckpointTransactionId = account.outstandingCheckpointTransactionId,
             outstandingAdjustmentMinorUnits = checkoutAdjustment,
             outstandingMinorUnits = effectiveOutstanding,
             availableLimitMinorUnits = availableLimit,
@@ -202,6 +209,10 @@ class AccountingService @Inject constructor(
         )
         accountDao.update(updated)
     }
+
+    /** Highest transaction id currently recorded for an account. */
+    suspend fun transactionWatermarkFor(accountId: Long): Long =
+        transactionDao.maxIdForAccount(accountId)
 
     /** The engine-derived balance/outstanding BEFORE any user checkpoint. Screens that save a
      *  new checkpoint use this as the offset baseline. */
