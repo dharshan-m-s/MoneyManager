@@ -29,7 +29,6 @@ import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Surface
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Card
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Scaffold
@@ -131,7 +130,7 @@ fun BillsScreen(
             AddBillerFab(onAddBiller = onAddBiller, modifier = Modifier.padding(bottom = 8.dp))
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().background(MmColors.background).padding(padding)) {
             MoneyManagerTopBar(
                 title = "Bills & EMIs",
                 subtitle = "Track upcoming payments without duplicate transactions",
@@ -260,9 +259,10 @@ private fun BillPaymentDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.84f),
-            shape = RoundedCornerShape(24.dp),
-            elevation = 14.dp,
-            color = androidx.compose.material.MaterialTheme.colors.surface
+            shape = RoundedCornerShape(28.dp),
+            border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.72f)),
+            elevation = 18.dp,
+            color = MmColors.surface
         ) {
             Column(
                 Modifier
@@ -290,13 +290,12 @@ private fun BillPaymentDialog(
                     }
                 }
 
-                Card(
-                    Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
-                    shape = RoundedCornerShape(MmSpacing.radiusRow),
-                    elevation = 0.dp,
-                    backgroundColor = MmColors.surfaceMuted
+                MmCard(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+                    contentPadding = PaddingValues(MmSpacing.md),
+                    backgroundColor = MmColors.surfaceContainer
                 ) {
-                    Row(Modifier.padding(MmSpacing.md), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Search, contentDescription = null, tint = MmColors.accent, modifier = Modifier.size(22.dp))
                         Column(Modifier.padding(start = 10.dp)) {
                             Text("We checked your recent payments", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
@@ -605,14 +604,18 @@ private fun BillPaymentCandidateRow(
     val dateText = dateFormat.format(Instant.ofEpochMilli(tx.occurredAtEpochMillis).atZone(zone))
     val accountText = candidate.account?.nickname?.ifBlank { candidate.account.institutionName }.orEmpty()
 
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).pressableClick { onSelectTransaction(tx.id) },
-        shape = RoundedCornerShape(16.dp),
-        elevation = if (selectedTransactionId == tx.id) 3.dp else 1.dp,
-        backgroundColor = if (selectedTransactionId == tx.id) MmColors.accent.copy(alpha = .08f) else MmColors.surface
+    MmCard(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        onClick = { onSelectTransaction(tx.id) },
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+        backgroundColor = if (selectedTransactionId == tx.id) {
+            MmColors.accent.copy(alpha = 0.08f)
+        } else {
+            MmColors.surface
+        }
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             RadioButton(selected = selectedTransactionId == tx.id, onClick = { onSelectTransaction(tx.id) })

@@ -2,6 +2,7 @@ package com.moneymanager.app.ui.modern.screens.addtransaction
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -125,7 +126,10 @@ fun AddTransactionScreen(
                 .padding(bottom = MmSpacing.xxl),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
         ) {
-            MmCard {
+            MmCard(
+                contentPadding = PaddingValues(horizontal = MmSpacing.xl, vertical = MmSpacing.xxl),
+                backgroundColor = MmColors.surfaceContainerHigh
+            ) {
                 MmAmountHero(
                     value = state.amountText,
                     onValueChange = viewModel::onAmountChange

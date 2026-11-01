@@ -572,13 +572,10 @@ private fun CycleSummaryCard(
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
     ) {
-        androidx.compose.material.Surface(
-            shape = RoundedCornerShape(22.dp),
-            color = MmColors.surface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MmColors.outline),
-            elevation = 0.dp
+        MmCard(
+            contentPadding = PaddingValues(MmSpacing.lg)
         ) {
-            Column(Modifier.fillMaxWidth().padding(MmSpacing.lg)) {
+            Column(Modifier.fillMaxWidth()) {
                 Text(label, style = MmType.sectionTitle, color = MmColors.textPrimary)
                 Spacer(Modifier.height(MmSpacing.sm))
                 Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)) {

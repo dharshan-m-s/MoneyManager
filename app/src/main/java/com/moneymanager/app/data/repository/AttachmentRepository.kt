@@ -53,6 +53,10 @@ class AttachmentRepository @Inject constructor(
         withContext(Dispatchers.IO) {
             val mime = context.contentResolver.getType(source)
             val extension = when {
+                mime?.startsWith("video/") == true && mime.contains("webm") -> "webm"
+                mime?.startsWith("video/") == true && mime.contains("3gpp") -> "3gp"
+                mime?.startsWith("video/") == true && mime.contains("quicktime") -> "mov"
+                mime?.startsWith("video/") == true -> "mp4"
                 mime?.contains("png") == true -> "png"
                 mime?.contains("webp") == true -> "webp"
                 mime?.contains("pdf") == true -> "pdf"

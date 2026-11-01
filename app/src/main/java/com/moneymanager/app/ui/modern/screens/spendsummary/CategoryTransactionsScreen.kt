@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.MmEmptyState
+import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
@@ -117,9 +118,10 @@ fun CategoryTransactionsScreen(
                         .clip(RoundedCornerShape(22.dp))
                         .background(
                             Brush.linearGradient(
-                                listOf(Color(0xFF1F3BFF).copy(alpha = 0.9f), Color(0xFF0B1026))
+                                listOf(Color(0xFF5969DD).copy(alpha = 0.96f), Color(0xFF17213B))
                             )
                         )
+                        .mmGlassHighlight(cornerRadius = 22.dp, intensity = 0.72f)
                         .padding(MmSpacing.lg)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

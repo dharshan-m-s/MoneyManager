@@ -47,6 +47,7 @@ import com.moneymanager.app.ui.components.MmOption
 import com.moneymanager.app.ui.components.MmPickerField
 import com.moneymanager.app.ui.components.MmPickerSheet
 import com.moneymanager.app.ui.components.MmTextField
+import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -128,7 +129,8 @@ fun TransferScreen(
                         Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(MmColors.surfaceMuted)
+                            .background(MmColors.surfaceContainerHigh)
+                            .mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.56f)
                             .pressableClick {
                                 val from = state.fromAccountId
                                 val to = state.toAccountId
@@ -168,7 +170,7 @@ fun TransferScreen(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .background(MmColors.surfaceMuted, RoundedCornerShape(MmSpacing.radiusRow))
+                            .background(MmColors.surfaceContainerHigh, RoundedCornerShape(MmSpacing.radiusRow))
                             .padding(MmSpacing.md),
                         verticalAlignment = Alignment.Top
                     ) {

@@ -231,8 +231,9 @@ fun MmPickerField(
             Modifier
                 .fillMaxWidth()
                 .clip(mmFieldShape)
-                .background(MmColors.surfaceMuted)
-                .border(1.dp, MmColors.hairline, mmFieldShape)
+                .background(MmColors.surfaceContainer)
+                .border(0.8.dp, MmColors.outline.copy(alpha = 0.68f), mmFieldShape)
+                .mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.34f)
                 .pressableClick(onClick = onClick)
                 .padding(horizontal = MmSpacing.md, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -361,8 +362,9 @@ fun MmDateField(
             Modifier
                 .fillMaxWidth()
                 .clip(mmFieldShape)
-                .background(MmColors.surfaceMuted)
-                .border(1.dp, MmColors.hairline, mmFieldShape)
+                .background(MmColors.surfaceContainer)
+                .border(0.8.dp, MmColors.outline.copy(alpha = 0.68f), mmFieldShape)
+                .mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.34f)
                 .pressableClick {
                     showDatePicker(context, epochMillis, includeTime) { picked -> onChange(picked) }
                 }
@@ -440,8 +442,9 @@ fun MmStepper(
             Modifier
                 .fillMaxWidth()
                 .clip(mmFieldShape)
-                .background(MmColors.surfaceMuted)
-                .border(1.dp, MmColors.hairline, mmFieldShape)
+                .background(MmColors.surfaceContainer)
+                .border(0.8.dp, MmColors.outline.copy(alpha = 0.68f), mmFieldShape)
+                .mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.28f)
                 .padding(horizontal = MmSpacing.sm, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween

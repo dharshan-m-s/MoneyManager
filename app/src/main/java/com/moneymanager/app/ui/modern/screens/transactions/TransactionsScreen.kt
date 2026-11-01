@@ -47,6 +47,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.moneymanager.app.ui.components.MmAnimatedAmount
+import com.moneymanager.app.ui.components.mmGlassHighlight
+import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.domain.model.Money
@@ -419,7 +421,6 @@ private fun TransactionsHeader(
     Row(
         Modifier
             .fillMaxWidth()
-            .background(MmColors.background)
             .modernTopInsets()
             .padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = MmSpacing.xs),
         verticalAlignment = Alignment.CenterVertically
@@ -463,9 +464,9 @@ private fun TransactionsHeaderAction(
         Box(
             Modifier
                 .size(MmSpacing.touchTarget)
+                .mmLiquidGlass(cornerRadius = 999.dp, intensity = 0.58f)
                 .clip(CircleShape)
-                .background(MmColors.surface)
-                .border(1.dp, MmColors.hairline, CircleShape)
+                .mmGlassHighlight(cornerRadius = 999.dp, intensity = 0.42f)
                 .pressableClick(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {

@@ -1,5 +1,8 @@
 package com.moneymanager.app.ui.modern.screens.spendsummary
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +26,8 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -71,6 +76,9 @@ fun SpendSummaryScreen(
     val selectedIdx by viewModel.selectedMonthIndex.collectAsState()
     val monthlyTotals by viewModel.monthlyTotals.collectAsState()
     val months = viewModel.availableMonths
+    // Percentages describe the positive category outflows shown in the ring; refunds or
+    // credit-heavy categories remain visible as credits instead of distorting the chart.
+    val positiveCategoryTotal = rows.asSequence().filter { it.total > 0L }.sumOf { it.total }
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
@@ -164,7 +172,9 @@ fun SpendSummaryScreen(
 
                 items(rows, key = { it.categoryId ?: -1L }) { row ->
                     val color = parseColor(row.colorHex)
-                    val fraction = if (total > 0) (row.total.toFloat() / total) else 0f
+                    val fraction = if (row.total > 0L && positiveCategoryTotal > 0L) {
+                        row.total.toFloat() / positiveCategoryTotal.toFloat()
+                    } else 0f
                     MmCard(
                         onClick = { onCategoryClick(row.categoryId ?: -1L) },
                         contentPadding = PaddingValues(MmSpacing.md)
@@ -200,7 +210,7 @@ fun SpendSummaryScreen(
                                     maxLines = 1
                                 )
                                 Text(
-                                    String.format(Locale.US, "%.0f%%", fraction * 100f),
+                                    if (row.total < 0L) "Credit" else String.format(Locale.US, "%.0f%%", fraction * 100f),
                                     style = MmType.caption,
                                     color = MmColors.textSecondary
                                 )
@@ -215,34 +225,67 @@ fun SpendSummaryScreen(
 
 @Composable
 private fun SpendDonutChart(rows: List<SpendCategoryRow>, total: Long) {
-    val holeColor = MmColors.surface
-    // The ring only shows positive contributions; a category that nets negative (refunds
-    // exceeded spend) is a credit, not a wedge. The ring is scaled to those positive rows so it
-    // still reads as a full breakdown, while the header total stays the canonical net spend.
     val positiveRows = rows.filter { it.total > 0L }
-    val ringTotal = positiveRows.sumOf { it.total }
-    // Colours are resolved here (composable scope); the Canvas draw lambda is not composable.
+    val ringTotal = positiveRows.sumOf { it.total }.coerceAtLeast(1L)
     val rowColors = positiveRows.map { parseColor(it.colorHex) }
-    Canvas(modifier = Modifier.size(132.dp)) {
-        var startAngle = -90f
-        positiveRows.forEachIndexed { index, row ->
-            val sweep = if (ringTotal > 0) 360f * row.total / ringTotal else 0f
-            val visibleSweep = (sweep - 1.5f).coerceAtLeast(0f)
-            drawArc(
-                rowColors[index], startAngle + 0.75f, visibleSweep, false,
-                style = Stroke(width = 26f, cap = StrokeCap.Butt),
-                size = Size(size.width, size.height)
+    val reveal = remember(rows, total) { Animatable(0f) }
+    val holeColor = MmColors.surface
+
+    LaunchedEffect(rows, total) {
+        reveal.snapTo(0f)
+        reveal.animateTo(1f, animationSpec = tween(durationMillis = 680))
+    }
+
+    Box(
+        modifier = Modifier.size(132.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val stroke = size.minDimension * 0.18f
+            var startAngle = -90f
+            positiveRows.forEachIndexed { index, row ->
+                val fullSweep = 360f * row.total.toFloat() / ringTotal.toFloat()
+                val sweep = fullSweep * reveal.value
+                val gap = 2.2f
+                drawArc(
+                    color = rowColors[index],
+                    startAngle = startAngle + gap / 2f,
+                    sweepAngle = (sweep - gap).coerceAtLeast(0f),
+                    useCenter = false,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round),
+                    size = Size(size.width, size.height)
+                )
+                startAngle += fullSweep
+            }
+            drawCircle(
+                color = holeColor,
+                radius = size.minDimension * 0.31f
             )
-            startAngle += sweep
         }
-        // The centre hole uses the current surface colour so it reads correctly in dark mode.
-        drawCircle(holeColor, radius = size.minDimension * .31f)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        ) {
+            Text(
+                "TOTAL",
+                style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 0.8.sp),
+                color = MmColors.textTertiary
+            )
+            Text(
+                MoneyFormat.rupeesNoDecimals(Money(total)),
+                style = MmType.caption.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                color = MmColors.textPrimary,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
 /**
- * One bar per month (newest on the right, like the reference). Each bar is that month's total
- * spend only — never cumulative. The selected month is highlighted and drives everything below.
+ * Six-month selector presented as a compact financial chart. Newest month stays on
+ * the right, and selecting a bar updates the full category breakdown below it.
  */
 @Composable
 private fun MonthBarGraph(
@@ -252,57 +295,81 @@ private fun MonthBarGraph(
     onSelect: (Int) -> Unit
 ) {
     val maxTotal = (monthlyTotals.maxOrNull() ?: 0L).coerceAtLeast(1L)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(96.dp)
-            .padding(horizontal = MmSpacing.lg),
-        horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+    val selectedTotal = monthlyTotals.getOrNull(selectedIdx) ?: 0L
+    MmCard(
+        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm),
+        contentPadding = PaddingValues(MmSpacing.lg)
     ) {
-        months.asReversed().forEachIndexed { reversedIdx, month ->
-            val idx = months.lastIndex - reversedIdx
-            val totalForMonth = monthlyTotals.getOrNull(idx) ?: 0L
-            val hasData = totalForMonth > 0L
-            val isSelected = idx == selectedIdx
-            val fillFraction = if (hasData) (totalForMonth.toFloat() / maxTotal).coerceIn(0.12f, 1f) else 0f
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (hasData) MmColors.accent.copy(alpha = 0.14f) else MmColors.surfaceMuted)
-                        .pressableClick { onSelect(idx) },
-                    contentAlignment = Alignment.BottomCenter
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Monthly spending", style = MmType.sectionTitle, color = MmColors.textPrimary)
+                Text("Last six months", style = MmType.caption, color = MmColors.textTertiary)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    MoneyFormat.rupeesNoDecimals(Money(selectedTotal)),
+                    style = MmType.amountRow,
+                    color = MmColors.textPrimary,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Text(
+                    months.getOrNull(selectedIdx)?.label.orEmpty(),
+                    style = MmType.caption,
+                    color = MmColors.accent
+                )
+            }
+        }
+        Spacer(Modifier.height(MmSpacing.lg))
+        Row(
+            Modifier.fillMaxWidth().height(112.dp),
+            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+        ) {
+            months.asReversed().forEachIndexed { reversedIdx, month ->
+                val idx = months.lastIndex - reversedIdx
+                val amount = monthlyTotals.getOrNull(idx) ?: 0L
+                val selected = idx == selectedIdx
+                val targetFraction = if (amount > 0L) {
+                    (amount.toFloat() / maxTotal.toFloat()).coerceIn(0.08f, 1f)
+                } else 0f
+                val barFraction by animateFloatAsState(
+                    targetValue = targetFraction,
+                    animationSpec = tween(durationMillis = 520),
+                    label = "monthBarHeight"
+                )
+                Column(
+                    Modifier.weight(1f).fillMaxHeight(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
                         Modifier
+                            .weight(1f)
                             .fillMaxWidth()
-                            .fillMaxHeight(fillFraction)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                when {
-                                    isSelected -> MmColors.accent
-                                    hasData -> MmColors.accent.copy(alpha = 0.55f)
-                                    else -> MmColors.textTertiary.copy(alpha = 0.35f)
-                                }
-                            )
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(MmColors.surfaceContainer)
+                            .pressableClick { onSelect(idx) },
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth(0.58f)
+                                .fillMaxHeight(barFraction)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(
+                                    if (selected) MmColors.accent
+                                    else MmColors.accent.copy(alpha = 0.46f)
+                                )
+                        )
+                    }
+                    Spacer(Modifier.height(MmSpacing.xs))
+                    Text(
+                        month.label.substringBefore(" "),
+                        style = MmType.caption.copy(fontSize = 10.sp),
+                        color = if (selected) MmColors.accent else MmColors.textTertiary,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1
                     )
                 }
-                Spacer(Modifier.height(MmSpacing.xs))
-                Text(
-                    month.label,
-                    style = MmType.caption.copy(fontSize = 9.sp),
-                    color = if (isSelected) MmColors.accent else MmColors.textSecondary,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1
-                )
-            }
-            if (reversedIdx != months.lastIndex) {
-                Spacer(Modifier.width(MmSpacing.xs))
             }
         }
     }

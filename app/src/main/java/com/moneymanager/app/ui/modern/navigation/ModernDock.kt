@@ -1,15 +1,18 @@
 package com.moneymanager.app.ui.modern.navigation
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -19,7 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
-import androidx.compose.material.Surface
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -32,6 +35,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
@@ -39,10 +44,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.moneymanager.app.ui.components.mmGlassHighlight
+import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.theme.MmColors
-import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.theme.MmSpacing
+import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.navigation.Destination
 
 /** Which floating menu, if any, is open above the dock. Exactly one can be open at a time. */
@@ -60,7 +68,8 @@ internal enum class DockTab(
 }
 
 /**
- * One continuous floating navigation pill with the prominent Add control centered above it.
+ * Floating glass navigation. The backdrop is recorded by ModernRoot from the actual NavHost
+ * page; this component renders the material and owns presentation/interaction state.
  */
 @Composable
 internal fun ModernDock(
@@ -71,53 +80,130 @@ internal fun ModernDock(
     onToggleMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val selectedSlot = when {
+        currentRoute == DockTab.TRANSACTIONS.route -> 1
+        currentRoute == DockTab.ACCOUNTS.route -> 3
+        currentRoute in setOf(
+            Destination.Bills.route,
+            Destination.Cash.route,
+            Destination.Income.route,
+            Destination.SpendSummary.route,
+            Destination.Budget.route,
+            Destination.Categories.route,
+            Destination.Reimbursements.route,
+            Destination.PersonalLoan.route,
+            Destination.Settings.route
+        ) || overlay == DockOverlay.MORE -> 4
+        else -> 0
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm),
+            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
+            .height(78.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth().height(68.dp),
-            shape = RoundedCornerShape(34.dp),
-            color = MmColors.surface,
-            border = BorderStroke(1.dp, MmColors.outline),
-            elevation = 6.dp
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(70.dp)
+                .mmLiquidGlass(cornerRadius = 36.dp, intensity = 0.92f)
         ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            DockItem(DockTab.HOME, currentRoute == DockTab.HOME.route && overlay == DockOverlay.NONE, Modifier.weight(1f)) { onNavigate(DockTab.HOME.route!!) }
-            DockItem(DockTab.TRANSACTIONS, currentRoute == DockTab.TRANSACTIONS.route && overlay == DockOverlay.NONE, Modifier.weight(1f)) { onNavigate(DockTab.TRANSACTIONS.route!!) }
-            Box(Modifier.weight(0.8f))
-            DockItem(DockTab.ACCOUNTS, currentRoute == DockTab.ACCOUNTS.route && overlay == DockOverlay.NONE, Modifier.weight(1f)) { onNavigate(DockTab.ACCOUNTS.route!!) }
-            DockItem(DockTab.MORE, overlay == DockOverlay.MORE, Modifier.weight(1f), onToggleMore)
-        }
-    }
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val unit = maxWidth / 4.8f
+                val selectedCenter = when (selectedSlot) {
+                    0 -> unit * 0.5f
+                    1 -> unit * 1.5f
+                    3 -> unit * 3.3f
+                    else -> unit * 4.3f
+                }
+                val indicatorTarget = (selectedCenter - 30.dp).coerceAtLeast(0.dp)
+                val indicatorX by animateDpAsState(
+                    targetValue = indicatorTarget,
+                    animationSpec = spring(dampingRatio = 0.72f, stiffness = 320f),
+                    label = "dockSelectionPosition"
+                )
+                // The pill draws out a little while it is travelling, then gathers back
+                // to its resting shape. This is driven by the spring's remaining distance,
+                // not a second animation, so rapid taps retarget naturally.
+                val travelLag = (
+                    kotlin.math.abs((indicatorTarget - indicatorX).value) /
+                        unit.value.coerceAtLeast(1f)
+                    ).coerceIn(0f, 1f)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .offset(x = indicatorX)
+                        .size(width = 60.dp, height = 56.dp)
+                        .graphicsLayer {
+                            scaleX = 1f + travelLag * 0.14f
+                            scaleY = 1f - travelLag * 0.07f
+                        }
+                        // A second, smaller lens lets the selected item refract the page
+                        // independently of the dock's broader frosted surface.
+                        .mmLiquidGlass(cornerRadius = 25.dp, intensity = 0.72f)
+                )
 
-        Box(Modifier.align(Alignment.TopCenter).offset(y = (-20).dp), contentAlignment = Alignment.Center) {
-            AddOrb(expanded = overlay == DockOverlay.ADD, onClick = onToggleAdd)
+                Row(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    DockItem(DockTab.HOME, selectedSlot == 0, Modifier.weight(1f)) {
+                        onNavigate(DockTab.HOME.route!!)
+                    }
+                    DockItem(DockTab.TRANSACTIONS, selectedSlot == 1, Modifier.weight(1f)) {
+                        onNavigate(DockTab.TRANSACTIONS.route!!)
+                    }
+                    Box(Modifier.weight(0.8f).fillMaxHeight())
+                    DockItem(DockTab.ACCOUNTS, selectedSlot == 3, Modifier.weight(1f)) {
+                        onNavigate(DockTab.ACCOUNTS.route!!)
+                    }
+                    DockItem(DockTab.MORE, selectedSlot == 4, Modifier.weight(1f), onToggleMore)
+                }
+            }
         }
+
+        AddOrb(
+            expanded = overlay == DockOverlay.ADD,
+            onClick = onToggleAdd,
+            modifier = Modifier.align(Alignment.TopCenter).offset(y = (-13).dp)
+        )
     }
 }
 
 @Composable
 private fun AddOrb(
     expanded: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val rotation by animateFloatAsState(
         targetValue = if (expanded) 45f else 0f,
-        animationSpec = tween(180),
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 420f),
         label = "dockAdd"
     )
+    val scale by animateFloatAsState(
+        targetValue = if (expanded) 0.96f else 1f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 420f),
+        label = "dockAddScale"
+    )
     Box(
-        modifier = Modifier
-            .size(56.dp)
+        modifier = modifier
+            .size(54.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(CircleShape)
-            .background(MmColors.accentFill)
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        MmColors.accent.copy(alpha = 0.98f),
+                        MmColors.accentFill,
+                        MmColors.accent.copy(alpha = 0.88f)
+                    )
+                )
+            )
+            .mmGlassHighlight(cornerRadius = 27.dp, intensity = 1.15f)
             .clickable(onClick = onClick)
             .semantics {
                 contentDescription = if (expanded) "Close add menu" else "Add transaction"
@@ -128,9 +214,7 @@ private fun AddOrb(
             Icons.Filled.Add,
             contentDescription = null,
             tint = MmColors.onAccent,
-            modifier = Modifier
-                .size(27.dp)
-                .graphicsLayer { rotationZ = rotation }
+            modifier = Modifier.size(27.dp).graphicsLayer { rotationZ = rotation }
         )
     }
 }
@@ -143,36 +227,44 @@ private fun DockItem(
     onClick: () -> Unit
 ) {
     val tint by animateColorAsState(
-        targetValue = if (selected) MmColors.accent else MmColors.textTertiary,
-        animationSpec = tween(160),
+        targetValue = if (selected) {
+            if (MaterialTheme.colors.isLight) MmColors.accent else Color.White
+        } else MmColors.textTertiary,
+        animationSpec = spring(dampingRatio = 0.9f, stiffness = 500f),
         label = "dockTint"
     )
-    val background by animateColorAsState(
-        targetValue = if (selected) MmColors.accent.copy(alpha = 0.11f) else MmColors.surface.copy(alpha = 0f),
-        animationSpec = tween(160),
-        label = "dockBackground"
+    val iconScale by animateFloatAsState(
+        targetValue = if (selected) 1.06f else 1f,
+        animationSpec = spring(dampingRatio = 0.76f, stiffness = 440f),
+        label = "dockIconScale"
     )
     Column(
         modifier = modifier
-            .padding(horizontal = 3.dp, vertical = 5.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(background)
+            .fillMaxHeight()
+            .padding(horizontal = 2.dp, vertical = 5.dp)
+            .clip(RoundedCornerShape(24.dp))
             .pressableClick(onClick = onClick)
             .semantics {
                 contentDescription = if (selected) "${tab.label}, selected" else tab.label
             }
-            .padding(vertical = 7.dp),
+            .padding(vertical = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(tab.icon, contentDescription = null, tint = tint, modifier = Modifier.size(21.dp))
+        Icon(
+            tab.icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(22.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale }
+        )
         Text(
             tab.label,
             color = tint,
-            style = MmType.caption,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            style = MmType.caption.copy(fontSize = 11.sp, lineHeight = 14.sp),
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 3.dp)
         )
     }
 }

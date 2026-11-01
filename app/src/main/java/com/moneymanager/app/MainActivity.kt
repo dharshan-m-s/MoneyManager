@@ -77,7 +77,7 @@ class MainActivity : FragmentActivity() {
             window.navigationBarColor = navigationBarColor(MmAppearance.MODERN, isDark)
         }
         val controller = WindowInsetsControllerCompat(window, window.decorView)
-        controller.isAppearanceLightStatusBars = false
+        controller.isAppearanceLightStatusBars = !isDark
         controller.isAppearanceLightNavigationBars = !isDark
         }
 

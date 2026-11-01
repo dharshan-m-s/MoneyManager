@@ -1,164 +1,157 @@
 package com.moneymanager.app.ui.components
 
-import android.graphics.RenderEffect
-import android.graphics.RuntimeShader
 import android.os.Build
-import androidx.annotation.RequiresApi
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.layout.onSizeChanged
-import com.moneymanager.app.ui.theme.MmColors
-import timber.log.Timber
+import androidx.compose.material.MaterialTheme
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.LayerBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.drawBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.effects.blur
+import com.moneymanager.app.ui.components.glass.backdrop.effects.colorControls
+import com.moneymanager.app.ui.components.glass.backdrop.effects.lens
+import com.moneymanager.app.ui.components.glass.backdrop.highlight.Highlight
+import com.moneymanager.app.ui.components.glass.backdrop.shadow.Shadow
 
 /**
- * The Modern hero's liquid-glass pass — rendered-content refraction, not blur or transparency.
- *
- * A single AGSL program runs per pixel through [RuntimeShader] (API 33+):
- *
- *  1. **Lens field.** `n = d * (0.30 + 1.10 r²)` approximates the surface normal of a shallow
- *     spherical cap (`z ≈ r² / 2R`), so displacement grows with the square of the distance from
- *     the optical centre, as it does on a real lens.
- *  2. **Refraction + chromatic dispersion.** The shader samples the rendered card content three
- *     times through the AGSL child shader, with red bent least and blue bent most
- *     (`0.86 / 1.00 / 1.18`). This is a real optical displacement of the surface beneath the
- *     glass, not a procedural colour wash.
- *  3. **Fresnel rim + specular sweep.** A `smoothstep` on radius brightens grazing angles and one
- *     narrow top highlight marks the light source.
- *
- * Cost: one off-screen layer and one GPU shader pass with a slow light sweep, no bitmap capture
- * and no blur. Each prominent surface remembers its shader and updates uniforms when its size
- * changes.
- *
- * API 30–32 (or a device that fails to create the shader) falls back to a specular corner bloom
- * plus a hairline rim. Android 13+ gets the actual rendered-content refraction path.
+ * Shared page recording sampled by floating glass controls. The layer is owned by ModernRoot;
+ * components never capture screenshots or allocate their own full-window bitmaps.
+ */
+val LocalMmGlassBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
+val LocalMmGlassEnabled = staticCompositionLocalOf { true }
+
+private const val BACKDROP_SCALE = 0.33f
+
+fun isMmLiquidGlassSupported(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
+    sdkInt >= Build.VERSION_CODES.S
+
+/**
+ * Full Liquid Glass material: samples the real app content, applies downsampled RenderEffect
+ * blur and (on Android 13+) rounded-lens refraction, then layers theme tint, edge highlight
+ * and a restrained shadow. API 30 and unavailable-layer fallbacks remain opaque/readable.
  */
 @Composable
 fun Modifier.mmLiquidGlass(
-    cornerRadius: Dp = 26.dp,
+    cornerRadius: Dp = 30.dp,
     intensity: Float = 1f
-): Modifier = this.clip(RoundedCornerShape(cornerRadius))
+): Modifier {
+    val shape: CornerBasedShape = RoundedCornerShape(cornerRadius)
+    val enabled = LocalMmGlassEnabled.current
+    val backdrop = LocalMmGlassBackdrop.current
+    val light = MaterialTheme.colors.isLight
+    val tint = if (light) Color(0xFFFDFEFF) else Color(0xFF111722)
+    val edge = if (light) Color.White.copy(alpha = 0.68f) else Color.White.copy(alpha = 0.18f)
+    val safeIntensity = intensity.coerceIn(0.25f, 1.25f)
 
-/**
- * API 33+ shader holder. Kept behind [RequiresApi] so the runtime API check at the call site is
- * the only place the platform version is consulted, and lint can verify it.
- */
-private class GlassProgram(
-    val shader: RuntimeShader,
-    val effect: RenderEffect
-)
-
-private object GlassSupport {
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    fun create(): GlassProgram? = try {
-        val shader = RuntimeShader(REFRACTION_AGSL)
-        // `contents` is the off-screen layer produced by saveLayer. The shader therefore
-        // refracts the actual rendered card rather than a generated texture.
-        val effect = RenderEffect.createRuntimeShaderEffect(shader, "contents")
-        GlassProgram(shader, effect)
-    } catch (exception: RuntimeException) {
-        Timber.w(exception, "Liquid glass shader unavailable; using the static glass treatment")
-        null
+    if (!enabled || !isMmLiquidGlassSupported() || backdrop == null) {
+        return clip(shape)
+            .background(if (light) Color(0xFFF8FAFF) else Color(0xFF171E29), shape)
+            .border(0.65.dp, edge, shape)
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    fun updateUniforms(
-        program: GlassProgram,
-        width: Float,
-        height: Float,
-        intensity: Float,
-        time: Float
-    ) {
-        program.shader.setFloatUniform("uSize", width, height)
-        program.shader.setFloatUniform("uIntensity", intensity)
-        program.shader.setFloatUniform("uTime", time)
-    }
+    val density = LocalDensity.current
+    val blurRadius = with(density) { 8.dp.toPx() * BACKDROP_SCALE * safeIntensity }
+    val lensHeight = with(density) { 30.dp.toPx() * BACKDROP_SCALE * safeIntensity }
+    val lensAmount = with(density) { 22.dp.toPx() * BACKDROP_SCALE * safeIntensity }
 
-    /**
-     * Hides the costly RenderEffect + off-screen layer on small surfaces. The full pass is
-     * reserved for prominent glass surfaces; ordinary controls get the cheaper specular sheen.
-     */
-    fun isCheaperFallback(w: Int, h: Int, intensity: Float): Boolean {
-        val area = w.toFloat() * h.toFloat()
-        return intensity <= 0.35f && area <= 140000f
-    }
+    return drawBackdrop(
+        backdrop = backdrop,
+        shape = { shape },
+        effects = {
+            colorControls(saturation = 1.0f + (0.5f * safeIntensity))
+            blur(blurRadius)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                lens(
+                    refractionHeight = lensHeight,
+                    refractionAmount = lensAmount,
+                    depthEffect = true,
+                    chromaticAberration = true
+                )
+            }
+        },
+        highlight = { Highlight.Default },
+        shadow = {
+            Shadow(
+                radius = 22.dp,
+                offset = androidx.compose.ui.unit.DpOffset(0.dp, 7.dp),
+                color = Color.Black.copy(alpha = if (light) 0.13f else 0.30f)
+            )
+        },
+        onDrawSurface = {
+            drawRect(tint.copy(alpha = if (light) 0.34f else 0.48f))
+        },
+        backdropScale = BACKDROP_SCALE
+    ).clip(shape)
+        .border(0.8.dp, edge, shape)
 }
 
 /**
- * A single static specular sheen for small glass chips (selected segments, pills, FAB). Cheaper
- * than the full refraction pass and reserved for controls that sit on top of a colour fill.
+ * Lightweight specular treatment for selected pills, small chips and compact actions. It does
+ * not record or blur the page; use mmLiquidGlass only for a few prominent floating surfaces.
  */
 @Composable
 fun Modifier.mmGlassHighlight(
     cornerRadius: Dp = 20.dp,
     intensity: Float = 1f
-): Modifier = this.clip(RoundedCornerShape(cornerRadius))
-
-/**
- * AGSL program for the hero glass. `contents` is the rendered layer supplied by
- * `RenderEffect.createRuntimeShaderEffect`, so the colour channels below are genuinely sampling
- * different refracted positions in the card. The displacement stays deliberately small in the
- * centre and grows toward the spherical edge; readable text is therefore preserved while the
- * edge still catches the characteristic liquid-glass bend.
- */
-private const val REFRACTION_AGSL = """
-uniform shader contents;
-uniform float2 uSize;
-uniform float uIntensity;
-uniform float uTime;
-
-float2 lensOffset(float2 p) {
-    float2 center = float2(0.18, -0.08);
-    float2 d = p - center;
-    float r = length(d);
-    // A shallow spherical cap: slope is minimal in the centre and increases toward the rim.
-    float edge = smoothstep(0.12, 0.95, r);
-    return d * (0.0025 + edge * 0.020) * uIntensity;
+): Modifier {
+    val shape = RoundedCornerShape(cornerRadius)
+    val light = MaterialTheme.colors.isLight
+    val alpha = (0.16f * intensity.coerceIn(0.25f, 1.25f)).coerceIn(0.04f, 0.22f)
+    val rim = if (light) Color.White.copy(alpha = 0.92f) else Color.White.copy(alpha = 0.25f)
+    return clip(shape).drawWithCache {
+        val radius = CornerRadius(cornerRadius.toPx())
+        val sheen = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = alpha),
+                Color.White.copy(alpha = alpha * 0.32f),
+                Color.Transparent
+            ),
+            start = Offset(0f, 0f),
+            end = Offset(size.width * 0.9f, size.height)
+        )
+        onDrawWithContent {
+            drawContent()
+            drawRoundRect(brush = sheen, cornerRadius = radius)
+            drawRoundRect(
+                color = rim,
+                cornerRadius = radius,
+                style = Stroke(width = 0.8.dp.toPx())
+            )
+            drawRoundRect(
+                color = if (light) Color.White.copy(alpha = 0.42f) else Color.White.copy(alpha = 0.08f),
+                topLeft = Offset(1.dp.toPx(), 1.dp.toPx()),
+                size = androidx.compose.ui.geometry.Size(
+                    (size.width - 2.dp.toPx()).coerceAtLeast(0f),
+                    (size.height - 2.dp.toPx()).coerceAtLeast(0f)
+                ),
+                cornerRadius = CornerRadius((cornerRadius - 1.dp).coerceAtLeast(0.dp).toPx()),
+                style = Stroke(width = 0.45.dp.toPx())
+            )
+        }
+    }
 }
 
-half4 main(float2 fragCoord) {
-    float2 safeSize = max(uSize, float2(1.0, 1.0));
-    float2 p = fragCoord / safeSize;
-    float2 bend = lensOffset(p) * safeSize;
-
-    // Wavelength-dependent index of refraction. Blue bends more than red, but the split is kept
-    // sub-pixel through the centre to avoid chromatic fringing on text.
-    half4 red = contents.eval(fragCoord + bend * 0.86);
-    half4 green = contents.eval(fragCoord + bend);
-    half4 blue = contents.eval(fragCoord + bend * 1.18);
-    half4 base = contents.eval(fragCoord);
-
-    float2 d = p - float2(0.18, -0.08);
-    float r = length(d);
-    float rim = smoothstep(0.32, 0.95, r);
-    float fresnel = pow(clamp(rim, 0.0, 1.0), 2.4);
-    float spec = pow(clamp(1.0 - abs(p.y - 0.04) * 2.8, 0.0, 1.0), 20.0);
-    float2 light = float2(0.18 + fract(uTime * 0.82) * 0.92, 0.05);
-    float sweep = smoothstep(0.0, 1.0, clamp(1.0 - length(p - light) * 0.95, 0.0, 1.0));
-
-    float3 refracted = float3(red.r, green.g, blue.b);
-    float3 rgb = mix(base.rgb, refracted, 0.72 * clamp(rim + 0.12, 0.0, 1.0));
-    rgb += float3(0.70, 0.78, 1.0) * (fresnel * 0.055 + spec * 0.075 + sweep * 0.018) * uIntensity;
-    return half4(clamp(rgb, 0.0, 1.0), base.a);
+/** Small stable-surface rim; unlike full glass this never samples the page behind it. */
+@Composable
+fun Modifier.mmGlassRim(
+    cornerRadius: Dp = 20.dp,
+    alpha: Float = 0.18f
+): Modifier {
+    val shape = RoundedCornerShape(cornerRadius)
+    val color = if (MaterialTheme.colors.isLight) Color.White else Color.White.copy(alpha = alpha)
+    return clip(shape).border(0.75.dp, color, shape)
 }
-"""

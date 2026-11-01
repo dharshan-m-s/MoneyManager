@@ -5,12 +5,15 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -35,11 +38,11 @@ import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.SnackbarHost
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Switch
+import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudUpload
@@ -91,7 +94,6 @@ import com.moneymanager.app.ui.home.HomePreferences
 import com.moneymanager.app.ui.modern.screens.security.PinSetupDialog
 import com.moneymanager.app.ui.modern.screens.security.SystemLockPrompt
 import com.moneymanager.app.ui.theme.MmColors
-import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
@@ -138,27 +140,29 @@ private fun SettingsSectionHeader(title: String, subtitle: String? = null) {
 }
 
 @Composable
-private fun SettingsHero() {
-    MmCard(
+private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
         modifier = Modifier
-            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
-            .border(1.dp, MmColors.accent.copy(alpha = 0.28f), MmShape.card),
-        contentPadding = PaddingValues(MmSpacing.lg)
+            .fillMaxWidth()
+            .padding(horizontal = MmSpacing.lg),
+        shape = RoundedCornerShape(20.dp),
+        color = MmColors.surface,
+        border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.58f)),
+        elevation = 0.dp
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MmIconBadge(icon = Icons.Filled.AutoAwesome, tint = MmColors.accent, size = 48.dp)
-            Spacer(Modifier.width(MmSpacing.md))
-            Column(Modifier.weight(1f)) {
-                Text("Make it yours", style = MmType.sectionTitle, color = MmColors.textPrimary)
-                Spacer(Modifier.height(MmSpacing.xs))
-                Text(
-                    "Tune Money Manager around the way you plan, protect and review your money.",
-                    style = MmType.caption,
-                    color = MmColors.textSecondary
-                )
-            }
-        }
+        Column(content = content)
     }
+}
+
+@Composable
+private fun SettingsItemDivider() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 64.dp, end = 14.dp)
+            .height(0.7.dp)
+            .background(MmColors.divider.copy(alpha = 0.72f))
+    )
 }
 
 @Composable
@@ -167,39 +171,81 @@ private fun SettingsRow(
     subtitle: String? = null,
     icon: ImageVector? = null,
     onClick: (() -> Unit)? = null,
-    trailing: (@Composable () -> Unit)? = null
+    trailing: (@Composable () -> Unit)? = null,
+    grouped: Boolean = false,
+    showDivider: Boolean = true
 ) {
-    MmCard(
-        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
-        onClick = onClick,
-        contentPadding = PaddingValues(MmSpacing.md)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (icon != null) {
-                MmIconBadge(icon = icon, tint = MmColors.accent, size = 40.dp)
-                Spacer(Modifier.width(MmSpacing.md))
-            }
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MmType.body, color = MmColors.textPrimary)
-                subtitle?.takeIf { it.isNotBlank() }?.let {
-                    Text(
-                        it,
-                        style = MmType.caption,
-                        color = MmColors.textSecondary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+    if (grouped) {
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (icon != null) {
+                    MmIconBadge(icon = icon, tint = MmColors.accent, size = 36.dp)
+                    Spacer(Modifier.width(MmSpacing.md))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = MmType.body, color = MmColors.textPrimary)
+                    subtitle?.takeIf { it.isNotBlank() }?.let {
+                        Text(
+                            it,
+                            style = MmType.caption,
+                            color = MmColors.textSecondary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                if (trailing != null) {
+                    trailing.invoke()
+                } else if (onClick != null) {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MmColors.textTertiary,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
-            if (trailing != null) {
-                trailing.invoke()
-            } else if (onClick != null) {
-                Icon(
-                    Icons.Filled.ChevronRight,
-                    contentDescription = null,
-                    tint = MmColors.textTertiary,
-                    modifier = Modifier.size(20.dp)
-                )
+            if (showDivider) SettingsItemDivider()
+        }
+    } else {
+        MmCard(
+            modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+            onClick = onClick,
+            contentPadding = PaddingValues(MmSpacing.md)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) {
+                    MmIconBadge(icon = icon, tint = MmColors.accent, size = 40.dp)
+                    Spacer(Modifier.width(MmSpacing.md))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = MmType.body, color = MmColors.textPrimary)
+                    subtitle?.takeIf { it.isNotBlank() }?.let {
+                        Text(
+                            it,
+                            style = MmType.caption,
+                            color = MmColors.textSecondary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                if (trailing != null) {
+                    trailing.invoke()
+                } else if (onClick != null) {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MmColors.textTertiary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
@@ -212,23 +258,60 @@ private fun SettingsSwitchRow(
     icon: ImageVector,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    badge: (@Composable () -> Unit)? = null
+    badge: (@Composable () -> Unit)? = null,
+    grouped: Boolean = false,
+    showDivider: Boolean = true
 ) {
-    MmCard(
-        modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
-        contentPadding = PaddingValues(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MmIconBadge(icon = icon, tint = MmColors.accent, size = 40.dp)
-            Spacer(Modifier.width(MmSpacing.md))
-            Box(Modifier.weight(1f)) {
-                MmSwitchRow(
-                    title = title,
-                    subtitle = subtitle,
+    if (grouped) {
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onCheckedChange(!checked) }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MmIconBadge(icon = icon, tint = MmColors.accent, size = 36.dp)
+                Spacer(Modifier.width(MmSpacing.md))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(title, style = MmType.body, color = MmColors.textPrimary)
+                        badge?.invoke()
+                    }
+                    if (!subtitle.isNullOrBlank()) {
+                        Text(subtitle, style = MmType.caption, color = MmColors.textSecondary)
+                    }
+                }
+                Switch(
                     checked = checked,
                     onCheckedChange = onCheckedChange,
-                    badge = badge
+                    colors = androidx.compose.material.SwitchDefaults.colors(
+                        checkedThumbColor = MmColors.onAccent,
+                        checkedTrackColor = MmColors.accent,
+                        uncheckedThumbColor = MmColors.textTertiary,
+                        uncheckedTrackColor = MmColors.surfaceContainerHigh
+                    )
                 )
+            }
+            if (showDivider) SettingsItemDivider()
+        }
+    } else {
+        MmCard(
+            modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+            contentPadding = PaddingValues(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MmIconBadge(icon = icon, tint = MmColors.accent, size = 40.dp)
+                Spacer(Modifier.width(MmSpacing.md))
+                Column(Modifier.weight(1f)) {
+                    MmSwitchRow(
+                        title = title,
+                        subtitle = subtitle,
+                        checked = checked,
+                        onCheckedChange = onCheckedChange,
+                        badge = badge
+                    )
+                }
             }
         }
     }
@@ -393,117 +476,134 @@ fun SettingsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = MmSpacing.xxl)
             ) {
-                SettingsHero()
-
                 SettingsSectionHeader("Appearance", "Choose how Money Manager feels")
-                SettingsSwitchRow(
-                    title = "Dark mode",
-                    subtitle = "Use graphite surfaces and softer contrast at night",
-                    icon = Icons.Filled.DarkMode,
-                    checked = darkMode,
-                    onCheckedChange = {
-                        darkMode = it
-                        homePreferences.setDarkMode(it)
-                    }
-                )
+                SettingsGroup {
+                    SettingsSwitchRow(
+                        title = "Dark mode",
+                        subtitle = "Use graphite surfaces and softer contrast at night",
+                        icon = Icons.Filled.DarkMode,
+                        checked = darkMode,
+                        onCheckedChange = {
+                            darkMode = it
+                            homePreferences.setDarkMode(it)
+                        },
+                        grouped = true,
+                        showDivider = false
+                    )
+                }
 
                 SettingsSectionHeader("Money & planning", "Keep your monthly picture clear")
-                SettingsRow(
-                    title = "Monthly budget",
-                    subtitle = "Set your personal spending limit for the month",
-                    icon = Icons.Filled.MonetizationOn,
-                    onClick = onBudget
-                )
+                SettingsGroup {
+                    SettingsRow(
+                        title = "Monthly budget",
+                        subtitle = "Set your personal spending limit for the month",
+                        icon = Icons.Filled.MonetizationOn,
+                        onClick = onBudget,
+                        grouped = true,
+                        showDivider = false
+                    )
+                }
 
                 SettingsSectionHeader("Home screen", "Choose what deserves attention first")
-                SettingsSwitchRow(
-                    title = "Show income",
-                    subtitle = "Include this month's income in the dashboard summary",
-                    icon = Icons.Filled.Share,
-                    checked = showIncome,
-                    onCheckedChange = homePreferences::setShowIncome
-                )
-                SettingsSwitchRow(
-                    title = "Show cash wallet",
-                    subtitle = "Show the cash card and its monthly activity",
-                    icon = Icons.Filled.MonetizationOn,
-                    checked = showCashSummary,
-                    onCheckedChange = homePreferences::setShowCashSummary
-                )
-                SettingsSwitchRow(
-                    title = "Hide amounts by default",
-                    subtitle = "Balances and totals stay masked until you tap to reveal them",
-                    icon = Icons.Filled.VisibilityOff,
-                    checked = hideAmounts,
-                    onCheckedChange = homePreferences::setHideAmounts
-                )
+                SettingsGroup {
+                    SettingsSwitchRow(
+                        title = "Show income",
+                        subtitle = "Include this month's income in the dashboard summary",
+                        icon = Icons.Filled.Share,
+                        checked = showIncome,
+                        onCheckedChange = homePreferences::setShowIncome,
+                        grouped = true
+                    )
+                    SettingsSwitchRow(
+                        title = "Show cash wallet",
+                        subtitle = "Show the cash card and its monthly activity",
+                        icon = Icons.Filled.MonetizationOn,
+                        checked = showCashSummary,
+                        onCheckedChange = homePreferences::setShowCashSummary,
+                        grouped = true
+                    )
+                    SettingsSwitchRow(
+                        title = "Hide amounts by default",
+                        subtitle = "Balances and totals stay masked until you tap to reveal them",
+                        icon = Icons.Filled.VisibilityOff,
+                        checked = hideAmounts,
+                        onCheckedChange = homePreferences::setHideAmounts,
+                        grouped = true,
+                        showDivider = false
+                    )
+                }
 
                 SettingsSectionHeader("Security", "Protect access to your private ledger")
-                SettingsSwitchRow(
-                    title = "App lock",
-                    subtitle = if (lockEnabled) {
-                        when (lockMethod) {
-                            LockMethod.IN_APP_PIN ->
-                                "On · unlock with your in-app PIN after 30s in the background"
-                            LockMethod.SYSTEM_BIOMETRIC ->
-                                "On · unlock with your fingerprint, face or device PIN"
-                        }
-                    } else "Protect the app with a PIN or your device screen lock",
-                    icon = Icons.Filled.Lock,
-                    checked = lockEnabled || switchArmed,
-                    badge = if (lockEnabled) {
-                        {
-                            MmPill(
-                                text = if (lockMethod == LockMethod.IN_APP_PIN) "PIN" else "System",
-                                tint = MmColors.income,
-                                filled = true
-                            )
-                        }
-                    } else null,
-                    onCheckedChange = { enabled ->
-                        when {
-                            enabled -> {
-                                // The method choice always comes first: the PIN dialog only follows
-                                // when the in-app PIN method is picked, and the system method
-                                // verifies through Android's own screen-lock prompt instead.
-                                showMethodPicker = true
+                SettingsGroup {
+                    SettingsSwitchRow(
+                        title = "App lock",
+                        subtitle = if (lockEnabled) {
+                            when (lockMethod) {
+                                LockMethod.IN_APP_PIN ->
+                                    "On · unlock with your in-app PIN after 30s in the background"
+                                LockMethod.SYSTEM_BIOMETRIC ->
+                                    "On · unlock with your fingerprint, face or device PIN"
                             }
-                            // Turning the lock off is confirmed so a stray tap can't strip
-                            // protection from the whole app.
-                            lockEnabled -> switchArmed = true
-                            else -> Unit
+                        } else "Protect the app with a PIN or your device screen lock",
+                        icon = Icons.Filled.Lock,
+                        checked = lockEnabled || switchArmed,
+                        badge = if (lockEnabled) {
+                            {
+                                MmPill(
+                                    text = if (lockMethod == LockMethod.IN_APP_PIN) "PIN" else "System",
+                                    tint = MmColors.income,
+                                    filled = true
+                                )
+                            }
+                        } else null,
+                        grouped = true,
+                        showDivider = lockEnabled,
+                        onCheckedChange = { enabled ->
+                            when {
+                                enabled -> {
+                                    // The method choice always comes first: the PIN dialog only follows
+                                    // when the in-app PIN method is picked, and the system method
+                                    // verifies through Android's own screen-lock prompt instead.
+                                    showMethodPicker = true
+                                }
+                                // Turning the lock off is confirmed so a stray tap can't strip
+                                // protection from the whole app.
+                                lockEnabled -> switchArmed = true
+                                else -> Unit
+                            }
                         }
+                    )
+                    if (lockEnabled) {
+                        SettingsRow(
+                            title = "Unlock with",
+                            subtitle = when (lockMethod) {
+                                LockMethod.IN_APP_PIN -> "In-app PIN"
+                                LockMethod.SYSTEM_BIOMETRIC ->
+                                    if (systemLockAvailable) "System screen lock (biometrics or device PIN)"
+                                    else "System screen lock (needs a device screen lock)"
+                            },
+                            icon = when (lockMethod) {
+                                LockMethod.IN_APP_PIN -> Icons.Filled.Password
+                                LockMethod.SYSTEM_BIOMETRIC -> Icons.Filled.Fingerprint
+                            },
+                            onClick = { showMethodPicker = true },
+                            grouped = true
+                        )
+                        SettingsRow(
+                            title = if (appLock.hasPin()) "Change PIN" else "Add recovery PIN",
+                            subtitle = when {
+                                lockMethod == LockMethod.SYSTEM_BIOMETRIC && !appLock.hasPin() ->
+                                    "Backup code in case biometrics fail or the screen lock is unavailable"
+                                lockMethod == LockMethod.SYSTEM_BIOMETRIC ->
+                                    "Backup code in case the screen lock is unavailable"
+                                else -> "Set a new PIN for this device"
+                            },
+                            icon = Icons.Filled.Security,
+                            onClick = { showPinDialog = true },
+                            grouped = true,
+                            showDivider = false
+                        )
                     }
-                )
-                if (lockEnabled) {
-                    // Same row language as every other Settings panel: one MmCard row with a
-                    // 40dp badge, title + subtitle, no radio buttons or standout cards.
-                    SettingsRow(
-                        title = "Unlock with",
-                        subtitle = when (lockMethod) {
-                            LockMethod.IN_APP_PIN -> "In-app PIN"
-                            LockMethod.SYSTEM_BIOMETRIC ->
-                                if (systemLockAvailable) "System screen lock (biometrics or device PIN)"
-                                else "System screen lock (needs a device screen lock)"
-                        },
-                        icon = when (lockMethod) {
-                            LockMethod.IN_APP_PIN -> Icons.Filled.Password
-                            LockMethod.SYSTEM_BIOMETRIC -> Icons.Filled.Fingerprint
-                        },
-                        onClick = { showMethodPicker = true }
-                    )
-                    SettingsRow(
-                        title = if (appLock.hasPin()) "Change PIN" else "Add recovery PIN",
-                        subtitle = when {
-                            lockMethod == LockMethod.SYSTEM_BIOMETRIC && !appLock.hasPin() ->
-                                "Backup code in case biometrics fail or the screen lock is unavailable"
-                            lockMethod == LockMethod.SYSTEM_BIOMETRIC ->
-                                "Backup code in case the screen lock is unavailable"
-                            else -> "Set a new PIN for this device"
-                        },
-                        icon = Icons.Filled.Security,
-                        onClick = { showPinDialog = true }
-                    )
                 }
 
                 SettingsSectionHeader("Backup & restore", "Keep a safe copy without leaving the app")
@@ -615,31 +715,41 @@ fun SettingsScreen(
                 }
 
                 SettingsSectionHeader("Data", "Move your information in and out")
-                SettingsRow(
-                    title = "Export transactions as CSV",
-                    subtitle = "Save your full history to a file you choose",
-                    icon = Icons.Filled.Description,
-                    onClick = { csvExportLauncher.launch("moneymanager_transactions.csv") }
-                )
-                SettingsRow(
-                    title = "Import a statement",
-                    subtitle = "Bring in a Moneyview consolidated CSV",
-                    icon = Icons.Filled.Download,
-                    onClick = onImportStatement
-                )
+                SettingsGroup {
+                    SettingsRow(
+                        title = "Export transactions as CSV",
+                        subtitle = "Save your full history to a file you choose",
+                        icon = Icons.Filled.Description,
+                        onClick = { csvExportLauncher.launch("moneymanager_transactions.csv") },
+                        grouped = true
+                    )
+                    SettingsRow(
+                        title = "Import a statement",
+                        subtitle = "Bring in a Moneyview consolidated CSV",
+                        icon = Icons.Filled.Download,
+                        onClick = onImportStatement,
+                        grouped = true,
+                        showDivider = false
+                    )
+                }
 
                 SettingsSectionHeader("About", "Money Manager at a glance")
-                SettingsRow(
-                    title = "App updates",
-                    subtitle = "Check GitHub for the latest stable release",
-                    icon = Icons.Filled.SystemUpdate,
-                    onClick = onAppUpdates
-                )
-                SettingsRow(
-                    title = "Version ${BuildConfig.VERSION_NAME}",
-                    subtitle = "Build ${BuildConfig.VERSION_CODE}",
-                    icon = Icons.Filled.Info
-                )
+                SettingsGroup {
+                    SettingsRow(
+                        title = "App updates",
+                        subtitle = "Check GitHub for the latest stable release",
+                        icon = Icons.Filled.SystemUpdate,
+                        onClick = onAppUpdates,
+                        grouped = true
+                    )
+                    SettingsRow(
+                        title = "Version ${BuildConfig.VERSION_NAME}",
+                        subtitle = "Build ${BuildConfig.VERSION_CODE}",
+                        icon = Icons.Filled.Info,
+                        grouped = true,
+                        showDivider = false
+                    )
+                }
             }
         }
 

@@ -67,10 +67,21 @@ import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
 import timber.log.Timber
 
+// Primary destinations keep the navigation dock available. Detail and editing
+// destinations intentionally leave the dock so the task at hand has the full screen.
 private val DOCK_ROUTES = setOf(
     Destination.Dashboard.route,
     Destination.Transactions.route,
-    Destination.Accounts.route
+    Destination.Accounts.route,
+    Destination.Bills.route,
+    Destination.Cash.route,
+    Destination.Income.route,
+    Destination.SpendSummary.route,
+    Destination.Budget.route,
+    Destination.Categories.route,
+    Destination.Reimbursements.route,
+    Destination.PersonalLoan.route,
+    Destination.Settings.route
 )
 
 @Composable
@@ -217,10 +228,18 @@ fun ModernRoot() {
     androidx.activity.compose.BackHandler(enabled = overlay != DockOverlay.NONE) {
         closeOverlay()
     }
-    androidx.activity.compose.BackHandler(enabled = dockVisible && overlay == DockOverlay.NONE && currentRoute != Destination.Dashboard.route) {
-        navController.popBackStack()
+    androidx.activity.compose.BackHandler(
+        enabled = currentRoute != Destination.Dashboard.route && overlay == DockOverlay.NONE
+    ) {
+        // One root-level policy covers both tab destinations and detail flows. A valid
+        // previous entry is always preferred; orphaned/restored routes return to Dashboard.
+        if (!navController.popBackStack()) {
+            navController.navigate(Destination.Dashboard.route) { launchSingleTop = true }
+        }
     }
 
+    // Keep navigation interactive and deterministic while the backdrop renderer is isolated.
+    // mmLiquidGlass falls back to its stable material surface when no backdrop is provided.
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
@@ -268,15 +287,24 @@ fun ModernRoot() {
                     animationSpec = androidx.compose.animation.core.tween(90)
                 )
         ) {
-            ModernMorePopover(onSelect = { destination ->
-                closeOverlay()
-                if (destination.route == navController.currentDestination?.route) {
-                    return@ModernMorePopover
+            ModernMorePopover(
+                currentRoute = currentRoute,
+                onSelect = { destination ->
+                    closeOverlay()
+                    if (destination.route == navController.currentDestination?.route) {
+                        return@ModernMorePopover
+                    }
+                    // Treat each More destination as a peer of the dock tabs. Keeping one
+                    // root entry prevents Back from walking through a trail of unrelated
+                    // sections after several navigation changes, while save/restore retains
+                    // each section's scroll and filter state.
+                    navController.navigate(destination.route) {
+                        popUpTo(Destination.Dashboard.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
-                navController.navigate(destination.route) {
-                    launchSingleTop = true
-                }
-            })
+            )
         }
 
         androidx.compose.animation.AnimatedVisibility(

@@ -40,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +67,7 @@ import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmReceiptAttachSection
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.mmCategoryTint
+import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -314,9 +316,12 @@ private fun DetailHero(
     Column(
         Modifier
             .fillMaxWidth()
+            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+            .clip(RoundedCornerShape(30.dp))
+            .background(MmColors.surfaceContainerHigh)
+            .mmGlassHighlight(cornerRadius = 30.dp, intensity = 0.76f)
             .revealOnAppear(index = 0)
-            .background(MmColors.background)
-            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xl),
+            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (categoryVisual != null) {

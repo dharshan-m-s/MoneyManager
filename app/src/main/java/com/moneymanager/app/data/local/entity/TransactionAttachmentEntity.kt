@@ -6,7 +6,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * A bill/receipt image attached to one transaction.
+ * A bill/receipt image or video attached to one transaction.
  *
  * The image bytes live in the app's private files directory (`filesDir/receipts/…`) and only the
  * relative path is stored here, so an attachment survives navigation, recomposition, process

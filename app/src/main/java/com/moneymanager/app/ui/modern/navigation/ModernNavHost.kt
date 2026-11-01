@@ -1,5 +1,11 @@
 package com.moneymanager.app.ui.modern.navigation
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,6 +53,23 @@ import com.moneymanager.app.ui.modern.screens.transactionedit.TransactionEditScr
 import com.moneymanager.app.ui.modern.screens.accountedit.AccountEditScreen
 import com.moneymanager.app.data.local.entity.BillerType
 
+// Switching between primary sections should feel like changing workspaces, not
+// pushing another page onto a stack. Detail flows retain the directional motion.
+private val SECTION_ROUTES = setOf(
+    Destination.Dashboard.route,
+    Destination.Transactions.route,
+    Destination.Accounts.route,
+    Destination.Bills.route,
+    Destination.Cash.route,
+    Destination.Income.route,
+    Destination.SpendSummary.route,
+    Destination.Budget.route,
+    Destination.Categories.route,
+    Destination.Reimbursements.route,
+    Destination.PersonalLoan.route,
+    Destination.Settings.route
+)
+
 @Composable
 fun ModernNavHost(
     navController: NavHostController,
@@ -58,7 +81,9 @@ fun ModernNavHost(
     fun safeBack() {
         val currentRoute = navController.currentDestination?.route
         if (currentRoute == Destination.Dashboard.route) return
-        navController.popBackStack()
+        if (!navController.popBackStack()) {
+            navController.navigate(Destination.Dashboard.route) { launchSingleTop = true }
+        }
     }
 
     fun go(route: String) {
@@ -84,7 +109,59 @@ fun ModernNavHost(
     NavHost(
         navController = navController,
         startDestination = Destination.Dashboard.route,
-        modifier = modifier
+        modifier = modifier,
+        enterTransition = {
+            val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
+                targetState.destination.route in SECTION_ROUTES
+            if (sectionSwitch) {
+                fadeIn(animationSpec = tween(180))
+            } else {
+                fadeIn(animationSpec = tween(170)) +
+                    slideInHorizontally(
+                        initialOffsetX = { width -> width / 14 },
+                        animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f)
+                    )
+            }
+        },
+        exitTransition = {
+            val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
+                targetState.destination.route in SECTION_ROUTES
+            if (sectionSwitch) {
+                fadeOut(animationSpec = tween(130))
+            } else {
+                fadeOut(animationSpec = tween(130)) +
+                    slideOutHorizontally(
+                        targetOffsetX = { width -> -width / 28 },
+                        animationSpec = spring(dampingRatio = 0.92f, stiffness = 460f)
+                    )
+            }
+        },
+        popEnterTransition = {
+            val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
+                targetState.destination.route in SECTION_ROUTES
+            if (sectionSwitch) {
+                fadeIn(animationSpec = tween(180))
+            } else {
+                fadeIn(animationSpec = tween(170)) +
+                    slideInHorizontally(
+                        initialOffsetX = { width -> -width / 28 },
+                        animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f)
+                    )
+            }
+        },
+        popExitTransition = {
+            val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
+                targetState.destination.route in SECTION_ROUTES
+            if (sectionSwitch) {
+                fadeOut(animationSpec = tween(130))
+            } else {
+                fadeOut(animationSpec = tween(130)) +
+                    slideOutHorizontally(
+                        targetOffsetX = { width -> width / 14 },
+                        animationSpec = spring(dampingRatio = 0.92f, stiffness = 460f)
+                    )
+            }
+        }
     ) {
 
         composable(Destination.Dashboard.route) {

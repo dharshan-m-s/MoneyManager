@@ -30,9 +30,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -241,39 +244,119 @@ private fun SpendTrendChart(trend: List<MonthSpend>, budgetMinorUnits: Long, mod
     val lineColor = MmColors.accent
     val budgetColor = MmColors.expense
     val gridColor = MmColors.divider
+    val pointCoreColor = MmColors.surface
 
     Column(modifier) {
         Canvas(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            fun yFor(value: Long) = size.height - (value.toFloat() / maxVal) * size.height
+            fun yFor(value: Long) =
+                size.height - (value.toFloat() / maxVal.toFloat()).coerceIn(0f, 1f) * size.height
+
+            // Quiet horizontal guides give the trend a scale without turning the card
+            // into a dense spreadsheet. The baseline is slightly stronger.
+            for (step in 1..3) {
+                val y = size.height * step / 4f
+                drawLine(
+                    color = gridColor.copy(alpha = 0.42f),
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = 1f
+                )
+            }
+            drawLine(
+                color = gridColor.copy(alpha = 0.72f),
+                start = Offset(0f, size.height - 1f),
+                end = Offset(size.width, size.height - 1f),
+                strokeWidth = 1.3f
+            )
+
+            val stepX = size.width / (trend.size - 1).coerceAtLeast(1)
+            val points = trend.mapIndexed { index, month ->
+                Offset(index * stepX, yFor(month.amount))
+            }
+
+            if (points.isNotEmpty()) {
+                val linePath = Path().apply {
+                    moveTo(points.first().x, points.first().y)
+                    for (index in 1 until points.size) {
+                        val previous = points[index - 1]
+                        val current = points[index]
+                        val middleX = (previous.x + current.x) / 2f
+                        cubicTo(
+                            middleX, previous.y,
+                            middleX, current.y,
+                            current.x, current.y
+                        )
+                    }
+                }
+                val areaPath = Path().apply {
+                    moveTo(points.first().x, size.height)
+                    lineTo(points.first().x, points.first().y)
+                    for (index in 1 until points.size) {
+                        val previous = points[index - 1]
+                        val current = points[index]
+                        val middleX = (previous.x + current.x) / 2f
+                        cubicTo(
+                            middleX, previous.y,
+                            middleX, current.y,
+                            current.x, current.y
+                        )
+                    }
+                    lineTo(points.last().x, size.height)
+                    close()
+                }
+
+                drawPath(
+                    path = areaPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            lineColor.copy(alpha = 0.20f),
+                            lineColor.copy(alpha = 0.01f)
+                        ),
+                        startY = 0f,
+                        endY = size.height
+                    )
+                )
+                drawPath(
+                    path = linePath,
+                    color = lineColor,
+                    style = Stroke(width = 3.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                )
+
+                points.forEach { point ->
+                    drawCircle(
+                        color = lineColor.copy(alpha = 0.16f),
+                        radius = 9f,
+                        center = point
+                    )
+                    drawCircle(color = lineColor, radius = 5f, center = point)
+                    drawCircle(color = pointCoreColor, radius = 2.2f, center = point)
+                }
+            }
+
+            // The budget threshold remains distinct from the spend curve but doesn't
+            // compete with it; it is the reference line, not another data series.
             if (budgetMinorUnits > 0L) {
                 val y = yFor(budgetMinorUnits)
                 drawLine(
-                    color = budgetColor,
+                    color = budgetColor.copy(alpha = 0.86f),
                     start = Offset(0f, y),
                     end = Offset(size.width, y),
-                    strokeWidth = 3f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f))
+                    strokeWidth = 1.8f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 7f))
                 )
             }
-            val stepX = size.width / (trend.size - 1).coerceAtLeast(1)
-            val points = trend.mapIndexed { index, month -> Offset(index * stepX, yFor(month.amount)) }
-            for (index in 0 until points.size - 1) {
-                drawLine(color = lineColor, start = points[index], end = points[index + 1], strokeWidth = 5f)
-            }
-            points.forEach { point ->
-                drawCircle(color = lineColor, radius = 7f, center = point)
-                drawCircle(color = Color.White, radius = 3f, center = point)
-            }
-            drawLine(
-                color = gridColor,
-                start = Offset(0f, size.height - 1f),
-                end = Offset(size.width, size.height - 1f),
-                strokeWidth = 2f
-            )
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            trend.forEach { Text(it.label, fontSize = 10.sp, color = MmColors.textSecondary) }
+            trend.forEach { month ->
+                Text(
+                    month.label,
+                    fontSize = 10.sp,
+                    color = MmColors.textSecondary,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

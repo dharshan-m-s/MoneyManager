@@ -63,6 +63,8 @@ import com.moneymanager.app.domain.reporting.FinancialSummary
 import com.moneymanager.app.ui.accounts.AccountsTab
 import com.moneymanager.app.ui.accounts.AccountsViewModel
 import com.moneymanager.app.ui.components.MmAnimatedAmount
+import com.moneymanager.app.ui.components.mmGlassHighlight
+import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.MmChip
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmIconBadge
@@ -288,7 +290,7 @@ private fun AccountsHeader(
     onToggleEdit: () -> Unit,
     showBack: Boolean = true
 ) {
-    Column(Modifier.fillMaxWidth().background(MmColors.background).modernTopInsets()) {
+    Column(Modifier.fillMaxWidth().modernTopInsets()) {
         Row(
             Modifier.fillMaxWidth().padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
@@ -320,10 +322,17 @@ private fun AccountsHeader(
             )
         }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md),
-            shape = MmShape.card,
-            color = MmColors.accentFill
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+                .clip(RoundedCornerShape(28.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(MmColors.accent.copy(alpha = 0.96f), MmColors.accentFill, Color(0xFF171B3E))
+                    )
+                )
+                .mmGlassHighlight(cornerRadius = 28.dp, intensity = 0.82f)
         ) {
             Column(Modifier.fillMaxWidth().padding(MmSpacing.xl)) {
                 Text(
@@ -365,10 +374,11 @@ private fun AccountsCircleAction(
     Surface(
         modifier = Modifier
             .size(40.dp)
+            .mmLiquidGlass(cornerRadius = 999.dp, intensity = 0.48f)
             .clip(CircleShape)
             .clickable(onClick = onClick),
         shape = CircleShape,
-        color = if (active) MmColors.accentFill else MmColors.surface,
+        color = if (active) MmColors.accentFill.copy(alpha = 0.88f) else Color.Transparent,
         border = androidx.compose.foundation.BorderStroke(1.dp, MmColors.outline)
     ) {
         Box(contentAlignment = Alignment.Center) {

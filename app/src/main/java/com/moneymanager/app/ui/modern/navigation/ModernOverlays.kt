@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.navigation.Destination
@@ -41,9 +42,12 @@ import com.moneymanager.app.ui.navigation.Destination
 private val moreDestinations = listOf(
     Destination.Bills,
     Destination.Cash,
+    Destination.Income,
+    Destination.Budget,
     Destination.SpendSummary,
     Destination.Categories,
     Destination.Reimbursements,
+    Destination.PersonalLoan,
     Destination.Settings
 )
 
@@ -157,6 +161,7 @@ internal fun ModernAddActionSurface(
  */
 @Composable
 internal fun ModernMorePopover(
+    currentRoute: String,
     modifier: Modifier = Modifier,
     onSelect: (Destination) -> Unit
 ) {
@@ -188,11 +193,15 @@ internal fun ModernMorePopover(
                 ) {
                     row.forEach { destination ->
                         val tint = tintFor(destination)
+                        val selected = destination.route == currentRoute
                         Row(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(MmColors.surfaceMuted)
+                                .background(
+                                    if (selected) MmColors.accent.copy(alpha = 0.14f)
+                                    else MmColors.surfaceMuted
+                                )
                                 .clickable { onSelect(destination) }
                                 .semantics { contentDescription = destination.label }
                                 .padding(horizontal = 12.dp, vertical = 12.dp),
@@ -236,11 +245,16 @@ private fun OverlayCard(
     content: @Composable () -> Unit
 ) {
     Surface(
-        modifier = modifier.widthIn(max = 400.dp).fillMaxWidth(),
+        modifier = modifier
+            .widthIn(max = 400.dp)
+            .fillMaxWidth()
+            // Menus are transient controls, so they use the same sampled lens material as
+            // navigation instead of a flat opaque card. The normal page content stays solid.
+            .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.82f),
         shape = RoundedCornerShape(24.dp),
-        color = MmColors.surface,
-        border = BorderStroke(1.dp, MmColors.outline),
-        elevation = 12.dp
+        color = Color.Transparent,
+        border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.56f)),
+        elevation = 0.dp
     ) {
         content()
     }

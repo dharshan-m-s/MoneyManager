@@ -60,12 +60,14 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.dao.CategoryTotal
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.reporting.TransactionDisplayClass
 import com.moneymanager.app.domain.reporting.TransactionDisplayClassifier
 import com.moneymanager.app.ui.components.MmAnimatedAmount
+import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.MmBottomSheet
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmChip
@@ -229,48 +231,6 @@ fun DashboardScreen(
             }
 
             item {
-                BudgetCard(
-                    state = state,
-                    onOpenBudget = onOpenBudget,
-                    hideAmounts = hideAmounts,
-                    modifier = Modifier.revealOnAppear(index = 1)
-                )
-            }
-
-            item {
-                SafeToSpendCard(
-                    state = state,
-                    hideAmounts = hideAmounts,
-                    onOpenBudget = onOpenBudget,
-                    modifier = Modifier.revealOnAppear(index = 2)
-                )
-            }
-
-            item {
-                SectionBlock(
-                    title = "Spending breakdown",
-                    subtitle = if (state.monthSpend.minorUnits != 0L)
-                        "This month · ${MoneyFormat.rupeesNoDecimals(state.monthSpend)}" else null,
-                    actionLabel = "See all",
-                    onAction = onSeeAllSpendAreas
-                ) {
-                    if (state.topCategoryTotals.isEmpty()) {
-                        MmEmptyState(
-                            icon = Icons.Filled.PieChart,
-                            title = "No spending this month",
-                            message = "Your category breakdown appears here once you spend."
-                        )
-                    } else {
-                        SpendingBreakdown(
-                            rows = state.topCategoryTotals,
-                            categoryNames = state.categoryNames,
-                            monthSpend = state.monthSpend
-                        )
-                    }
-                }
-            }
-
-            item {
                 SectionBlock(
                     title = "Latest transactions",
                     subtitle = if (anyFilterActive) "${filteredRecent.size} match your filter" else null,
@@ -313,6 +273,49 @@ fun DashboardScreen(
                                 hideAmounts = hideAmounts
                             )
                         }
+                    }
+                }
+            }
+
+
+            item {
+                BudgetCard(
+                    state = state,
+                    onOpenBudget = onOpenBudget,
+                    hideAmounts = hideAmounts,
+                    modifier = Modifier.revealOnAppear(index = 3)
+                )
+            }
+
+            item {
+                SafeToSpendCard(
+                    state = state,
+                    hideAmounts = hideAmounts,
+                    onOpenBudget = onOpenBudget,
+                    modifier = Modifier.revealOnAppear(index = 4)
+                )
+            }
+
+            item {
+                SectionBlock(
+                    title = "Spending breakdown",
+                    subtitle = if (state.monthSpend.minorUnits != 0L)
+                        "This month · ${MoneyFormat.rupeesNoDecimals(state.monthSpend)}" else null,
+                    actionLabel = "See all",
+                    onAction = onSeeAllSpendAreas
+                ) {
+                    if (state.topCategoryTotals.isEmpty()) {
+                        MmEmptyState(
+                            icon = Icons.Filled.PieChart,
+                            title = "No spending this month",
+                            message = "Your category breakdown appears here once you spend."
+                        )
+                    } else {
+                        SpendingBreakdown(
+                            rows = state.topCategoryTotals,
+                            categoryNames = state.categoryNames,
+                            monthSpend = state.monthSpend
+                        )
                     }
                 }
             }
@@ -478,15 +481,17 @@ private fun BalanceHeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.lg)
-            .clip(RoundedCornerShape(26.dp))
+            .clip(RoundedCornerShape(30.dp))
             .background(
                 Brush.linearGradient(
                     listOf(
-                        Color(0xFF1F3BFF),
-                        Color(0xFF0B1026)
+                        Color(0xFF7479F4),
+                        Color(0xFF24245F),
+                        Color(0xFF10182F)
                     )
                 )
             )
+            .mmGlassHighlight(cornerRadius = 30.dp, intensity = 0.88f)
             .pressableClick(onClick = onOpenBreakdown)
     ) {
         Box(
@@ -494,7 +499,7 @@ private fun BalanceHeroCard(
                 .matchParentSize()
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Color.White.copy(alpha = 0.10f), Color.Transparent),
+                        colors = listOf(Color.White.copy(alpha = 0.16f), Color(0xFF9CA3FF).copy(alpha = 0.07f), Color.Transparent),
                         center = Offset(320f, 40f),
                         radius = 420f
                     )
@@ -641,16 +646,16 @@ private fun MonthSummaryCard(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(
                 Brush.linearGradient(
                     listOf(
-                        tint.copy(alpha = 0.18f),
+                        tint.copy(alpha = 0.12f),
                         MmColors.surface
                     )
                 )
             )
-            .border(1.dp, tint.copy(alpha = 0.28f), RoundedCornerShape(20.dp))
+            .border(1.dp, tint.copy(alpha = 0.20f), RoundedCornerShape(22.dp))
             .pressableClick(onClick = onClick)
             .padding(MmSpacing.md)
     ) {
@@ -660,7 +665,7 @@ private fun MonthSummaryCard(
                     Modifier
                         .size(34.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(tint.copy(alpha = 0.22f)),
+                        .background(tint.copy(alpha = 0.16f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
@@ -842,63 +847,63 @@ private fun SpendingBreakdown(
     categoryNames: Map<Long, String>,
     monthSpend: Money
 ) {
-    val total = rows.sumOf { it.total }.takeIf { it > 0L } ?: 1L
-    val restTotal = (monthSpend.minorUnits - total).coerceAtLeast(0L)
     val segments = rows.map { row ->
         val name = categoryNames[row.categoryId] ?: "Uncategorised"
         Triple(mmCategoryTint(name), row.total, name)
+    }
+    val positiveSegments = segments.filter { it.second > 0L }
+    val categoryTotal = positiveSegments.sumOf { it.second }
+    val restTotal = (monthSpend.minorUnits - categoryTotal).coerceAtLeast(0L)
+    val ringTotal = (categoryTotal + restTotal).coerceAtLeast(1L)
+    val chartSegments = buildList {
+        addAll(positiveSegments)
+        if (restTotal > 0L) add(Triple(MmColors.surfaceMuted, restTotal, "Other"))
     }
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(contentAlignment = Alignment.Center) {
-            val restColor = MmColors.surfaceMuted
-            Canvas(Modifier.size(104.dp)) {
-                val stroke = 15f
+            val reveal by animateFloatAsState(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 640),
+                label = "categoryDonutReveal"
+            )
+            Canvas(Modifier.size(112.dp)) {
+                val stroke = 15.dp.toPx()
                 val gap = 3.5f
                 var startAngle = -90f
-                val ringTotal = (total + restTotal).toFloat()
-                fun sweepOf(amount: Long): Float = (amount.toFloat() / ringTotal) * 360f
-                segments.forEach { (tint, amount, _) ->
-                    val sweep = sweepOf(amount)
-                    if (sweep > 0.5f) {
-                        drawArc(
-                            color = tint,
-                            startAngle = startAngle + gap / 2f,
-                            sweepAngle = (sweep - gap).coerceAtLeast(1f),
-                            useCenter = false,
-                            style = Stroke(width = stroke, cap = StrokeCap.Butt)
-                        )
-                    }
-                    startAngle += sweep
-                }
-                if (restTotal > 0L) {
-                    val sweep = sweepOf(restTotal)
+                chartSegments.forEach { (tint, amount, _) ->
+                    val fullSweep = amount.toFloat() / ringTotal.toFloat() * 360f
+                    val sweep = fullSweep * reveal
                     drawArc(
-                        color = restColor,
+                        color = tint,
                         startAngle = startAngle + gap / 2f,
-                        sweepAngle = (sweep - gap).coerceAtLeast(1f),
+                        sweepAngle = (sweep - gap).coerceAtLeast(0f),
                         useCenter = false,
-                        style = Stroke(width = stroke, cap = StrokeCap.Butt)
+                        style = Stroke(width = stroke, cap = StrokeCap.Round)
                     )
+                    startAngle += fullSweep
                 }
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Spent", style = MmType.caption, color = MmColors.textSecondary)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            ) {
+                Text("SPENT", style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 0.7.sp), color = MmColors.textTertiary)
                 Text(
                     MoneyFormat.rupeesNoDecimals(monthSpend),
-                    style = MmType.label,
-                    fontWeight = FontWeight.Bold,
+                    style = MmType.caption.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
                     color = MmColors.textPrimary,
                     maxLines = 1,
-                    softWrap = false
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
         Spacer(Modifier.width(MmSpacing.lg))
         Column(Modifier.weight(1f)) {
-            segments.forEachIndexed { index, (tint, amount, name) ->
+            chartSegments.forEachIndexed { index, (tint, amount, name) ->
                 if (index > 0) Spacer(Modifier.height(MmSpacing.sm))
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     MmLegendDot(tint)
@@ -920,7 +925,7 @@ private fun SpendingBreakdown(
                     )
                     Spacer(Modifier.width(MmSpacing.sm))
                     Text(
-                        "${amount * 100 / total}%",
+                        "${amount * 100L / ringTotal}%",
                         style = MmType.caption,
                         color = MmColors.textTertiary,
                         modifier = Modifier.width(34.dp),

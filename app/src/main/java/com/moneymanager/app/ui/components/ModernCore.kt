@@ -1,5 +1,9 @@
 package com.moneymanager.app.ui.components
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -7,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -21,6 +27,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,11 +42,13 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -66,16 +75,18 @@ fun MmCard(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (onClick != null) Modifier.clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onClick
-                ) else Modifier
+                if (onClick != null) Modifier
+                    .pressScale(interactionSource, pressedScale = 0.985f)
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick
+                    ) else Modifier
             ),
         shape = MmShape.card,
         color = backgroundColor,
-        border = BorderStroke(1.dp, MmColors.outline),
-        elevation = 0.dp
+        border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.58f)),
+        elevation = 1.25.dp
     ) {
         Column(
             modifier = Modifier
@@ -97,15 +108,17 @@ fun MmPlainCard(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (onClick != null) Modifier.clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onClick
-                ) else Modifier
+                if (onClick != null) Modifier
+                    .pressScale(interactionSource, pressedScale = 0.985f)
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick
+                    ) else Modifier
             ),
         shape = MmShape.card,
         color = MmColors.surfaceContainer,
-        border = BorderStroke(1.dp, MmColors.outline),
+        border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.52f)),
         elevation = 0.dp
     ) {
         Column(
@@ -170,9 +183,9 @@ fun MmIconBadge(
 ) {
     Surface(
         modifier = modifier.size(size),
-        shape = CircleShape,
+        shape = RoundedCornerShape(15.dp),
         color = backgroundColor,
-        border = BorderStroke(1.dp, tint.copy(alpha = 0.18f))
+        border = BorderStroke(1.dp, tint.copy(alpha = 0.16f))
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.5f))
@@ -208,11 +221,18 @@ fun MmChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier
+            .pressScale(interactionSource, pressedScale = 0.96f)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
         shape = RoundedCornerShape(999.dp),
         color = if (selected) MmColors.accent.copy(alpha = 0.14f) else MmColors.surface,
-        border = BorderStroke(1.dp, if (selected) MmColors.accent.copy(alpha = 0.4f) else MmColors.outline)
+        border = BorderStroke(0.8.dp, if (selected) MmColors.accent.copy(alpha = 0.34f) else MmColors.outline.copy(alpha = 0.62f))
     ) {
         Text(label, style = MmType.label, color = if (selected) MmColors.accent else MmColors.textSecondary, modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp))
     }
@@ -225,28 +245,53 @@ fun MmSegmentedControl(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    if (options.isEmpty()) return
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(999.dp),
         color = MmColors.surfaceContainer,
-        border = BorderStroke(1.dp, MmColors.outline)
+        border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.62f)),
+        elevation = 0.dp
     ) {
-        Row(modifier = Modifier.padding(4.dp)) {
-            options.forEachIndexed { index, option ->
-                val selected = index == selectedIndex
-                Surface(
-                    modifier = Modifier.weight(1f).clickable(onClick = { onSelect(index) }),
-                    shape = RoundedCornerShape(999.dp),
-                    color = if (selected) MmColors.surface else Color.Transparent,
-                    border = if (selected) BorderStroke(1.dp, MmColors.outline) else BorderStroke(1.dp, Color.Transparent)
-                ) {
-                    Text(
-                        option,
-                        style = MmType.label,
-                        color = if (selected) MmColors.textPrimary else MmColors.textSecondary,
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        textAlign = TextAlign.Center
-                    )
+        BoxWithConstraints(
+            Modifier.fillMaxWidth().height(46.dp).padding(4.dp)
+        ) {
+            val slotWidth = maxWidth / options.size.toFloat()
+            val safeIndex = selectedIndex.coerceIn(options.indices)
+            val indicatorOffset by animateDpAsState(
+                targetValue = slotWidth * safeIndex.toFloat(),
+                animationSpec = spring(dampingRatio = 0.82f, stiffness = 380f),
+                label = "segmentedSelection"
+            )
+            Box(
+                Modifier
+                    .offset(x = indicatorOffset)
+                    .width(slotWidth)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(MmColors.surface)
+                    .mmGlassHighlight(cornerRadius = 999.dp, intensity = 0.52f)
+            )
+            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                options.forEachIndexed { index, option ->
+                    val selected = index == safeIndex
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(999.dp))
+                            .clickable(onClick = { onSelect(index) }),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            option,
+                            style = MmType.label,
+                            color = if (selected) MmColors.textPrimary else MmColors.textSecondary,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }
@@ -384,6 +429,11 @@ fun MmProgressBar(
     height: androidx.compose.ui.unit.Dp = 6.dp
 ) {
     val value = (fraction ?: progress).coerceIn(0f, 1f)
+    val animatedValue by animateFloatAsState(
+        targetValue = value,
+        animationSpec = tween(durationMillis = 360),
+        label = "progressBar"
+    )
     Surface(
         modifier = modifier.fillMaxWidth().height(height),
         shape = RoundedCornerShape(999.dp),
@@ -391,7 +441,7 @@ fun MmProgressBar(
     ) {
         Box(
             Modifier
-                .fillMaxWidth(value)
+                .fillMaxWidth(animatedValue)
                 .height(height)
                 .background(color)
         )
@@ -412,9 +462,10 @@ fun MmBottomSheet(
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .shadow(24.dp, RoundedCornerShape(topStart = MmSpacing.radiusSheet, topEnd = MmSpacing.radiusSheet))
                     .clip(RoundedCornerShape(topStart = MmSpacing.radiusSheet, topEnd = MmSpacing.radiusSheet))
                     .background(MmColors.surface)
-                    .border(BorderStroke(1.dp, MmColors.outline))
+                    .border(BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.72f)))
                     .navigationBarsPadding()
             ) {
                 Box(

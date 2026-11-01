@@ -1,6 +1,7 @@
 package com.moneymanager.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -199,11 +200,17 @@ private fun MmTransactionRowContent(
         Row(
             Modifier
                 .fillMaxWidth()
-                .then(if (grouped) Modifier.clip(shape).background(MmColors.surface) else Modifier)
+                .then(
+                    if (grouped) Modifier
+                        .clip(shape)
+                        .background(MmColors.surfaceContainer)
+                        .border(0.75.dp, MmColors.outline.copy(alpha = 0.62f), shape)
+                    else Modifier
+                )
                 .pressableClick(onClick = onClick)
                 .padding(
                     horizontal = if (grouped) MmSpacing.md else MmSpacing.lg,
-                    vertical = 12.dp
+                    vertical = 13.dp
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {

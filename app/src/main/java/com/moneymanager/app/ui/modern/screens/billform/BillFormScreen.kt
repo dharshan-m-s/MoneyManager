@@ -42,6 +42,7 @@ import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.BillerType
 import com.moneymanager.app.data.local.entity.BillingCycle
 import com.moneymanager.app.ui.components.MmAmountField
+import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmOption
 import com.moneymanager.app.ui.components.MmPickerField
@@ -88,9 +89,11 @@ fun BillFormScreen(
             subtitle = "Payment, reminder and account details",
             onBack = onBack,
             actions = {
-                IconButton(onClick = viewModel::save) {
-                    Icon(Icons.Filled.Check, contentDescription = "Save", tint = androidx.compose.ui.graphics.Color.White)
-                }
+                MmTopBarAction(
+                    icon = Icons.Filled.Check,
+                    contentDescription = "Save bill",
+                    onClick = viewModel::save
+                )
             }
         )
 
