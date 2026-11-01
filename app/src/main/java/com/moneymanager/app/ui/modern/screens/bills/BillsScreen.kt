@@ -147,7 +147,10 @@ fun BillsScreen(
                     onAction = onAddBiller
                 )
             } else {
-                LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
+                LazyColumn(
+                    contentPadding = PaddingValues(start = MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = 112.dp),
+                    verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                ) {
                     itemsIndexed(bills, key = { _, row -> row.bill.id }) { index, row ->
                         BillCard(
                             row = row,

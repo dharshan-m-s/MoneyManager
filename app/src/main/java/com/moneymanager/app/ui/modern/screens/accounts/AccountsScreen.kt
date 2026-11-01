@@ -63,6 +63,7 @@ import com.moneymanager.app.domain.reporting.FinancialSummary
 import com.moneymanager.app.ui.accounts.AccountsTab
 import com.moneymanager.app.ui.accounts.AccountsViewModel
 import com.moneymanager.app.ui.components.MmAnimatedAmount
+import com.moneymanager.app.ui.components.MmBalancePanel
 import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.MmChip
@@ -322,45 +323,18 @@ private fun AccountsHeader(
             )
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
-                .clip(RoundedCornerShape(28.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(MmColors.accent.copy(alpha = 0.96f), MmColors.accentFill, Color(0xFF171B3E))
-                    )
-                )
-                .mmGlassHighlight(cornerRadius = 28.dp, intensity = 0.82f)
-        ) {
-            Column(Modifier.fillMaxWidth().padding(MmSpacing.xl)) {
-                Text(
-                    when {
-                        showingInactive && isCreditCard -> "Inactive outstanding"
-                        showingInactive -> "Inactive balance"
-                        isCreditCard -> "Total outstanding"
-                        else -> "Total balance"
-                    },
-                    style = MmType.label,
-                    color = MmColors.onAccent.copy(alpha = 0.78f)
-                )
-                Spacer(Modifier.height(6.dp))
-                MmAnimatedAmount(
-                    value = total.minorUnits,
-                    formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
-                    style = MmType.amountHero,
-                    color = MmColors.onAccent
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "$count ${if (count == 1) "account" else "accounts"} · $tabLabel" +
-                        if (showingInactive) " · switched off" else "",
-                    style = MmType.caption,
-                    color = MmColors.onAccent.copy(alpha = 0.72f)
-                )
-            }
-        }
+        MmBalancePanel(
+            label = when {
+                showingInactive && isCreditCard -> "Inactive outstanding"
+                showingInactive -> "Inactive balance"
+                isCreditCard -> "Total outstanding"
+                else -> "Total balance"
+            },
+            value = MoneyFormat.rupeesNoDecimals(total),
+            caption = "$count ${if (count == 1) "account" else "accounts"} · $tabLabel" +
+                if (showingInactive) " · switched off" else "",
+            modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+        )
     }
 }
 
@@ -485,8 +459,11 @@ private fun AccountRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(MmColors.surface)
+                .border(0.7.dp, MmColors.outline.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
                 .clickable(onClick = onClick)
-                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md),
+                .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
             MmIconBadge(

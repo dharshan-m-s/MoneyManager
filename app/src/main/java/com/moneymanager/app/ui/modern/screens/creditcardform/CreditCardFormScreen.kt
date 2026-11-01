@@ -119,7 +119,7 @@ fun CreditCardFormScreen(
                 .padding(MmSpacing.screen)
                 .padding(bottom = MmSpacing.xxl)
                 .revealOnAppear(),
-            verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
             // --- Card identity preview ---
             MmCard {

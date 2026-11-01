@@ -116,7 +116,7 @@ fun MmTransactionRow(
     MmTransactionRowContent(
         title = title,
         subtitle = rowSubtitle(txn, inDayGroup = groupPosition != null),
-        leading = { MmIconBadge(icon = icon, tint = tint, size = 44.dp) },
+        leading = { MmIconBadge(icon = icon, tint = tint, size = 46.dp) },
         amountText = when {
             hideAmounts -> "••••"
             isTransfer || isNotSpend -> MoneyFormat.rupeesNoDecimals(amount.abs())
@@ -203,14 +203,16 @@ private fun MmTransactionRowContent(
                 .then(
                     if (grouped) Modifier
                         .clip(shape)
-                        .background(MmColors.surfaceContainer)
-                        .border(0.75.dp, MmColors.outline.copy(alpha = 0.62f), shape)
+                        .background(MmColors.surface)
+                        .border(0.65.dp, MmColors.outline.copy(alpha = 0.38f), shape)
                     else Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MmColors.surface)
                 )
                 .pressableClick(onClick = onClick)
                 .padding(
                     horizontal = if (grouped) MmSpacing.md else MmSpacing.lg,
-                    vertical = 13.dp
+                    vertical = 15.dp
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -262,8 +264,8 @@ private fun MmTransactionRowContent(
         }
         if (showDivider && !grouped) {
             Divider(
-                color = MmColors.hairline,
-                modifier = Modifier.padding(start = 76.dp)
+                color = MmColors.hairline.copy(alpha = 0.62f),
+                modifier = Modifier.padding(start = 82.dp)
             )
         }
     }

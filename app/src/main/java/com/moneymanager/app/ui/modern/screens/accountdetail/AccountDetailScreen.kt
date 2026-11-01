@@ -311,8 +311,8 @@ private fun AccountHeader(
         MmCard(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md),
-            contentPadding = PaddingValues(MmSpacing.lg)
+                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.lg),
+            contentPadding = PaddingValues(MmSpacing.xl)
         ) {
             if (isCard) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

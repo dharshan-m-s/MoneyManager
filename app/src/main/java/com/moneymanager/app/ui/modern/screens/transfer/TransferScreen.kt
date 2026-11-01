@@ -102,9 +102,9 @@ fun TransferScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .imePadding()
-                .padding(MmSpacing.lg)
+                .padding(horizontal = MmSpacing.screen)
                 .padding(bottom = MmSpacing.xxl),
-            verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
             MmCard {
                 MmAmountField(

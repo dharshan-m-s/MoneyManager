@@ -115,7 +115,7 @@ private fun IdleContent(onPick: () -> Unit) {
             .fillMaxSize()
             .padding(MmSpacing.screen)
             .revealOnAppear(),
-        verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
+        verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
     ) {
         MmCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -288,7 +288,7 @@ private fun PreviewContent(
             top = MmSpacing.lg,
             bottom = MmSpacing.xxl
         ),
-        verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+        verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
     ) {
         item {
             MmCard {

@@ -102,14 +102,14 @@ internal fun ModernDock(
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
-            .height(78.dp),
+            .height(80.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(70.dp)
-                .mmLiquidGlass(cornerRadius = 36.dp, intensity = 0.92f)
+                .height(72.dp)
+                .mmLiquidGlass(cornerRadius = 36.dp, intensity = 0.48f)
         ) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val unit = maxWidth / 4.8f
@@ -136,14 +136,14 @@ internal fun ModernDock(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
                         .offset(x = indicatorX)
-                        .size(width = 60.dp, height = 56.dp)
+                        .size(width = 62.dp, height = 58.dp)
                         .graphicsLayer {
                             scaleX = 1f + travelLag * 0.14f
                             scaleY = 1f - travelLag * 0.07f
                         }
                         // A second, smaller lens lets the selected item refract the page
                         // independently of the dock's broader frosted surface.
-                        .mmLiquidGlass(cornerRadius = 25.dp, intensity = 0.72f)
+                        .mmLiquidGlass(cornerRadius = 27.dp, intensity = 0.34f)
                 )
 
                 Row(
@@ -191,7 +191,7 @@ private fun AddOrb(
     )
     Box(
         modifier = modifier
-            .size(54.dp)
+            .size(52.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(CircleShape)
             .background(

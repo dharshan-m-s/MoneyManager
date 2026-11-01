@@ -70,6 +70,7 @@ import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.MmBottomSheet
 import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmMetricCard
 import com.moneymanager.app.ui.components.MmChip
 import com.moneymanager.app.ui.components.MmDateField
 import com.moneymanager.app.ui.components.MmEmptyState
@@ -481,17 +482,17 @@ private fun BalanceHeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.lg)
-            .clip(RoundedCornerShape(30.dp))
+            .clip(RoundedCornerShape(32.dp))
             .background(
                 Brush.linearGradient(
                     listOf(
-                        Color(0xFF7479F4),
-                        Color(0xFF24245F),
-                        Color(0xFF10182F)
+                        Color(0xFF6268D8),
+                        Color(0xFF343A72),
+                        Color(0xFF171D32)
                     )
                 )
             )
-            .mmGlassHighlight(cornerRadius = 30.dp, intensity = 0.88f)
+            .mmGlassHighlight(cornerRadius = 32.dp, intensity = 0.62f)
             .pressableClick(onClick = onOpenBreakdown)
     ) {
         Box(
@@ -505,7 +506,7 @@ private fun BalanceHeroCard(
                     )
                 )
         )
-        Column(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.xl, vertical = MmSpacing.xl)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Total balance",
@@ -644,52 +645,14 @@ private fun MonthSummaryCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        tint.copy(alpha = 0.12f),
-                        MmColors.surface
-                    )
-                )
-            )
-            .border(1.dp, tint.copy(alpha = 0.20f), RoundedCornerShape(22.dp))
-            .pressableClick(onClick = onClick)
-            .padding(MmSpacing.md)
-    ) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(tint.copy(alpha = 0.16f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
-                }
-                Spacer(Modifier.width(MmSpacing.sm))
-                Text(
-                    label,
-                    style = MmType.caption,
-                    color = MmColors.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Spacer(Modifier.height(MmSpacing.sm))
-            Text(
-                if (hideAmounts) "••••" else MoneyFormat.rupeesNoDecimals(amount),
-                style = MmType.amountTile,
-                color = MmColors.textPrimary,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
+    MmMetricCard(
+        label = label,
+        value = if (hideAmounts) "••••" else MoneyFormat.rupeesNoDecimals(amount),
+        tint = tint,
+        icon = icon,
+        modifier = modifier,
+        onClick = onClick
+    )
 }
 
 /** Budget ring + remaining summary, or the set-up call to action when no budget exists. */

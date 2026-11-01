@@ -34,6 +34,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmBalancePanel
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
@@ -102,49 +103,11 @@ private fun IncomeSummaryCard(
     transactionCount: Int,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(26.dp))
-            .background(Brush.linearGradient(MmColors.brandGradient))
-            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(26.dp))
-            .padding(MmSpacing.lg)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "Total income",
-                    style = MmType.label,
-                    color = Color.White.copy(alpha = 0.78f)
-                )
-                Spacer(Modifier.height(MmSpacing.xs))
-                MmAnimatedAmount(
-                    value = total,
-                    formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
-                    style = MmType.amountLarge,
-                    color = Color.White
-                )
-                Spacer(Modifier.height(MmSpacing.xs))
-                Text(
-                    "$transactionCount recorded ${if (transactionCount == 1) "entry" else "entries"}",
-                    style = MmType.caption,
-                    color = Color.White.copy(alpha = 0.76f)
-                )
-            }
-            Box(
-                Modifier
-                    .size(54.dp)
-                    .clip(RoundedCornerShape(19.dp))
-                    .background(Color.White.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.TrendingUp,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(27.dp)
-                )
-            }
-        }
-    }
+    MmBalancePanel(
+        label = "Total income",
+        value = MoneyFormat.rupeesNoDecimals(Money(total)),
+        caption = "$transactionCount recorded ${if (transactionCount == 1) "entry" else "entries"}",
+        modifier = modifier,
+        tint = MmColors.income
+    )
 }

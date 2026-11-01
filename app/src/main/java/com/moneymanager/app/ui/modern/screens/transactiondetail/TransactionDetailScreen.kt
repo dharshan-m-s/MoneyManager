@@ -317,11 +317,12 @@ private fun DetailHero(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
-            .clip(RoundedCornerShape(30.dp))
-            .background(MmColors.surfaceContainerHigh)
-            .mmGlassHighlight(cornerRadius = 30.dp, intensity = 0.76f)
+            .clip(RoundedCornerShape(32.dp))
+            .background(MmColors.surface)
+            .border(0.8.dp, MmColors.outline.copy(alpha = 0.42f), RoundedCornerShape(32.dp))
+            .mmGlassHighlight(cornerRadius = 32.dp, intensity = 0.38f)
             .revealOnAppear(index = 0)
-            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xl),
+            .padding(horizontal = MmSpacing.xl, vertical = MmSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (categoryVisual != null) {
@@ -369,7 +370,7 @@ private fun DetailCard(title: String, index: Int = 0, content: @Composable () ->
             .revealOnAppear(index = index),
         contentPadding = PaddingValues(MmSpacing.card)
     ) {
-        Text(title.uppercase(), style = MmType.caption, fontWeight = FontWeight.SemiBold, color = MmColors.textSecondary)
+        Text(title.uppercase(), style = MmType.caption, fontWeight = FontWeight.SemiBold, color = MmColors.textTertiary)
         Spacer(Modifier.height(MmSpacing.xs))
         content()
     }

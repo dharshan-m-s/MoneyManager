@@ -81,7 +81,7 @@ fun BillTypeSelectionScreen(
             columns = GridCells.Adaptive(minSize = 104.dp),
             contentPadding = PaddingValues(MmSpacing.lg, MmSpacing.sm, MmSpacing.lg, MmSpacing.xxl),
             horizontalArrangement = Arrangement.spacedBy(MmSpacing.md),
-            verticalArrangement = Arrangement.spacedBy(MmSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.lg),
             modifier = Modifier.fillMaxSize()
         ) {
             itemsIndexed(BILL_TYPES, key = { _, option -> option.type.name }) { index, option ->

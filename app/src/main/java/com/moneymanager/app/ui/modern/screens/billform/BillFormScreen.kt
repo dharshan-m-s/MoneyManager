@@ -104,7 +104,7 @@ fun BillFormScreen(
                 .imePadding()
                 .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg)
                 .revealOnAppear(),
-            verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
             MmSectionHeader(title = "What is it")
 

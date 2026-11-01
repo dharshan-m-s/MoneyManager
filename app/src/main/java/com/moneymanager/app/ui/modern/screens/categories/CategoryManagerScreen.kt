@@ -125,7 +125,7 @@ fun CategoryManagerScreen(
                         end = MmSpacing.lg,
                         bottom = 96.dp
                     ),
-                    verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                    verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
                 ) {
                     itemsIndexed(visible, key = { _, item -> item.id }) { index, category ->
                         CategoryRow(

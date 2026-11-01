@@ -81,7 +81,7 @@ fun DashboardBreakdownScreen(
 
         LazyColumn(
             contentPadding = PaddingValues(MmSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
             item {
                 MmCard {

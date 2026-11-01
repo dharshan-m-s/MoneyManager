@@ -107,12 +107,12 @@ fun SpendSummaryScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    start = MmSpacing.lg,
-                    end = MmSpacing.lg,
-                    top = MmSpacing.lg,
+                    start = MmSpacing.screen,
+                    end = MmSpacing.screen,
+                    top = MmSpacing.md,
                     bottom = MmSpacing.xxl
                 ),
-                verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
             ) {
                 item {
                     MmCard {

@@ -84,10 +84,10 @@ fun AccountEditScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .imePadding()
-                .padding(MmSpacing.lg)
+                .padding(horizontal = MmSpacing.screen)
                 .padding(bottom = MmSpacing.xxl)
                 .revealOnAppear(),
-            verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
             MmCard {
                 Text("Account details", style = MmType.label, color = MmColors.textSecondary)

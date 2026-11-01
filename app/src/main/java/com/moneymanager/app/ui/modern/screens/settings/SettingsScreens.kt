@@ -145,9 +145,9 @@ private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.lg),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         color = MmColors.surface,
-        border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.58f)),
+        border = BorderStroke(0.7.dp, MmColors.outline.copy(alpha = 0.42f)),
         elevation = 0.dp
     ) {
         Column(content = content)
@@ -181,11 +181,11 @@ private fun SettingsRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (icon != null) {
-                    MmIconBadge(icon = icon, tint = MmColors.accent, size = 36.dp)
+                    MmIconBadge(icon = icon, tint = MmColors.accent, size = 38.dp)
                     Spacer(Modifier.width(MmSpacing.md))
                 }
                 Column(Modifier.weight(1f)) {
@@ -221,7 +221,7 @@ private fun SettingsRow(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (icon != null) {
-                    MmIconBadge(icon = icon, tint = MmColors.accent, size = 40.dp)
+                    MmIconBadge(icon = icon, tint = MmColors.accent, size = 42.dp)
                     Spacer(Modifier.width(MmSpacing.md))
                 }
                 Column(Modifier.weight(1f)) {

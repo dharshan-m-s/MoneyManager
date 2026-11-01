@@ -44,6 +44,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmBalancePanel
+import com.moneymanager.app.ui.components.MmMetricCard
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MmTopBarAction
@@ -118,27 +120,12 @@ fun CashScreen(
                 }
             )
 
-            MmCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md),
-                contentPadding = PaddingValues(MmSpacing.lg)
-            ) {
-                Text("Available now", style = MmType.caption, color = MmColors.textSecondary)
-                Spacer(Modifier.height(2.dp))
-                MmAnimatedAmount(
-                    value = state.cashInHand.minorUnits,
-                    formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
-                    style = MmType.amountHero,
-                    color = MmColors.textPrimary
-                )
-                Spacer(Modifier.height(MmSpacing.xs))
-                Text(
-                    "Updated automatically as you record cash transactions",
-                    style = MmType.caption,
-                    color = MmColors.textSecondary
-                )
-            }
+            MmBalancePanel(
+                label = "Available now",
+                value = MoneyFormat.rupeesNoDecimals(state.cashInHand),
+                caption = "Updated automatically as you record cash transactions",
+                modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+            )
 
             if (showSearch) {
                 Box(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
@@ -180,9 +167,9 @@ fun CashScreen(
             LazyColumn(
                 Modifier.weight(1f),
                 contentPadding = PaddingValues(
-                    start = MmSpacing.lg,
-                    end = MmSpacing.lg,
-                    bottom = 96.dp
+                    start = MmSpacing.screen,
+                    end = MmSpacing.screen,
+                    bottom = 112.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)
             ) {
@@ -288,22 +275,13 @@ private fun CashMetric(
     tint: Color,
     modifier: Modifier = Modifier
 ) {
-    MmCard(modifier = modifier, contentPadding = PaddingValues(MmSpacing.md)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MmIconBadge(icon = icon, tint = tint, size = 32.dp)
-            Spacer(Modifier.width(MmSpacing.sm))
-            Column {
-                Text(
-                    amount,
-                    style = MmType.amountRow,
-                    color = tint,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(label, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1)
-            }
-        }
-    }
+    MmMetricCard(
+        label = label,
+        value = amount,
+        tint = tint,
+        icon = icon,
+        modifier = modifier
+    )
 }
 
 @Composable

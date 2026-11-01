@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.moneymanager.app.ui.theme.MmColors
 
 /** One UI 9 FAB shape: rounded square with generous, confident rounding. */
-private val MmFabShape = RoundedCornerShape(20.dp)
+private val MmFabShape = RoundedCornerShape(18.dp)
 
 /**
  * A soft light under the FAB. It makes the primary action read as the brightest object on the
@@ -27,11 +27,11 @@ private val MmFabShape = RoundedCornerShape(20.dp)
 private fun MmFabGlow(content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
-            .size(104.dp)
+            .size(88.dp)
             .background(
                 androidx.compose.ui.graphics.Brush.radialGradient(
                     colors = listOf(
-                        MmColors.accentGlow.copy(alpha = 0.30f),
+                        MmColors.accentGlow.copy(alpha = 0.18f),
                         androidx.compose.ui.graphics.Color.Transparent
                     )
                 )
@@ -55,7 +55,7 @@ fun CashFab(
             backgroundColor = MmColors.accentFill,
             contentColor = MmColors.onAccent,
             shape = MmFabShape,
-            modifier = modifier.mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.7f),
+            modifier = modifier.mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.42f),
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
         ) {
             Icon(

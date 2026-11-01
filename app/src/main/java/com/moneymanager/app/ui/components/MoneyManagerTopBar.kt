@@ -53,13 +53,13 @@ fun MoneyManagerTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .modernTopInsets()
-                .heightIn(min = 62.dp)
-                .padding(horizontal = MmSpacing.lg, vertical = 2.dp),
+                .heightIn(min = 70.dp)
+                .padding(horizontal = MmSpacing.screen, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (onNavigationClick != null) {
                 Surface(
-                    modifier = Modifier.size(42.dp).mmLiquidGlass(cornerRadius = 999.dp, intensity = 0.58f).clip(CircleShape).mmGlassHighlight(cornerRadius = 999.dp, intensity = 0.38f),
+                    modifier = Modifier.size(44.dp).mmLiquidGlass(cornerRadius = 999.dp, intensity = 0.42f).clip(CircleShape).mmGlassHighlight(cornerRadius = 999.dp, intensity = 0.38f),
                     shape = CircleShape,
                     color = Color.Transparent,
                     border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.58f)),
@@ -83,7 +83,7 @@ fun MoneyManagerTopBar(
             ) {
                 Text(
                     title,
-                    style = MmType.screenTitle.copy(fontSize = 23.sp, lineHeight = 29.sp),
+                    style = MmType.screenTitle.copy(fontSize = 26.sp, lineHeight = 32.sp),
                     color = MmColors.textPrimary,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -118,7 +118,7 @@ fun MmTopBarAction(
 ) {
     Box {
         Surface(
-            modifier = Modifier.size(42.dp).mmLiquidGlass(cornerRadius = 999.dp, intensity = 0.52f).clip(CircleShape),
+            modifier = Modifier.size(44.dp).mmLiquidGlass(cornerRadius = 999.dp, intensity = 0.38f).clip(CircleShape),
             shape = CircleShape,
             color = Color.Transparent,
             border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.58f)),

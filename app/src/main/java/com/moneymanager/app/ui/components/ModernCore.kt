@@ -83,10 +83,10 @@ fun MmCard(
                         onClick = onClick
                     ) else Modifier
             ),
-        shape = MmShape.card,
+        shape = RoundedCornerShape(26.dp),
         color = backgroundColor,
-        border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.58f)),
-        elevation = 1.25.dp
+        border = BorderStroke(0.7.dp, MmColors.outline.copy(alpha = 0.42f)),
+        elevation = 0.dp
     ) {
         Column(
             modifier = Modifier
@@ -94,6 +94,99 @@ fun MmCard(
                 .padding(contentPadding),
             content = content
         )
+    }
+}
+
+
+/**
+ * Compact financial metric tile shared by overview screens. The icon is a quiet category cue;
+ * the amount remains the strongest element and uses tabular numerals from the theme.
+ */
+@Composable
+fun MmMetricCard(
+    label: String,
+    value: String,
+    tint: Color,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    val shape = RoundedCornerShape(22.dp)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(MmColors.surface)
+            .border(BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.42f)), shape)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(30.dp).clip(RoundedCornerShape(11.dp)).background(tint.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
+            }
+            Spacer(Modifier.width(MmSpacing.sm))
+            Text(
+                label,
+                style = MmType.caption,
+                color = MmColors.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.height(MmSpacing.md))
+        Text(
+            value,
+            style = MmType.amountTile,
+            color = MmColors.textPrimary,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/**
+ * Spacious amount panel for detail and wallet pages. Unlike a promotional banner, it keeps the
+ * amount on a calm surface and uses a slim accent rule to establish hierarchy in both themes.
+ */
+@Composable
+fun MmBalancePanel(
+    label: String,
+    value: String,
+    caption: String? = null,
+    modifier: Modifier = Modifier,
+    tint: Color = MmColors.accent
+) {
+    val shape = RoundedCornerShape(28.dp)
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MmColors.surface)
+            .border(BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.44f)), shape)
+            .padding(MmSpacing.xl)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(width = 4.dp, height = 18.dp).clip(RoundedCornerShape(4.dp)).background(tint))
+            Spacer(Modifier.width(MmSpacing.sm))
+            Text(label, style = MmType.label, color = MmColors.textSecondary)
+        }
+        Spacer(Modifier.height(MmSpacing.md))
+        Text(
+            value,
+            style = MmType.amountHero,
+            color = MmColors.textPrimary,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (!caption.isNullOrBlank()) {
+            Spacer(Modifier.height(MmSpacing.sm))
+            Text(caption, style = MmType.caption, color = MmColors.textTertiary)
+        }
     }
 }
 
@@ -116,9 +209,9 @@ fun MmPlainCard(
                         onClick = onClick
                     ) else Modifier
             ),
-        shape = MmShape.card,
+        shape = RoundedCornerShape(26.dp),
         color = MmColors.surfaceContainer,
-        border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.52f)),
+        border = BorderStroke(0.7.dp, MmColors.outline.copy(alpha = 0.36f)),
         elevation = 0.dp
     ) {
         Column(
@@ -183,7 +276,7 @@ fun MmIconBadge(
 ) {
     Surface(
         modifier = modifier.size(size),
-        shape = RoundedCornerShape(15.dp),
+        shape = RoundedCornerShape(17.dp),
         color = backgroundColor,
         border = BorderStroke(1.dp, tint.copy(alpha = 0.16f))
     ) {

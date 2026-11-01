@@ -195,7 +195,7 @@ fun TransactionsScreen(
             showBack = false
         )
 
-        Box(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
+        Box(Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)) {
             MmSearchField(
                 value = query,
                 onValueChange = { query = it },
@@ -210,7 +210,7 @@ fun TransactionsScreen(
             Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
             horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
         ) {
             TxnTypeFilter.entries.forEach { option ->
@@ -435,7 +435,7 @@ private fun TransactionsHeader(
             }
         }
         Column(Modifier.weight(1f).padding(start = if (showBack) MmSpacing.xs else 0.dp)) {
-            Text("Transactions", style = MmType.screenTitle, color = MmColors.textPrimary)
+            Text("Transactions", style = MmType.screenTitle.copy(fontSize = 28.sp, lineHeight = 34.sp), color = MmColors.textPrimary)
             Text(countText, style = MmType.caption, color = MmColors.textSecondary)
         }
         TransactionsHeaderAction(

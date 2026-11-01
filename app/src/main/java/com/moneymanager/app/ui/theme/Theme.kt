@@ -17,34 +17,34 @@ import androidx.compose.ui.unit.sp
 // One UI 9 inspired - clean, restrained, modern
 
 // Light mode
-internal val LightBackground = Color(0xFFF5F6FB)
-internal val LightSurface = Color(0xFFFFFFFF)
-internal val LightSurfaceContainer = Color(0xFFEFF1F7)
-internal val LightSurfaceContainerHigh = Color(0xFFE2E6F0)
-internal val LightOutline = Color(0xFFD9DDEA)
-internal val LightOutlineVariant = Color(0xFFE7EAF1)
-internal val LightTextPrimary = Color(0xFF171923)
-internal val LightTextSecondary = Color(0xFF4B5060)
-internal val LightTextTertiary = Color(0xFF747989)
+internal val LightBackground = Color(0xFFF5F5F2)
+internal val LightSurface = Color(0xFFFFFEFC)
+internal val LightSurfaceContainer = Color(0xFFEDEEEB)
+internal val LightSurfaceContainerHigh = Color(0xFFE2E4E0)
+internal val LightOutline = Color(0xFFDADCD7)
+internal val LightOutlineVariant = Color(0xFFE8E9E5)
+internal val LightTextPrimary = Color(0xFF191B20)
+internal val LightTextSecondary = Color(0xFF555963)
+internal val LightTextTertiary = Color(0xFF858992)
 
 // Dark mode  
-internal val DarkBackground = Color(0xFF090B12)
-internal val DarkSurface = Color(0xFF141827)
-internal val DarkSurfaceContainer = Color(0xFF1B2233)
-internal val DarkSurfaceContainerHigh = Color(0xFF252D42)
-internal val DarkOutline = Color(0xFF343D56)
-internal val DarkOutlineVariant = Color(0xFF252D40)
-internal val DarkTextPrimary = Color(0xFFF4F5FC)
-internal val DarkTextSecondary = Color(0xFFB4B8C8)
-internal val DarkTextTertiary = Color(0xFF8C92A5)
+internal val DarkBackground = Color(0xFF0B0D11)
+internal val DarkSurface = Color(0xFF171A20)
+internal val DarkSurfaceContainer = Color(0xFF20242C)
+internal val DarkSurfaceContainerHigh = Color(0xFF2A303A)
+internal val DarkOutline = Color(0xFF343A45)
+internal val DarkOutlineVariant = Color(0xFF292E37)
+internal val DarkTextPrimary = Color(0xFFF3F3F0)
+internal val DarkTextSecondary = Color(0xFFB7BBC4)
+internal val DarkTextTertiary = Color(0xFF898F99)
 
 // Accents
-internal val PrimaryLight = Color(0xFF5B5CE2)
-internal val PrimaryDark = Color(0xFFB4BBFF)
+internal val PrimaryLight = Color(0xFF6266D8)
+internal val PrimaryDark = Color(0xFFB8BCFF)
 internal val OnPrimary = Color(0xFFFFFFFF)
 
 // Semantic
-internal val PrimaryFillDark = Color(0xFF4547C7)
+internal val PrimaryFillDark = Color(0xFF4D52B8)
 internal val IncomeLight = Color(0xFF047857)
 internal val IncomeDark = Color(0xFF34D399)
 internal val ExpenseLight = Color(0xFFDC2626)
@@ -159,9 +159,9 @@ object MmSpacing {
     val screen = 20.dp
     val card = 16.dp
     val touchTarget = 48.dp
-    val radiusCard = 24.dp
-    val radiusRow = 18.dp
-    val radiusField = 16.dp
+    val radiusCard = 26.dp
+    val radiusRow = 20.dp
+    val radiusField = 18.dp
     val radiusSheet = 32.dp
 }
 
@@ -177,10 +177,10 @@ object MmType {
     private const val TABULAR_NUMS = "tnum"
 
     val screenTitle: TextStyle @Composable get() = TextStyle(
-        fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.95).sp
+        fontSize = 30.sp, lineHeight = 37.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.8).sp
     )
     val sectionTitle: TextStyle @Composable get() = TextStyle(
-        fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.35).sp
+        fontSize = 19.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.25).sp
     )
     val body: TextStyle @Composable get() = TextStyle(fontSize = 16.sp, lineHeight = 24.sp)
     val label: TextStyle @Composable get() = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
