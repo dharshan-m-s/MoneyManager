@@ -505,7 +505,8 @@ fun MmSearchField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     hint: String = "Search",
-    autoFocus: Boolean = false
+    autoFocus: Boolean = false,
+    glassField: Boolean = false
 ) {
     OutlinedTextField(
         value = value,
@@ -524,7 +525,19 @@ fun MmSearchField(
         } else null,
         singleLine = true,
         shape = mmFieldShape,
-        colors = mmFieldColors()
+        colors = if (glassField) {
+            TextFieldDefaults.outlinedTextFieldColors(
+                textColor = MmColors.textPrimary,
+                backgroundColor = Color.Transparent,
+                cursorColor = MmColors.accent,
+                focusedBorderColor = MmColors.accent.copy(alpha = 0.52f),
+                unfocusedBorderColor = MmColors.outline.copy(alpha = 0.14f),
+                focusedLabelColor = MmColors.accent,
+                unfocusedLabelColor = MmColors.textSecondary,
+                placeholderColor = MmColors.textTertiary,
+                errorBorderColor = MmColors.expense
+            )
+        } else mmFieldColors()
     )
 }
 

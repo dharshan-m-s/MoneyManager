@@ -1,48 +1,85 @@
 package com.moneymanager.app.ui.components
 
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 
-/** Direction-aware scroll signal shared by collapsing page chrome. */
+/**
+ * Scroll-linked chrome progress. Unlike a direction threshold, this tracks actual consumed
+ * vertical distance, so rapid flings and interrupted reverse gestures continuously retarget.
+ */
 data class ScrollChromeState(
-    val collapsed: Boolean,
+    val progress: State<Float>,
+    val collapsed: State<Boolean>,
     val connection: NestedScrollConnection
 )
 
 @Composable
-fun rememberScrollChromeState(): ScrollChromeState {
-    var collapsed by rememberSaveable { mutableStateOf(false) }
-    val accumulated = remember { floatArrayOf(0f) }
-    val threshold = with(LocalDensity.current) { 18.dp.toPx() }
-    val connection = remember(threshold) {
+fun rememberScrollChromeState(collapseDistance: Dp = 112.dp): ScrollChromeState {
+    val rangePx = with(LocalDensity.current) { collapseDistance.toPx().coerceAtLeast(1f) }
+    var offsetPx by rememberSaveable { mutableFloatStateOf(0f) }
+
+    val progress = remember(rangePx) {
+        derivedStateOf { (offsetPx / rangePx).coerceIn(0f, 1f) }
+    }
+    val collapsed = remember(progress) {
+        derivedStateOf { progress.value >= 0.88f }
+    }
+    val connection = remember(rangePx) {
         object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                val delta = available.y
-                if (delta < 0f) {
-                    accumulated[0] += -delta
-                    if (accumulated[0] >= threshold) {
-                        collapsed = true
-                        accumulated[0] = 0f
-                    }
-                } else if (delta > 0f) {
-                    accumulated[0] += delta
-                    if (accumulated[0] >= threshold) {
-                        collapsed = false
-                        accumulated[0] = 0f
-                    }
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (consumed.y != 0f) {
+                    // Scrolling down consumes a negative Y delta; scrolling back up reduces it.
+                    offsetPx = (offsetPx - consumed.y).coerceIn(0f, rangePx)
                 }
                 return Offset.Zero
             }
         }
     }
-    return ScrollChromeState(collapsed, connection)
+    return ScrollChromeState(progress, collapsed, connection)
 }
+
+/**
+ * Progressively removes an expanded heading from layout while translating/fading it upward.
+ * The State is read in the layout and graphics-layer lambdas, avoiding a screen-wide
+ * recomposition for every scroll pixel.
+ */
+fun Modifier.scrollCollapse(progress: State<Float>): Modifier =
+    this
+        .graphicsLayer {
+            val fraction = progress.value.coerceIn(0f, 1f)
+            alpha = 1f - fraction
+            translationY = -12.dp.toPx() * fraction
+            scaleY = 1f - 0.025f * fraction
+        }
+        .layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            val fraction = progress.value.coerceIn(0f, 1f)
+            val visibleHeight = (placeable.height * (1f - fraction))
+                .roundToInt()
+                .coerceIn(0, placeable.height)
+            layout(placeable.width, visibleHeight) {
+                placeable.placeRelative(0, -((placeable.height - visibleHeight) / 2))
+            }
+        }
+        .clipToBounds()
