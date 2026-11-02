@@ -91,7 +91,6 @@ import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.MmSearchField
-import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -138,11 +137,39 @@ fun BillsScreen(
                 subtitle = "Track upcoming payments without duplicate transactions",
                 onBack = onBack,
                 actions = {
-                    MmTopBarAction(
-                        icon = Icons.Filled.Add,
-                        contentDescription = "Add bill",
-                        onClick = onAddBiller
-                    )
+                    // The empty state already has a full-width "Add a bill" action.
+                    // Once bills exist, use a labelled contextual action instead of a
+                    // second unexplained plus icon that can be confused with adding a transaction.
+                    if (bills.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(MmColors.accent.copy(alpha = 0.10f))
+                                .border(
+                                    0.7.dp,
+                                    MmColors.accent.copy(alpha = 0.18f),
+                                    RoundedCornerShape(18.dp)
+                                )
+                                .pressableClick(onAddBiller)
+                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = null,
+                                tint = MmColors.accent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                "Add bill",
+                                color = MmColors.accent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
             )
 
