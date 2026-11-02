@@ -80,7 +80,10 @@ fun PinSetupDialog(
 
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
-        title = { Text(if (isChange) "Change PIN" else "Set a PIN") },
+        shape = RoundedCornerShape(28.dp),
+        backgroundColor = MmColors.surface,
+        contentColor = MmColors.textPrimary,
+        title = { Text(if (isChange) "Change PIN" else "Set a PIN", style = MmType.sectionTitle, color = MmColors.textPrimary) },
         text = {
             Column {
                 Text(
