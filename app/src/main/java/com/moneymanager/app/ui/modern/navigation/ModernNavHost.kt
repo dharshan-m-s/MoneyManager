@@ -133,8 +133,10 @@ fun ModernNavHost(
     NavHost(
         navController = navController,
         startDestination = Destination.Dashboard.route,
-        // Do not shrink the destination viewport for the floating dock. Its visual material
-        // overlays live page pixels; only scrollable content receives bottom clearance.
+        // Preserve the parent sizing/inset policy, but do not shrink the destination viewport
+        // for the floating dock. Its material overlays live page pixels; only scrollable content
+        // receives bottom clearance.
+        modifier = modifier,
         enterTransition = {
             val targetRoute = targetState.destination.route.orEmpty()
             val sheetFlow = SHEET_ROUTES.any { targetRoute.startsWith(it.substringBefore("?").substringBefore("/{")) }
