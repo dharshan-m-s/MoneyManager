@@ -150,7 +150,7 @@ fun BillsScreen(
                                     MmColors.accent.copy(alpha = 0.18f),
                                     RoundedCornerShape(18.dp)
                                 )
-                                .pressableClick(onAddBiller)
+                                .pressableClick(onClick = onAddBiller)
                                 .padding(horizontal = 12.dp, vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
