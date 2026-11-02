@@ -4,7 +4,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -21,23 +20,23 @@ data class ScrollChromeState(
 @Composable
 fun rememberScrollChromeState(): ScrollChromeState {
     var collapsed by rememberSaveable { mutableStateOf(false) }
-    var accumulated by remember { mutableStateOf(0f) }
+    val accumulated = remember { floatArrayOf(0f) }
     val threshold = with(LocalDensity.current) { 18.dp.toPx() }
     val connection = remember(threshold) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 val delta = available.y
                 if (delta < 0f) {
-                    accumulated += -delta
-                    if (accumulated >= threshold) {
+                    accumulated[0] += -delta
+                    if (accumulated[0] >= threshold) {
                         collapsed = true
-                        accumulated = 0f
+                        accumulated[0] = 0f
                     }
                 } else if (delta > 0f) {
-                    accumulated += delta
-                    if (accumulated >= threshold) {
+                    accumulated[0] += delta
+                    if (accumulated[0] >= threshold) {
                         collapsed = false
-                        accumulated = 0f
+                        accumulated[0] = 0f
                     }
                 }
                 return Offset.Zero
