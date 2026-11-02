@@ -285,6 +285,7 @@ fun TransactionsScreen(
             }
         }
 
+        Box(Modifier.weight(1f).fillMaxWidth()) {
         if (visibleRows.isEmpty()) {
             MmEmptyState(
                 icon = Icons.Filled.Search,
@@ -341,6 +342,7 @@ fun TransactionsScreen(
                     item(key = "gap-$date") { Spacer(Modifier.height(MmSpacing.sm)) }
                 }
             }
+        }
         }
     }
 
