@@ -50,6 +50,28 @@ class LayerBackdrop internal constructor(
 
     internal var layerCoordinates: LayoutCoordinates? by mutableStateOf(null)
 
+    /**
+     * True while this backdrop's layer is being recorded from the page content.
+     *
+     * Glass surfaces that live *inside* the recorded page would otherwise sample the very
+     * layer currently being recorded, producing a GraphicsLayer/RenderNode graph that
+     * references itself. HWUI then recurses through `prepareTreeImpl` until the render
+     * thread overflows its stack and the process dies with SIGSEGV. Skipping the sampling
+     * step while recording keeps the captured copy inside the page (the flat tint and rim
+     * still draw) and leaves the on-screen glass path — which runs outside the recording —
+     * fully intact.
+     */
+    internal var isRecording: Boolean = false
+        private set
+
+    internal fun beginRecording() {
+        isRecording = true
+    }
+
+    internal fun endRecording() {
+        isRecording = false
+    }
+
     private var inverseLayerScope: InverseLayerScope? = null
 
     override fun DrawScope.drawBackdrop(
@@ -57,6 +79,8 @@ class LayerBackdrop internal constructor(
         coordinates: LayoutCoordinates?,
         layerBlock: (GraphicsLayerScope.() -> Unit)?
     ) {
+        // Never draw this layer into itself. See [isRecording].
+        if (isRecording) return
         val coordinates = coordinates ?: return
         val layerCoordinates = layerCoordinates ?: return
         withTransform({

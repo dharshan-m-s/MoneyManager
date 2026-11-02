@@ -56,6 +56,7 @@ import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.security.LockMethod
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.moneymanager.app.ui.components.LocalDockContentPadding
@@ -254,7 +255,14 @@ fun ModernRoot() {
                     .layerBackdrop(glassBackdrop)
             ) {
                 CompositionLocalProvider(
-                    LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
+                    LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp,
+                    // Glass surfaces inside the recorded subtree must not sample the layer
+                    // that is recording them: the page layer would reference a glass layer
+                    // that references the page layer again, and HWUI overflows its stack in
+                    // RenderNode::prepareTreeImpl. The recorded page therefore uses the
+                    // stable flat material, while the floating dock and menus — which live
+                    // outside this subtree — keep the real liquid-glass treatment.
+                    LocalMmGlassEnabled provides false
                 ) {
                     ModernNavHost(
                         navController = navController,
