@@ -25,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.IconButton
 import androidx.compose.material.Divider
 import androidx.compose.material.Surface
@@ -497,7 +498,7 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(19.dp))
-                    .background(tint.copy(alpha = if (MmColors.isLight) 0.105f else 0.14f))
+                    .background(tint.copy(alpha = if (MaterialTheme.colors.isLight) 0.105f else 0.14f))
                     .border(0.85.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(19.dp))
                     .mmGlassHighlight(cornerRadius = 19.dp, intensity = 0.72f)
                     .clickable(onClick = if (editMode) onEdit else onClick)
@@ -582,7 +583,7 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(19.dp))
-                    .background(MmColors.surface.copy(alpha = if (MmColors.isLight) 0.62f else 0.54f))
+                    .background(MmColors.surface.copy(alpha = if (MaterialTheme.colors.isLight) 0.62f else 0.54f))
                     .border(0.75.dp, MmColors.outline.copy(alpha = 0.48f), RoundedCornerShape(19.dp))
                     .mmGlassHighlight(cornerRadius = 19.dp, intensity = 0.62f)
                     .clickable(onClick = if (editMode) onEdit else onClick)
@@ -644,7 +645,7 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(tint.copy(alpha = if (MmColors.isLight) 0.095f else 0.13f))
+                    .background(tint.copy(alpha = if (MaterialTheme.colors.isLight) 0.095f else 0.13f))
                     .border(0.85.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(20.dp))
                     .mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.72f)
                     .clickable(onClick = if (editMode) onEdit else onClick)
@@ -704,7 +705,7 @@ private fun AddAccountRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(MmColors.accentFill.copy(alpha = if (MmColors.isLight) 0.10f else 0.14f))
+            .background(MmColors.accentFill.copy(alpha = if (MaterialTheme.colors.isLight) 0.10f else 0.14f))
             .border(1.dp, MmColors.accentFill.copy(alpha = 0.42f), RoundedCornerShape(18.dp))
             .mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.58f)
             .clickable(onClick = onClick)
@@ -757,7 +758,7 @@ private fun ModernAllAccountTypesBrowser(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(tint.copy(alpha = if (MmColors.isLight) 0.085f else 0.12f))
+                    .background(tint.copy(alpha = if (MaterialTheme.colors.isLight) 0.085f else 0.12f))
                     .border(1.dp, tint.copy(alpha = 0.28f), RoundedCornerShape(18.dp))
                     .mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.62f)
             ) {

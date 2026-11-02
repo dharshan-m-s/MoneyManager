@@ -148,7 +148,8 @@ internal fun ModernDock(
                         // A second, smaller lens lets the selected item refract the page
                         // independently of the dock's broader frosted surface.
                         .clip(RoundedCornerShape(27.dp))
-                        .mmLiquidGlass(cornerRadius = 27.dp, intensity = 0.30f)
+                        .background(MmColors.accent.copy(alpha = 0.10f))
+                        .border(0.6.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(27.dp))
                 )
 
                 Row(
