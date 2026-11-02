@@ -80,6 +80,7 @@ import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayer
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.StatusBarGlyphToneAndSystemBarTint
 import com.moneymanager.app.ui.components.mmBrandWash
+import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.modern.screens.security.PinUnlockScreen
 import com.moneymanager.app.ui.modern.screens.security.SystemLockPrompt
 import com.moneymanager.app.ui.settings.SettingsEntryPoint
@@ -169,7 +170,7 @@ fun ModernRoot() {
                         promptAttempt += 1
                     })
                 } else {
-                    Box(Modifier.fillMaxSize().mmBrandWash())
+                    Box(Modifier.fillMaxSize().mmPageBackdrop())
                 }
             }
             appLock.method() == LockMethod.IN_APP_PIN && !appLock.hasPin() -> {
