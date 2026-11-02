@@ -5,6 +5,12 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -94,6 +100,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.MmPrimaryButton
 
 private val txnZone: ZoneId = ZoneId.of("Asia/Kolkata")
@@ -149,6 +156,7 @@ fun TransactionsScreen(
     var filters by remember { mutableStateOf(TxnFilters()) }
     var showSort by remember { mutableStateOf(false) }
     var showFilter by remember { mutableStateOf(false) }
+    val scrollChrome = rememberScrollChromeState()
 
     val activeSort = TxnSort.valueOf(sort)
     val categoryNames = remember(categories) { categories.associate { it.id to it.name } }
@@ -220,10 +228,11 @@ fun TransactionsScreen(
             onSort = { showSort = true },
             onFilter = { showFilter = true },
             filterActive = filters.isActive,
-            showBack = false
+            showBack = false,
+            compact = scrollChrome.collapsed
         )
 
-        Box(Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)) {
+        Box(Modifier.padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed) MmSpacing.xs else MmSpacing.md)) {
             MmSearchField(
                 value = query,
                 onValueChange = { query = it },
@@ -234,23 +243,29 @@ fun TransactionsScreen(
         // Type selection is the filter that is used most often, so it lives one tap away.
         // Five classifications no longer fit a fixed segmented control on narrow phones;
         // a scrolling chip row keeps every option reachable and the labels readable.
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+        AnimatedVisibility(
+            visible = !scrollChrome.collapsed,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
         ) {
-            TxnTypeFilter.entries.forEach { option ->
-                MmChip(
-                    label = option.label,
-                    selected = filters.type == option,
-                    onClick = { filters = filters.copy(type = option) }
-                )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+            ) {
+                TxnTypeFilter.entries.forEach { option ->
+                    MmChip(
+                        label = option.label,
+                        selected = filters.type == option,
+                        onClick = { filters = filters.copy(type = option) }
+                    )
+                }
             }
         }
 
-        if (filters.isActive) {
+        if (filters.isActive && !scrollChrome.collapsed) {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -285,9 +300,12 @@ fun TransactionsScreen(
                 } else null
             )
         } else {
-            LazyColumn(contentPadding = PaddingValues(
-                bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.md
-            )) {
+            LazyColumn(
+                modifier = Modifier.nestedScroll(scrollChrome.connection),
+                contentPadding = PaddingValues(
+                    bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.md
+                )
+            ) {
                 item(key = "summary") {
                     InViewSummary(
                         income = viewTotals.first,
@@ -518,13 +536,14 @@ private fun TransactionsHeader(
     onSort: () -> Unit,
     onFilter: () -> Unit,
     filterActive: Boolean,
-    showBack: Boolean = true
+    showBack: Boolean = true,
+    compact: Boolean = false
 ) {
     Row(
         Modifier
             .fillMaxWidth()
             .modernTopInsets()
-            .padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = MmSpacing.xs),
+            .padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = if (compact) 2.dp else MmSpacing.sm, bottom = MmSpacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (showBack) {
@@ -537,8 +556,16 @@ private fun TransactionsHeader(
             }
         }
         Column(Modifier.weight(1f).padding(start = if (showBack) MmSpacing.xs else 0.dp)) {
-            Text("Transactions", style = MmType.screenTitle.copy(fontSize = 28.sp, lineHeight = 34.sp), color = MmColors.textPrimary)
-            Text(countText, style = MmType.caption, color = MmColors.textSecondary)
+            AnimatedVisibility(
+                visible = !compact,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column {
+                    Text("Transactions", style = MmType.screenTitle.copy(fontSize = 28.sp, lineHeight = 34.sp), color = MmColors.textPrimary)
+                    Text(countText, style = MmType.caption, color = MmColors.textSecondary)
+                }
+            }
         }
         TransactionsHeaderAction(
             icon = Icons.Filled.NorthEast,

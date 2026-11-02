@@ -10,6 +10,10 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -26,6 +30,7 @@ import com.moneymanager.app.ui.components.glass.backdrop.effects.colorControls
 import com.moneymanager.app.ui.components.glass.backdrop.effects.lens
 import com.moneymanager.app.ui.components.glass.backdrop.highlight.Highlight
 import com.moneymanager.app.ui.components.glass.backdrop.shadow.Shadow
+import com.moneymanager.app.ui.theme.MmColors
 
 /**
  * Shared page recording sampled by floating glass controls. The layer is owned by ModernRoot;
@@ -33,6 +38,58 @@ import com.moneymanager.app.ui.components.glass.backdrop.shadow.Shadow
  */
 val LocalMmGlassBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
 val LocalMmGlassEnabled = staticCompositionLocalOf { true }
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+val LocalMmSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope?> { null }
+@OptIn(ExperimentalSharedTransitionApi::class)
+val LocalMmAnimatedVisibilityScope = staticCompositionLocalOf<AnimatedVisibilityScope?> { null }
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+fun Modifier.mmSharedElement(key: String): Modifier {
+    val sharedScope = LocalMmSharedTransitionScope.current ?: return this
+    val visibilityScope = LocalMmAnimatedVisibilityScope.current ?: return this
+    return with(sharedScope) {
+        this@mmSharedElement.sharedElement(
+            sharedContentState = rememberSharedContentState(key),
+            animatedVisibilityScope = visibilityScope
+        )
+    }
+}
+
+/** A quiet ambient page wash gives transparent glass a real, stable visual backdrop. */
+@Composable
+fun Modifier.mmPageBackdrop(): Modifier {
+    val light = MaterialTheme.colors.isLight
+    val background = MmColors.background
+    val accent = MmColors.accent
+    val income = MmColors.income
+    return drawBehind {
+        drawRect(background)
+        val firstAlpha = if (light) 0.105f else 0.17f
+        val secondAlpha = if (light) 0.045f else 0.085f
+        val firstCenter = Offset(size.width * 0.08f, size.height * 0.08f)
+        val secondCenter = Offset(size.width * 0.96f, size.height * 0.78f)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(accent.copy(alpha = firstAlpha), Color.Transparent),
+                center = firstCenter,
+                radius = size.maxDimension * 0.78f
+            ),
+            radius = size.maxDimension * 0.78f,
+            center = firstCenter
+        )
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(income.copy(alpha = secondAlpha), Color.Transparent),
+                center = secondCenter,
+                radius = size.maxDimension * 0.62f
+            ),
+            radius = size.maxDimension * 0.62f,
+            center = secondCenter
+        )
+    }
+}
 
 private const val BACKDROP_SCALE = 0.33f
 

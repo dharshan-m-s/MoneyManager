@@ -6,11 +6,15 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import com.moneymanager.app.ui.components.LocalDockContentPadding
+import com.moneymanager.app.ui.components.LocalMmAnimatedVisibilityScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -74,6 +78,23 @@ private val SECTION_ROUTES = setOf(
     Destination.Settings.route
 )
 
+private val SHEET_ROUTES = setOf(
+    Destination.AddTransaction.route,
+    Destination.Transfer.route,
+    Destination.BillForm.route,
+    Destination.CreditCardForm.route,
+    Destination.AccountEdit.route,
+    Destination.TransactionEdit.route,
+    Destination.CategoryEditor.route,
+    Destination.AccountSelection.route,
+    Destination.BankSelection.route,
+    Destination.BankLinking.route,
+    Destination.BillTypeSelection.route
+)
+
+internal fun isSheetRoute(route: String): Boolean =
+    SHEET_ROUTES.any { route.startsWith(it.substringBefore("?").substringBefore("/{")) }
+
 @Composable
 fun ModernNavHost(
     navController: NavHostController,
@@ -115,9 +136,16 @@ fun ModernNavHost(
         startDestination = Destination.Dashboard.route,
         modifier = modifier.padding(bottom = LocalDockContentPadding.current),
         enterTransition = {
+            val targetRoute = targetState.destination.route.orEmpty()
+            val sheetFlow = SHEET_ROUTES.any { targetRoute.startsWith(it.substringBefore("?").substringBefore("/{")) }
             val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
                 targetState.destination.route in SECTION_ROUTES
-            if (sectionSwitch) {
+            if (sheetFlow) {
+                fadeIn(tween(180)) + slideInVertically(
+                    initialOffsetY = { height -> height / 7 },
+                    animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f)
+                )
+            } else if (sectionSwitch) {
                 fadeIn(animationSpec = tween(170)) +
                     scaleIn(initialScale = 0.985f, animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f))
             } else {
@@ -130,9 +158,16 @@ fun ModernNavHost(
             }
         },
         exitTransition = {
+            val targetRoute = targetState.destination.route.orEmpty()
+            val sheetFlow = SHEET_ROUTES.any { targetRoute.startsWith(it.substringBefore("?").substringBefore("/{")) }
             val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
                 targetState.destination.route in SECTION_ROUTES
-            if (sectionSwitch) {
+            if (sheetFlow) {
+                fadeOut(tween(140)) + slideOutVertically(
+                    targetOffsetY = { height -> -height / 24 },
+                    animationSpec = spring(dampingRatio = 0.9f, stiffness = 440f)
+                )
+            } else if (sectionSwitch) {
                 fadeOut(animationSpec = tween(130)) +
                     scaleOut(targetScale = 0.992f, animationSpec = spring(dampingRatio = 0.94f, stiffness = 500f))
             } else {
@@ -145,9 +180,16 @@ fun ModernNavHost(
             }
         },
         popEnterTransition = {
+            val initialRoute = initialState.destination.route.orEmpty()
+            val sheetFlow = SHEET_ROUTES.any { initialRoute.startsWith(it.substringBefore("?").substringBefore("/{")) }
             val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
                 targetState.destination.route in SECTION_ROUTES
-            if (sectionSwitch) {
+            if (sheetFlow) {
+                fadeIn(tween(180)) + slideInVertically(
+                    initialOffsetY = { height -> -height / 24 },
+                    animationSpec = spring(dampingRatio = 0.86f, stiffness = 400f)
+                )
+            } else if (sectionSwitch) {
                 fadeIn(animationSpec = tween(170)) +
                     scaleIn(initialScale = 0.985f, animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f))
             } else {
@@ -160,9 +202,16 @@ fun ModernNavHost(
             }
         },
         popExitTransition = {
+            val initialRoute = initialState.destination.route.orEmpty()
+            val sheetFlow = SHEET_ROUTES.any { initialRoute.startsWith(it.substringBefore("?").substringBefore("/{")) }
             val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
                 targetState.destination.route in SECTION_ROUTES
-            if (sectionSwitch) {
+            if (sheetFlow) {
+                fadeOut(tween(140)) + slideOutVertically(
+                    targetOffsetY = { height -> height / 7 },
+                    animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f)
+                )
+            } else if (sectionSwitch) {
                 fadeOut(animationSpec = tween(130)) +
                     scaleOut(targetScale = 0.992f, animationSpec = spring(dampingRatio = 0.94f, stiffness = 500f))
             } else {
@@ -218,15 +267,18 @@ fun ModernNavHost(
         }
 
         composable(Destination.PersonalLoan.route) {
-            AccountsScreen(
+            CompositionLocalProvider(LocalMmAnimatedVisibilityScope provides this) {
+                AccountsScreen(
                 onBack = { safeBack() },
                 initialTab = AccountsTab.LOANS,
                 onAccountClick = { id -> go(Destination.AccountDetail.route(id)) },
                 onAddAccount = { go(Destination.BankSelection.route) }
-            )
+                )
+            }
         }
         composable(Destination.Accounts.route) {
-            AccountsScreen(
+            CompositionLocalProvider(LocalMmAnimatedVisibilityScope provides this) {
+                AccountsScreen(
                 onBack = { safeBack() },
                 onAccountClick = { id -> go(Destination.AccountDetail.route(id)) },
                 onAddCreditCard = { go(Destination.CreditCardForm.route(null)) },
@@ -237,7 +289,8 @@ fun ModernNavHost(
                 // The central dock Add creates transactions only, so account creation stays on
                 // the Accounts list as an inline row and on each empty state.
                 showInlineAdd = true
-            )
+                )
+            }
         }
         composable(Destination.Bills.route) {
             BillsScreen(
@@ -453,7 +506,8 @@ fun ModernNavHost(
             arguments = listOf(navArgument("accountId") { type = NavType.LongType })
         ) { backStackEntry ->
             val accountId = backStackEntry.arguments?.getLong("accountId") ?: return@composable
-            AccountDetailScreen(
+            CompositionLocalProvider(LocalMmAnimatedVisibilityScope provides this) {
+                AccountDetailScreen(
                 accountId = accountId,
                 onBack = { safeBack() },
                 onEditAccount = { id -> go(Destination.AccountEdit.route(id)) },
@@ -474,7 +528,8 @@ fun ModernNavHost(
                 onPayCard = {
                     go(Destination.Transfer.route(accountId))
                 }
-            )
+                )
+            }
         }
 
         composable(

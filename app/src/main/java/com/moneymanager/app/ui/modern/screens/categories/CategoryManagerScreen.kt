@@ -1,6 +1,12 @@
 package com.moneymanager.app.ui.modern.screens.categories
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
@@ -58,6 +64,7 @@ import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.components.revealOnAppear
+import com.moneymanager.app.ui.components.rememberScrollChromeState
 import androidx.compose.foundation.lazy.itemsIndexed
 import com.moneymanager.app.ui.categories.CategoryManagerViewModel
 
@@ -84,18 +91,25 @@ fun CategoryManagerScreen(
             .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
     }
     val hiddenCount = remember(categories) { categories.count { !it.active } }
+    val scrollChrome = rememberScrollChromeState()
 
     Box(Modifier.fillMaxSize().background(MmColors.background)) {
         Column(Modifier.fillMaxSize()) {
-            MoneyManagerTopBar(
-                title = if (selectionMode) "Choose category" else "Categories",
-                subtitle = if (selectionMode) "Pick a category for your transaction"
-                else "${categories.count { it.active }} active • $hiddenCount hidden",
-                onBack = onBack
-            )
+            AnimatedVisibility(
+                visible = !scrollChrome.collapsed,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                MoneyManagerTopBar(
+                    title = if (selectionMode) "Choose category" else "Categories",
+                    subtitle = if (selectionMode) "Pick a category for your transaction"
+                    else "${categories.count { it.active }} active • $hiddenCount hidden",
+                    onBack = onBack
+                )
+            }
 
-            Column(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md), verticalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
-                if (!selectionMode) {
+            Column(Modifier.padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed) MmSpacing.xs else MmSpacing.sm), verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)) {
+                AnimatedVisibility(visible = !scrollChrome.collapsed && !selectionMode) {
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
                             .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.15f), MmColors.surfaceElevated, MmColors.surface)))
@@ -113,13 +127,28 @@ fun CategoryManagerScreen(
                         }
                     }
                 }
-                MmSearchField(
-                    value = query,
-                    onValueChange = { query = it },
-                    hint = "Search categories"
-                )
-                if (!selectionMode) {
-                    Spacer(Modifier.padding(top = MmSpacing.sm))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                ) {
+                    Box(Modifier.weight(1f)) {
+                        MmSearchField(
+                            value = query,
+                            onValueChange = { query = it },
+                            hint = "Search categories"
+                        )
+                    }
+                    if (!selectionMode) {
+                        androidx.compose.material.IconButton(
+                            onClick = onCreateCategory,
+                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(MmColors.accentFill)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = "Create category", tint = MmColors.onAccent)
+                        }
+                    }
+                }
+                AnimatedVisibility(visible = !scrollChrome.collapsed && !selectionMode) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             if (showHidden) "Showing hidden categories too" else "Hidden categories are excluded",
@@ -145,6 +174,7 @@ fun CategoryManagerScreen(
                 )
             } else {
                 LazyColumn(
+                    modifier = Modifier.nestedScroll(scrollChrome.connection),
                     contentPadding = PaddingValues(
                         start = MmSpacing.lg,
                         end = MmSpacing.lg,
@@ -178,17 +208,7 @@ fun CategoryManagerScreen(
             }
         }
 
-        FloatingActionButton(
-            onClick = onCreateCategory,
-            backgroundColor = MmColors.accentFill,
-            contentColor = MmColors.onAccent,
-            shape = RoundedCornerShape(22.dp),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(MmSpacing.lg)
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = "Create category")
-        }
+
     }
 
     deleting?.let { category ->

@@ -1,6 +1,12 @@
 package com.moneymanager.app.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,15 +52,24 @@ fun MoneyManagerTopBar(
     onBack: (() -> Unit)? = null,
     navigationIcon: ImageVector = Icons.AutoMirrored.Filled.ArrowBack,
     onNavigationClick: (() -> Unit)? = onBack,
-    actions: @Composable RowScope.() -> Unit = {}
+    actions: @Composable RowScope.() -> Unit = {},
+    compact: Boolean = false,
+    glassChrome: Boolean = false
 ) {
-    Column(Modifier.fillMaxWidth()) {
+    Column(
+        Modifier.fillMaxWidth().then(
+            if (glassChrome) Modifier.padding(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
+                .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.34f)
+            else Modifier
+        )
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .modernTopInsets()
-                .heightIn(min = 74.dp)
-                .padding(horizontal = MmSpacing.screen, vertical = 5.dp),
+                .heightIn(min = if (compact) 54.dp else 74.dp)
+                .animateContentSize()
+                .padding(horizontal = MmSpacing.screen, vertical = if (compact) 2.dp else 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (onNavigationClick != null) {
@@ -78,25 +93,45 @@ fun MoneyManagerTopBar(
                 Spacer(Modifier.width(MmSpacing.xs))
             }
 
-            Column(
-                Modifier.weight(1f).padding(horizontal = MmSpacing.md)
-            ) {
-                Text(
-                    title,
-                    style = MmType.screenTitle.copy(fontSize = 25.sp, lineHeight = 31.sp),
-                    color = MmColors.textPrimary,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (!subtitle.isNullOrBlank()) {
-                    Text(
-                        subtitle,
-                        style = MmType.caption,
-                        color = MmColors.textSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+            Column(Modifier.weight(1f).padding(horizontal = MmSpacing.md)) {
+                AnimatedVisibility(
+                    visible = !compact,
+                    enter = fadeIn() + expandVertically() +
+                        androidx.compose.animation.scaleIn(
+                            initialScale = 0.94f,
+                            animationSpec = androidx.compose.animation.core.spring(
+                                dampingRatio = 0.86f,
+                                stiffness = 430f
+                            )
+                        ),
+                    exit = fadeOut() + shrinkVertically() +
+                        androidx.compose.animation.scaleOut(
+                            targetScale = 0.97f,
+                            animationSpec = androidx.compose.animation.core.spring(
+                                dampingRatio = 0.9f,
+                                stiffness = 500f
+                            )
+                        )
+                ) {
+                    Column {
+                        Text(
+                            title,
+                            style = MmType.screenTitle.copy(fontSize = 25.sp, lineHeight = 31.sp),
+                            color = MmColors.textPrimary,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (!subtitle.isNullOrBlank()) {
+                            Text(
+                                subtitle,
+                                style = MmType.caption,
+                                color = MmColors.textSecondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
             Row(

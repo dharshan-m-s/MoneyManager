@@ -70,10 +70,9 @@ private class LayerBackdropNode(
 
         if (size.width < 1f || size.height < 1f) return
 
-        // Mark the capture as in progress so any glass surface inside the page records
-        // as its flat material instead of sampling this same layer (a self-referential
-        // RenderNode graph overflows HWUI's prepareTree stack). The flag is cleared in
-        // a finally block so an aborted recording can never poison later frames.
+        // Mark the capture as in progress. Glass nodes are omitted from this copy so they
+        // can sample the actual page pixels beneath them in the normal window pass. The flag
+        // is cleared in a finally block so an aborted recording cannot poison later frames.
         backdrop.beginRecording()
         try {
             recordLayer(this@LayerBackdropNode, backdrop.graphicsLayer) {

@@ -1,6 +1,7 @@
 package com.moneymanager.app.ui.modern.screens.accountdetail
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -78,6 +79,10 @@ import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.formatFullDate
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.revealOnAppear
+import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.mmSharedElement
+import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -108,6 +113,7 @@ fun AccountDetailScreen(
     // same gesture means the same thing everywhere and no white-on-light-green icon appears in
     // dark mode.
     var addExpanded by remember { mutableStateOf(false) }
+    val scrollChrome = rememberScrollChromeState()
 
     Scaffold(
         backgroundColor = MmColors.background,
@@ -159,9 +165,10 @@ fun AccountDetailScreen(
             }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding).mmPageBackdrop().nestedScroll(scrollChrome.connection)) {
             AccountHeader(
                 state = state,
+                compact = scrollChrome.collapsed,
                 onBack = onBack,
                 onEdit = {
                     account?.let { if (state.isCreditCard) onEditCreditCard(it.id) else onEditAccount(it.id) }
@@ -291,6 +298,7 @@ private fun AccountAddOption(
 @Composable
 private fun AccountHeader(
     state: AccountDetailUiState,
+    compact: Boolean,
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onToggleSearch: () -> Unit
@@ -304,6 +312,7 @@ private fun AccountHeader(
             title = if (isCreditCard) "Credit card" else (account?.nickname ?: "Account"),
             subtitle = if (isCreditCard) account?.nickname?.ifBlank { account.institutionName } else account?.institutionName,
             onBack = onBack,
+            compact = compact,
             actions = {
                 MmTopBarAction(Icons.Filled.Search, "Search this account", onToggleSearch)
                 MmTopBarAction(Icons.Filled.Edit, if (isCreditCard) "Edit credit card" else "Edit account", onEdit)
@@ -315,13 +324,15 @@ private fun AccountHeader(
         if (isPaymentCard) {
             MmWalletCard(
                 account = account,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.lg),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.lg)
+                    .mmSharedElement("account-${account.id}"),
                 maskedNumberOverride = state.maskedCardNumber
             )
         } else if (account.accountType == AccountType.BANK) {
             MmBankAccountCard(
                 account = account,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.lg)
+                    .mmSharedElement("account-${account.id}")
             )
         }
 
@@ -329,8 +340,10 @@ private fun AccountHeader(
             modifier = Modifier.fillMaxWidth().padding(
                 horizontal = MmSpacing.screen,
                 vertical = if (isPaymentCard) MmSpacing.xs else MmSpacing.lg
-            ),
-            contentPadding = PaddingValues(MmSpacing.xl)
+            ).mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.86f)
+                .then(if (isPaymentCard) Modifier else Modifier.mmSharedElement("account-${account.id}")),
+            contentPadding = PaddingValues(MmSpacing.xl),
+            backgroundColor = MmColors.surface.copy(alpha = if (androidx.compose.material.MaterialTheme.colors.isLight) 0.24f else 0.18f)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (isCreditCard) "CARD LIABILITY" else "ACCOUNT VALUE", style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.1.sp), color = MmColors.textTertiary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))

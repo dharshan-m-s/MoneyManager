@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Text
+import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -119,7 +120,8 @@ fun MmWalletCard(
             .aspectRatio(1.64f)
             .shadow(22.dp, shape, clip = false)
             .clip(shape)
-            .background(Brush.linearGradient(palette))
+            .mmLiquidGlass(cornerRadius = 27.dp, intensity = 1.08f)
+            .background(Brush.linearGradient(palette.map { it.copy(alpha = if (MaterialTheme.colors.isLight) 0.52f else 0.36f) }))
             .then(interaction)
             .border(
                 width = 1.dp,
@@ -393,7 +395,8 @@ fun MmBankAccountCard(
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .shadow(16.dp, shape, clip = false)
             .clip(shape)
-            .background(Brush.linearGradient(palette))
+            .mmLiquidGlass(cornerRadius = 26.dp, intensity = 1.08f)
+            .background(Brush.linearGradient(palette.map { it.copy(alpha = if (MaterialTheme.colors.isLight) 0.48f else 0.34f) }))
             .border(
                 1.dp,
                 Brush.linearGradient(

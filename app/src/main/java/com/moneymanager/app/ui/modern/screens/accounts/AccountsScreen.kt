@@ -3,6 +3,12 @@ package com.moneymanager.app.ui.modern.screens.accounts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -82,6 +88,9 @@ import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.formatDayMonth
 import com.moneymanager.app.ui.components.modernTopInsets
 import com.moneymanager.app.ui.components.LocalDockContentPadding
+import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.mmSharedElement
+import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.pressScale
 import com.moneymanager.app.ui.components.revealOnAppear
@@ -118,6 +127,7 @@ fun AccountsScreen(
     val inactiveAccounts = visible.filter { !it.active }
     val inactiveView = showInactive && inactiveAccounts.isNotEmpty()
     val shown = if (inactiveView) inactiveAccounts else activeAccounts
+    val scrollChrome = rememberScrollChromeState()
     val total = if (inactiveView) {
         inactiveAccounts.sumOf { account ->
             if (account.accountType == AccountType.CREDIT_CARD) {
@@ -138,7 +148,12 @@ fun AccountsScreen(
             }
     }
 
-    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+    Column(Modifier.fillMaxSize().mmPageBackdrop()) {
+        AnimatedVisibility(
+            visible = !scrollChrome.collapsed,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
         AccountsHeader(
             tabLabel = tab.label,
             isCreditCard = tab == AccountsTab.CREDIT_CARDS,
@@ -158,13 +173,24 @@ fun AccountsScreen(
             onToggleEdit = { editMode = !editMode },
             showBack = false
         )
+        }
 
-        AccountsTabs(selected = selectedTab, onSelect = {
-            selectedTab = it
-            showInactive = false
-        })
+        Box(
+            Modifier.fillMaxWidth()
+                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
+                .then(if (scrollChrome.collapsed) Modifier.mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.34f) else Modifier)
+        ) {
+            AccountsTabs(selected = selectedTab, onSelect = {
+                selectedTab = it
+                showInactive = false
+            })
+        }
 
-        if (inactiveAccounts.isNotEmpty()) {
+        AnimatedVisibility(
+            visible = !scrollChrome.collapsed && inactiveAccounts.isNotEmpty(),
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
                 horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
@@ -185,6 +211,7 @@ fun AccountsScreen(
         if (tab == AccountsTab.ALL && !inactiveView) {
             ModernAllAccountTypesBrowser(
                 accounts = accounts,
+                scrollConnection = scrollChrome.connection,
                 onSelectType = { type ->
                     selectedTab = AccountsTab.entries.indexOf(AccountsTab.forType(type))
                     showInactive = false
@@ -245,6 +272,7 @@ fun AccountsScreen(
             )
         } else {
             LazyColumn(
+                modifier = Modifier.nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
                     end = MmSpacing.screen,
@@ -498,9 +526,10 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(19.dp))
+                    .mmLiquidGlass(cornerRadius = 19.dp, intensity = 0.78f)
                     .background(tint.copy(alpha = if (MaterialTheme.colors.isLight) 0.105f else 0.14f))
                     .border(0.85.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(19.dp))
-                    .mmGlassHighlight(cornerRadius = 19.dp, intensity = 0.72f)
+                    .mmSharedElement("account-${account.id}")
                     .clickable(onClick = if (editMode) onEdit else onClick)
                     .padding(horizontal = MmSpacing.md, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -583,9 +612,10 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(19.dp))
-                    .background(MmColors.surface.copy(alpha = if (MaterialTheme.colors.isLight) 0.62f else 0.54f))
+                    .mmLiquidGlass(cornerRadius = 19.dp, intensity = 0.68f)
+                    .background(MmColors.surface.copy(alpha = if (MaterialTheme.colors.isLight) 0.16f else 0.12f))
                     .border(0.75.dp, MmColors.outline.copy(alpha = 0.48f), RoundedCornerShape(19.dp))
-                    .mmGlassHighlight(cornerRadius = 19.dp, intensity = 0.62f)
+                    .mmSharedElement("account-${account.id}")
                     .clickable(onClick = if (editMode) onEdit else onClick)
                     .padding(horizontal = MmSpacing.md, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -645,9 +675,10 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
+                    .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.78f)
                     .background(tint.copy(alpha = if (MaterialTheme.colors.isLight) 0.095f else 0.13f))
                     .border(0.85.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(20.dp))
-                    .mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.72f)
+                    .mmSharedElement("account-${account.id}")
                     .clickable(onClick = if (editMode) onEdit else onClick)
                     .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
                 verticalAlignment = Alignment.CenterVertically
@@ -707,7 +738,7 @@ private fun AddAccountRow(
             .clip(RoundedCornerShape(18.dp))
             .background(MmColors.accentFill.copy(alpha = if (MaterialTheme.colors.isLight) 0.10f else 0.14f))
             .border(1.dp, MmColors.accentFill.copy(alpha = 0.42f), RoundedCornerShape(18.dp))
-            .mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.58f)
+            .mmLiquidGlass(cornerRadius = 18.dp, intensity = 0.62f)
             .clickable(onClick = onClick)
     ) {
         Row(
@@ -729,10 +760,12 @@ private fun AddAccountRow(
 @Composable
 private fun ModernAllAccountTypesBrowser(
     accounts: List<AccountEntity>,
+    scrollConnection: androidx.compose.ui.input.nestedscroll.NestedScrollConnection,
     onSelectType: (AccountType) -> Unit,
     onAddType: (AccountType) -> Unit
 ) {
     LazyColumn(
+        modifier = Modifier.nestedScroll(scrollConnection),
         contentPadding = PaddingValues(
             start = MmSpacing.screen,
             top = MmSpacing.sm,
@@ -760,7 +793,7 @@ private fun ModernAllAccountTypesBrowser(
                     .clip(RoundedCornerShape(18.dp))
                     .background(tint.copy(alpha = if (MaterialTheme.colors.isLight) 0.085f else 0.12f))
                     .border(1.dp, tint.copy(alpha = 0.28f), RoundedCornerShape(18.dp))
-                    .mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.62f)
+                    .mmLiquidGlass(cornerRadius = 18.dp, intensity = 0.68f)
             ) {
                 Column(Modifier.fillMaxWidth().padding(MmSpacing.md)) {
                   Row(

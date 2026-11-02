@@ -1,6 +1,13 @@
 package com.moneymanager.app.ui.modern.screens.cash
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,6 +66,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import com.moneymanager.app.ui.components.revealOnAppear
+import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.cash.CashViewModel
 
 /**
@@ -117,6 +125,7 @@ fun CashScreen(
     val state by viewModel.uiState.collectAsState()
     var query by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
+    val scrollChrome = rememberScrollChromeState()
 
     val zone = ZoneId.of("Asia/Kolkata")
     val filtered = remember(state.transactions, query, state.categoryNames, state.accountNames) {
@@ -137,6 +146,7 @@ fun CashScreen(
                 title = "Cash in hand",
                 subtitle = "Live balance from your ledger",
                 onBack = onBack,
+                compact = scrollChrome.collapsed,
                 actions = {
                     state.primaryCashAccountId?.let { cashAccountId ->
                         MmTopBarAction(
@@ -164,7 +174,9 @@ fun CashScreen(
                 visualLabel = "Monthly movement",
                 caption = "Live ledger balance · updated when you record cash transactions",
                 artworkKind = "cash",
-                modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+                modifier = Modifier
+                    .padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed) MmSpacing.xs else MmSpacing.md)
+                    .animateContentSize()
             )
 
             if (showSearch) {
@@ -177,6 +189,11 @@ fun CashScreen(
                 }
             }
 
+            AnimatedVisibility(
+                visible = !scrollChrome.collapsed,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md),
                 horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)
@@ -205,9 +222,10 @@ fun CashScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
+            }
 
             LazyColumn(
-                Modifier.weight(1f),
+                Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
                     end = MmSpacing.screen,

@@ -1,6 +1,13 @@
 package com.moneymanager.app.ui.modern.screens.income
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,11 +48,13 @@ import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.revealOnAppear
+import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.income.IncomeViewModel
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun IncomeScreen(
     onBack: () -> Unit,
@@ -54,13 +63,20 @@ fun IncomeScreen(
 ) {
     val rows by viewModel.transactions.collectAsState()
     val total = rows.sumOf { it.creditMinorUnits - it.debitMinorUnits }
+    val scrollChrome = rememberScrollChromeState()
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
-        MoneyManagerTopBar(
-            title = "Income",
-            subtitle = "${rows.size} transactions",
-            onBack = onBack
-        )
+        AnimatedVisibility(
+            visible = !scrollChrome.collapsed,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            MoneyManagerTopBar(
+                title = "Income",
+                subtitle = "${rows.size} transactions",
+                onBack = onBack
+            )
+        }
         if (rows.isEmpty()) {
             MmEmptyState(
                 icon = Icons.AutoMirrored.Filled.TrendingUp,
@@ -70,7 +86,7 @@ fun IncomeScreen(
             )
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     start = MmSpacing.lg,
                     end = MmSpacing.lg,
@@ -88,11 +104,14 @@ fun IncomeScreen(
                         tint = MmColors.income
                     )
                 }
-                item(key = "income-summary") {
+                stickyHeader(key = "income-summary") {
                     IncomeSummaryCard(
                         total = total,
                         transactionCount = rows.size,
-                        modifier = Modifier.padding(bottom = MmSpacing.xs)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MmColors.background)
+                            .padding(bottom = MmSpacing.xs)
                     )
                 }
                 itemsIndexed(rows, key = { _, txn -> txn.id }) { index, txn ->

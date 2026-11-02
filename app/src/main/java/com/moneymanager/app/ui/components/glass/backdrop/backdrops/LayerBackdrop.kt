@@ -53,13 +53,11 @@ class LayerBackdrop internal constructor(
     /**
      * True while this backdrop's layer is being recorded from the page content.
      *
-     * Glass surfaces that live *inside* the recorded page would otherwise sample the very
-     * layer currently being recorded, producing a GraphicsLayer/RenderNode graph that
-     * references itself. HWUI then recurses through `prepareTreeImpl` until the render
-     * thread overflows its stack and the process dies with SIGSEGV. Skipping the sampling
-     * step while recording keeps the captured copy inside the page (the flat tint and rim
-     * still draw) and leaves the on-screen glass path — which runs outside the recording —
-     * fully intact.
+     * Glass surfaces that live *inside* the recorded page must not be recorded into the
+     * backdrop they sample. Doing so creates a page -> glass -> page RenderNode cycle and
+     * can overflow HWUI's prepareTree stack. Their draw modifier omits the entire glass node
+     * from this capture; the normal window pass renders it against the completed page
+     * recording. This leaves the actual pixels beneath each glass surface available.
      */
     internal var isRecording: Boolean = false
         private set

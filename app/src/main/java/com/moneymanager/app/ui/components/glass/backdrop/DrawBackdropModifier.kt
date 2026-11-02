@@ -374,18 +374,18 @@ private class DrawBackdropNode(
             updateEffects()
         }
 
-        // A glass surface can live inside the very page that a LayerBackdrop is recording.
-        // Recording its own sampling layer there would make the page layer contain a layer
-        // that points back at the page layer (`page -> glass -> page`), and HWUI overflows
-        // its stack in RenderNode::prepareTreeImpl. While the page is being captured, draw
-        // only the surface tint/content and leave the backdrop sampling to the on-screen
-        // pass, which runs outside the recording and keeps the full glass effect.
+        // A glass surface can live inside the page it samples. Recording the glass node
+        // itself would create a page -> glass -> page RenderNode cycle. Omit the complete
+        // node from the capture so the normal window pass can sample the pixels underneath.
         val isRecordingPage = (backdrop as? LayerBackdrop)?.isRecording == true
 
+        // Omit this glass node completely from the page recording. This leaves the pixels
+        // underneath it available to the on-screen pass, without a page -> glass -> page
+        // RenderNode cycle. The regular window draw always runs with isRecordingPage=false.
+        if (isRecordingPage) return
+
         onDrawBehind?.invoke(this)
-        if (!isRecordingPage) {
-            drawBackdropLayer()
-        }
+        drawBackdropLayer()
         onDrawSurface?.invoke(this)
         drawContent()
         onDrawFront?.invoke(this)

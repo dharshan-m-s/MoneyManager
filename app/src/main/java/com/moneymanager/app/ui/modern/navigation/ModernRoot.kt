@@ -3,6 +3,10 @@ package com.moneymanager.app.ui.modern.navigation
 import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +19,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
@@ -27,18 +33,29 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
@@ -57,6 +74,7 @@ import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.LocalMmSharedTransitionScope
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.moneymanager.app.ui.components.LocalDockContentPadding
@@ -70,6 +88,7 @@ import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
 import timber.log.Timber
+import kotlinx.coroutines.launch
 
 // Primary destinations keep the navigation dock available. Detail and editing
 // destinations intentionally leave the dock so the task at hand has the full screen.
@@ -88,6 +107,7 @@ private val DOCK_ROUTES = setOf(
     Destination.Settings.route
 )
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ModernRoot() {
     val context = LocalContext.current
@@ -196,6 +216,9 @@ fun ModernRoot() {
     }
 
     val navController = rememberNavController()
+    var sheetDragOffset by remember { mutableFloatStateOf(0f) }
+    val sheetAnimationScope = rememberCoroutineScope()
+    var navHostHeightPx by remember { mutableIntStateOf(0) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: Destination.Dashboard.route
     var overlay by remember { mutableStateOf(DockOverlay.NONE) }
@@ -206,6 +229,7 @@ fun ModernRoot() {
     val density = LocalDensity.current
     var dockHeightPx by remember { mutableIntStateOf(0) }
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val statusInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val measuredDockHeight = if (dockHeightPx > 0) {
         with(density) { dockHeightPx.toDp() }
     } else {
@@ -242,39 +266,105 @@ fun ModernRoot() {
         }
     }
 
-    // Record the live page once at reduced resolution. Floating controls sample this layer
-    // for real backdrop blur and lens refraction; without this provider mmLiquidGlass must
-    // deliberately fall back to a flat surface.
+    // Record the page once at reduced resolution. Glass nodes are omitted from this capture,
+    // then sample the completed page during the normal window draw. This prevents recursive
+    // RenderNode references while preserving the actual pixels beneath each glass surface.
     val glassBackdrop = rememberLayerBackdrop()
 
-    CompositionLocalProvider(LocalMmGlassBackdrop provides glassBackdrop) {
-        Box(Modifier.fillMaxSize()) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .layerBackdrop(glassBackdrop)
-            ) {
-                CompositionLocalProvider(
-                    LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp,
-                    // Glass surfaces inside the recorded subtree must not sample the layer
-                    // that is recording them: the page layer would reference a glass layer
-                    // that references the page layer again, and HWUI overflows its stack in
-                    // RenderNode::prepareTreeImpl. The recorded page therefore uses the
-                    // stable flat material, while the floating dock and menus — which live
-                    // outside this subtree — keep the real liquid-glass treatment.
-                    LocalMmGlassEnabled provides false
-                ) {
-                    ModernNavHost(
-                        navController = navController,
-                        onOpenMore = {
-                            overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
-                        },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .then(if (dockVisible) Modifier else Modifier.navigationBarsPadding())
-                    )
-                }
-            }
+    SharedTransitionLayout {
+        CompositionLocalProvider(
+            LocalMmSharedTransitionScope provides this,
+            LocalMmGlassBackdrop provides glassBackdrop
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize().background(MmColors.background))
+                Box(Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+                    CompositionLocalProvider(
+                        LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp,
+                        LocalMmGlassBackdrop provides glassBackdrop,
+                        LocalMmGlassEnabled provides true
+                    ) {
+                        Box(
+                            Modifier.fillMaxSize()
+                                .onSizeChanged { navHostHeightPx = it.height }
+                                .graphicsLayer {
+                                    translationY = sheetDragOffset
+                                    val travel = (navHostHeightPx * 0.9f).coerceAtLeast(1f)
+                                    alpha = 1f - (sheetDragOffset / travel).coerceIn(0f, 0.18f)
+                                }
+                        ) {
+                            ModernNavHost(
+                                navController = navController,
+                                onOpenMore = {
+                                    overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
+                                },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .then(if (dockVisible) Modifier else Modifier.navigationBarsPadding())
+                            )
+                        }
+                    }
+
+                    if (isSheetRoute(currentRoute)) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = statusInset + 3.dp)
+                                .width(64.dp)
+                                .height(24.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MmColors.surfaceContainer.copy(alpha = 0.82f))
+                                .pointerInput(currentRoute, navHostHeightPx) {
+                                    awaitEachGesture {
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        val tracker = VelocityTracker()
+                                        tracker.addPosition(down.uptimeMillis, down.position)
+                                        var pressed = true
+                                        while (pressed) {
+                                            val event = awaitPointerEvent()
+                                            val change = event.changes.firstOrNull() ?: break
+                                            tracker.addPosition(change.uptimeMillis, change.position)
+                                            val delta = change.positionChange().y
+                                            if (delta != 0f) {
+                                                sheetDragOffset = (sheetDragOffset + delta).coerceAtLeast(0f)
+                                                if (delta > 0f || sheetDragOffset > 0f) change.consume()
+                                            }
+                                            pressed = event.changes.any { it.pressed }
+                                        }
+                                        val velocity = tracker.calculateVelocity().y
+                                        val distance = sheetDragOffset
+                                        val dismissDistance = with(density) { 120.dp.toPx() }
+                                        val flingDistance = with(density) { 28.dp.toPx() }
+                                        val dismiss = distance >= dismissDistance ||
+                                            (distance >= flingDistance && velocity >= 900f)
+                                        sheetAnimationScope.launch {
+                                            val animation = Animatable(distance)
+                                            if (dismiss) {
+                                                animation.animateTo(
+                                                    targetValue = navHostHeightPx.toFloat().coerceAtLeast(1f),
+                                                    animationSpec = spring(dampingRatio = 0.88f, stiffness = 285f),
+                                                    initialVelocity = velocity.coerceAtLeast(0f)
+                                                ) { sheetDragOffset = value }
+                                                navController.popBackStack()
+                                            } else {
+                                                animation.animateTo(
+                                                    targetValue = 0f,
+                                                    animationSpec = spring(dampingRatio = 0.78f, stiffness = 420f),
+                                                    initialVelocity = velocity
+                                                ) { sheetDragOffset = value }
+                                            }
+                                            sheetDragOffset = 0f
+                                        }
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                Modifier.width(30.dp).height(4.dp).clip(CircleShape)
+                                    .background(MmColors.textTertiary.copy(alpha = 0.62f))
+                            )
+                        }
+                    }
 
         // The scrim dismisses on an outside tap. It is drawn before the dock and the menus, so
         // the trigger stays tappable (re-tap closes) and the open card is never blocked by a
@@ -422,7 +512,9 @@ fun ModernRoot() {
             )
         }
         }
+        }
     }
+}
 }
 
 @Composable
