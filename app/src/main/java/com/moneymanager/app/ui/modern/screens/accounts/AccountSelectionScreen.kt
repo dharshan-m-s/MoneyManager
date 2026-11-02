@@ -1,6 +1,7 @@
 package com.moneymanager.app.ui.modern.screens.accounts
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
