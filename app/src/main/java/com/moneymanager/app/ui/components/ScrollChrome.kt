@@ -115,3 +115,12 @@ fun Modifier.scrollCompactHeight(
             }
         }
         .clipToBounds()
+
+
+/** Slightly compacts a search control in both axes while its surrounding actions stay fixed. */
+fun Modifier.scrollCompactField(progress: State<Float>): Modifier =
+    this.graphicsLayer {
+        val fraction = progress.value.coerceIn(0f, 1f)
+        scaleX = 1f - 0.045f * fraction
+        scaleY = 1f - 0.12f * fraction
+    }

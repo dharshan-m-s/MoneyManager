@@ -83,6 +83,7 @@ import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.scrollCollapse
+import com.moneymanager.app.ui.components.scrollCompactField
 import com.moneymanager.app.ui.components.MmWalletCard
 import com.moneymanager.app.ui.components.MmBankLogo
 import com.moneymanager.app.ui.components.MmAnimatedAmount
@@ -207,11 +208,7 @@ fun AccountsScreen(
                         onValueChange = { query = it },
                         hint = "Search accounts",
                         glassField = true,
-                        modifier = Modifier.graphicsLayer {
-                            val p = scrollChrome.progress.value
-                            scaleX = 1f - 0.025f * p
-                            scaleY = 1f - 0.10f * p
-                        }
+                        modifier = Modifier.scrollCompactField(scrollChrome.progress)
                     )
                 }
                 Spacer(Modifier.width(MmSpacing.xs))

@@ -101,6 +101,7 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.scrollCompactField
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import java.math.BigDecimal
 import java.time.Instant
@@ -205,7 +206,8 @@ fun BillsScreen(
                         value = query,
                         onValueChange = { query = it },
                         hint = "Search bills",
-                        glassField = true
+                        glassField = true,
+                        modifier = Modifier.scrollCompactField(scrollChrome.progress)
                     )
                 }
             }

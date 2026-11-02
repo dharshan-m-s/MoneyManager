@@ -70,6 +70,7 @@ import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.scrollCollapse
+import com.moneymanager.app.ui.components.scrollCompactField
 import androidx.compose.foundation.lazy.itemsIndexed
 import com.moneymanager.app.ui.categories.CategoryManagerViewModel
 
@@ -141,7 +142,8 @@ fun CategoryManagerScreen(
                             value = query,
                             onValueChange = { query = it },
                             hint = "Search categories",
-                            glassField = true
+                            glassField = true,
+                            modifier = Modifier.scrollCompactField(scrollChrome.progress)
                         )
                     }
                     if (!selectionMode) {

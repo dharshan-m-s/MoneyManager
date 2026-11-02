@@ -71,6 +71,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.scrollCompactField
 import com.moneymanager.app.ui.cash.CashViewModel
 
 /**
@@ -196,7 +197,8 @@ fun CashScreen(
                             value = query,
                             onValueChange = { query = it },
                             hint = "Search cash transactions",
-                            glassField = true
+                            glassField = true,
+                            modifier = Modifier.scrollCompactField(scrollChrome.progress)
                         )
                     }
                 }

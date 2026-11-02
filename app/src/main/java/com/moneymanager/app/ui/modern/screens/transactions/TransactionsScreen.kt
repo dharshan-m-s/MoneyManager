@@ -95,6 +95,7 @@ import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.scrollCollapse
+import com.moneymanager.app.ui.components.scrollCompactField
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.formatFullDate
 import com.moneymanager.app.ui.theme.MmColors
@@ -246,7 +247,8 @@ fun TransactionsScreen(
                         value = query,
                         onValueChange = { query = it },
                         hint = "Search transactions",
-                        glassField = true
+                        glassField = true,
+                        modifier = Modifier.scrollCompactField(scrollChrome.progress)
                     )
                 }
                 TransactionsHeaderAction(

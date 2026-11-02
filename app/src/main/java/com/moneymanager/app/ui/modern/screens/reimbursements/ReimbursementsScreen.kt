@@ -44,6 +44,7 @@ import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.scrollCompactField
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -93,7 +94,8 @@ fun ReimbursementsScreen(
                     value = query,
                     onValueChange = { query = it },
                     hint = "Search reimbursements",
-                    glassField = true
+                    glassField = true,
+                    modifier = Modifier.scrollCompactField(scrollChrome.progress)
                 )
             }
         }
