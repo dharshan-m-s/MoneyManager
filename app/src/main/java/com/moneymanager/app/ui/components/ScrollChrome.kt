@@ -83,3 +83,27 @@ fun Modifier.scrollCollapse(progress: State<Float>): Modifier =
             }
         }
         .clipToBounds()
+
+
+/** Smoothly reduces a toolbar's occupied height while keeping its controls vertically centred. */
+fun Modifier.scrollCompactHeight(
+    progress: State<Float>,
+    expandedHeight: Dp = 72.dp,
+    compactHeight: Dp = 54.dp
+): Modifier =
+    this
+        .layout { measurable, constraints ->
+            val expandedPx = expandedHeight.roundToPx()
+            val compactPx = compactHeight.roundToPx()
+            val placeable = measurable.measure(
+                constraints.copy(minHeight = expandedPx, maxHeight = expandedPx)
+            )
+            val fraction = progress.value.coerceIn(0f, 1f)
+            val targetHeight = (
+                expandedPx + (compactPx - expandedPx) * fraction
+            ).roundToInt().coerceIn(compactPx, expandedPx)
+            layout(placeable.width, targetHeight) {
+                placeable.placeRelative(0, -((placeable.height - targetHeight) / 2))
+            }
+        }
+        .clipToBounds()

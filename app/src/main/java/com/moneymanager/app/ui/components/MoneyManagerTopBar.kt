@@ -30,6 +30,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.State
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +43,10 @@ import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.scrollCompactHeight
+import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -62,8 +68,8 @@ fun MoneyManagerTopBar(
     collapseProgress: State<Float>? = null
 ) {
     Column(Modifier.fillMaxWidth().modernTopInsets()) {
-        // The safe drawing inset is outside the material. The capsule itself samples the page
-        // backdrop; LocalMmGlassEnabled is turned on only for this chrome, not ordinary cards.
+        // Keep the safe drawing inset outside the material. Only this toolbar opts into
+        // sampled glass; ordinary financial cards retain their cheaper content material.
         CompositionLocalProvider(LocalMmGlassEnabled provides glassChrome) {
             Box(
                 modifier = Modifier
@@ -78,7 +84,15 @@ fun MoneyManagerTopBar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = if (compact) 54.dp else 72.dp)
-                        .animateContentSize()
+                        .then(
+                            collapseProgress?.let {
+                                Modifier.scrollCompactHeight(
+                                    progress = it,
+                                    expandedHeight = if (compact) 54.dp else 72.dp,
+                                    compactHeight = 54.dp
+                                )
+                            } ?: Modifier.animateContentSize()
+                        )
                         .padding(horizontal = MmSpacing.screen, vertical = if (compact) 2.dp else 5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
