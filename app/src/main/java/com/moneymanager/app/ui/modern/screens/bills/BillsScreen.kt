@@ -6,6 +6,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -146,12 +147,17 @@ fun BillsScreen(
     }
 
     Scaffold(
+        // The shared top bar consumes the safe top inset and the floating dock overlays the
+        // bottom edge. Disable Scaffold's automatic system insets to avoid a second top gap and
+        // an empty bottom strip, but still apply the returned content padding contract.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarState) }
-    ) { _ ->
-        // The shared top bar applies the safe status/cutout inset once. Applying Scaffold's
-        // system-bar padding here as well would double the top gap and reserve bottom space
-        // behind the floating dock.
-        Column(Modifier.fillMaxSize().background(MmColors.background)) {
+    ) { padding ->
+        Column(
+            Modifier.fillMaxSize()
+                .background(MmColors.background)
+                .padding(padding)
+        ) {
             MoneyManagerTopBar(
                 title = "Bills & EMIs",
                 subtitle = "Track upcoming payments without duplicate transactions",
