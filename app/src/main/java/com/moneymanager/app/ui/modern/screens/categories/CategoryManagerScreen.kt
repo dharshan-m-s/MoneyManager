@@ -59,12 +59,14 @@ import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.scrollCollapse
 import androidx.compose.foundation.lazy.itemsIndexed
 import com.moneymanager.app.ui.categories.CategoryManagerViewModel
 
@@ -95,21 +97,16 @@ fun CategoryManagerScreen(
 
     Box(Modifier.fillMaxSize().background(MmColors.background)) {
         Column(Modifier.fillMaxSize()) {
-            AnimatedVisibility(
-                visible = !scrollChrome.collapsed,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                MoneyManagerTopBar(
-                    title = if (selectionMode) "Choose category" else "Categories",
-                    subtitle = if (selectionMode) "Pick a category for your transaction"
-                    else "${categories.count { it.active }} active • $hiddenCount hidden",
-                    onBack = onBack
-                )
-            }
+            MoneyManagerTopBar(
+                title = if (selectionMode) "Choose category" else "Categories",
+                subtitle = if (selectionMode) "Pick a category for your transaction"
+                else "${categories.count { it.active }} active • $hiddenCount hidden",
+                onBack = onBack,
+                collapseProgress = scrollChrome.progress
+            )
 
-            Column(Modifier.padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed) MmSpacing.xs else MmSpacing.sm), verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)) {
-                AnimatedVisibility(visible = !scrollChrome.collapsed && !selectionMode) {
+            Column(Modifier.padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed.value) MmSpacing.xs else MmSpacing.sm), verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)) {
+                AnimatedVisibility(visible = !scrollChrome.collapsed.value && !selectionMode) {
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
                             .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.15f), MmColors.surfaceElevated, MmColors.surface)))
@@ -148,7 +145,7 @@ fun CategoryManagerScreen(
                         }
                     }
                 }
-                AnimatedVisibility(visible = !scrollChrome.collapsed && !selectionMode) {
+                AnimatedVisibility(visible = !scrollChrome.collapsed.value && !selectionMode) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             if (showHidden) "Showing hidden categories too" else "Hidden categories are excluded",
@@ -178,7 +175,7 @@ fun CategoryManagerScreen(
                     contentPadding = PaddingValues(
                         start = MmSpacing.lg,
                         end = MmSpacing.lg,
-                        bottom = 96.dp
+                        bottom = maxOf(96.dp, LocalDockContentPadding.current)
                     ),
                     verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
                 ) {

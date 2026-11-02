@@ -56,6 +56,7 @@ import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmColors
@@ -146,7 +147,7 @@ fun CashScreen(
                 title = "Cash in hand",
                 subtitle = "Live balance from your ledger",
                 onBack = onBack,
-                compact = scrollChrome.collapsed,
+                collapseProgress = scrollChrome.progress,
                 actions = {
                     state.primaryCashAccountId?.let { cashAccountId ->
                         MmTopBarAction(
@@ -175,7 +176,7 @@ fun CashScreen(
                 caption = "Live ledger balance · updated when you record cash transactions",
                 artworkKind = "cash",
                 modifier = Modifier
-                    .padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed) MmSpacing.xs else MmSpacing.md)
+                    .padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed.value) MmSpacing.xs else MmSpacing.md)
                     .animateContentSize()
             )
 
@@ -190,7 +191,7 @@ fun CashScreen(
             }
 
             AnimatedVisibility(
-                visible = !scrollChrome.collapsed,
+                visible = !scrollChrome.collapsed.value,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
@@ -229,7 +230,7 @@ fun CashScreen(
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
                     end = MmSpacing.screen,
-                    bottom = 112.dp
+                    bottom = maxOf(112.dp, LocalDockContentPadding.current)
                 ),
                 verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)
             ) {

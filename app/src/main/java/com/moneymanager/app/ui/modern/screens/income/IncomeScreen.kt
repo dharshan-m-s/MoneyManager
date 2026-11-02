@@ -47,6 +47,7 @@ import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.income.IncomeViewModel
@@ -66,17 +67,12 @@ fun IncomeScreen(
     val scrollChrome = rememberScrollChromeState()
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
-        AnimatedVisibility(
-            visible = !scrollChrome.collapsed,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
-            MoneyManagerTopBar(
-                title = "Income",
-                subtitle = "${rows.size} transactions",
-                onBack = onBack
-            )
-        }
+        MoneyManagerTopBar(
+            title = "Income",
+            subtitle = "${rows.size} transactions",
+            onBack = onBack,
+            collapseProgress = scrollChrome.progress
+        )
         if (rows.isEmpty()) {
             MmEmptyState(
                 icon = Icons.AutoMirrored.Filled.TrendingUp,
@@ -91,7 +87,7 @@ fun IncomeScreen(
                     start = MmSpacing.lg,
                     end = MmSpacing.lg,
                     top = MmSpacing.sm,
-                    bottom = MmSpacing.xxl
+                    bottom = MmSpacing.xxl + LocalDockContentPadding.current
                 ),
                 verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
             ) {
