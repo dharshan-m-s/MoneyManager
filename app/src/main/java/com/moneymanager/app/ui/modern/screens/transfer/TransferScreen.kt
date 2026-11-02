@@ -1,6 +1,7 @@
 package com.moneymanager.app.ui.modern.screens.transfer
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.AccountType
@@ -106,12 +108,25 @@ fun TransferScreen(
                 .padding(bottom = MmSpacing.xxl),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
-            MmCard {
-                MmAmountField(
-                    value = state.amountText,
-                    onValueChange = viewModel::onAmountChange,
-                    label = "Amount to transfer"
-                )
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(29.dp))
+                    .background(Brush.linearGradient(listOf(MmColors.transfer.copy(alpha = 0.18f), MmColors.surfaceElevated, MmColors.surface)))
+                    .border(1.dp, MmColors.transfer.copy(alpha = 0.26f), RoundedCornerShape(29.dp))
+                    .padding(horizontal = MmSpacing.xl, vertical = MmSpacing.lg)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("TRANSFER AMOUNT", style = MmType.caption, color = MmColors.textTertiary, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        Spacer(Modifier.weight(1f))
+                        Icon(Icons.Filled.SwapVert, contentDescription = null, tint = MmColors.transfer, modifier = Modifier.size(19.dp))
+                    }
+                    MmAmountField(
+                        value = state.amountText,
+                        onValueChange = viewModel::onAmountChange,
+                        label = "How much would you like to move?"
+                    )
+                    Text("Moves between your accounts without affecting income or spending", style = MmType.caption, color = MmColors.textSecondary)
+                }
             }
 
             MmCard {

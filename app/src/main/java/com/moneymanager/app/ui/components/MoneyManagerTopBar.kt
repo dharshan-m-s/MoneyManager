@@ -53,8 +53,8 @@ fun MoneyManagerTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .modernTopInsets()
-                .heightIn(min = 70.dp)
-                .padding(horizontal = MmSpacing.screen, vertical = 4.dp),
+                .heightIn(min = 74.dp)
+                .padding(horizontal = MmSpacing.screen, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (onNavigationClick != null) {
@@ -83,7 +83,7 @@ fun MoneyManagerTopBar(
             ) {
                 Text(
                     title,
-                    style = MmType.screenTitle.copy(fontSize = 26.sp, lineHeight = 32.sp),
+                    style = MmType.screenTitle.copy(fontSize = 25.sp, lineHeight = 31.sp),
                     color = MmColors.textPrimary,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,

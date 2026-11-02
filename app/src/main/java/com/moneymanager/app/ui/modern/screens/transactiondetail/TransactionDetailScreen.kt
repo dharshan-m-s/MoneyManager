@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -319,8 +320,8 @@ private fun DetailHero(
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
             .clip(RoundedCornerShape(32.dp))
-            .background(MmColors.surface)
-            .border(0.8.dp, MmColors.outline.copy(alpha = 0.42f), RoundedCornerShape(32.dp))
+            .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.17f), MmColors.surfaceElevated, MmColors.surface)))
+            .border(1.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(32.dp))
             .mmGlassHighlight(cornerRadius = 32.dp, intensity = 0.38f)
             .revealOnAppear(index = 0)
             .padding(horizontal = MmSpacing.xl, vertical = MmSpacing.xxl),

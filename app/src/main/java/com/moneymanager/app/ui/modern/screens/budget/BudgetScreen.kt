@@ -88,9 +88,12 @@ fun BudgetScreen(
                 .padding(bottom = MmSpacing.xxl),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
-            MmCard {
+            MmCard(
+                contentPadding = PaddingValues(horizontal = MmSpacing.xl, vertical = MmSpacing.xl),
+                backgroundColor = MmColors.surfaceElevated
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    MmIconBadge(icon = Icons.Filled.MonetizationOn, tint = statusColor, size = 44.dp)
+                    MmIconBadge(icon = Icons.Filled.MonetizationOn, tint = statusColor, size = 48.dp)
                     Spacer(Modifier.padding(start = MmSpacing.md))
                     Column(Modifier.weight(1f)) {
                         Text(

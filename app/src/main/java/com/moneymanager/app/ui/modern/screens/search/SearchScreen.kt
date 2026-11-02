@@ -1,6 +1,8 @@
 package com.moneymanager.app.ui.modern.screens.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -52,12 +54,19 @@ fun SearchScreen(
         MoneyManagerTopBar(title = "Search", onBack = onBack)
 
         Column(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md)) {
-            MmSearchField(
-                value = query,
-                onValueChange = viewModel::onQueryChange,
-                hint = "Merchant, bank, category, note or amount",
-                modifier = Modifier.focusRequester(focusRequester)
-            )
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(25.dp))
+                    .background(MmColors.surfaceElevated)
+                    .border(1.dp, MmColors.outline.copy(alpha = 0.62f), RoundedCornerShape(25.dp))
+                    .padding(10.dp)
+            ) {
+                MmSearchField(
+                    value = query,
+                    onValueChange = viewModel::onQueryChange,
+                    hint = "Merchant, bank, category, note or amount",
+                    modifier = Modifier.focusRequester(focusRequester)
+                )
+            }
             LaunchedEffect(Unit) { focusRequester.requestFocus() }
             if (query.isNotBlank() && results.isNotEmpty()) {
                 Text(

@@ -51,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -75,6 +76,7 @@ fun MmCard(
     val interactionSource = remember { MutableInteractionSource() }
     Surface(
         modifier = modifier
+            .shadow(3.dp, RoundedCornerShape(26.dp), clip = false)
             .animateContentSize(animationSpec = spring(dampingRatio = 0.88f, stiffness = 420f))
             .fillMaxWidth()
             .then(
@@ -88,7 +90,7 @@ fun MmCard(
             ),
         shape = RoundedCornerShape(26.dp),
         color = backgroundColor,
-        border = BorderStroke(0.7.dp, MmColors.outline.copy(alpha = 0.42f)),
+        border = BorderStroke(0.85.dp, MmColors.outline.copy(alpha = 0.52f)),
         elevation = 0.dp
     ) {
         Column(
@@ -119,8 +121,8 @@ fun MmMetricCard(
     Column(
         modifier = modifier
             .clip(shape)
-            .background(MmColors.surface)
-            .border(BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.42f)), shape)
+            .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.105f), MmColors.surfaceElevated, MmColors.surface)))
+            .border(BorderStroke(0.9.dp, tint.copy(alpha = 0.24f)), shape)
             .then(
                 if (onClick != null) Modifier
                     .pressScale(interactionSource, pressedScale = 0.975f)
