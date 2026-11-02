@@ -236,7 +236,9 @@ fun ModernRoot() {
     } else {
         68.dp + navigationInset + 16.dp
     }
-    val dockContentReservation = measuredDockHeight + 8.dp
+    // Keep only a small trailing scroll allowance. The dock is a translucent overlay, not a
+    // reserved opaque bottom bar; page content must continue moving visibly beneath it.
+    val dockContentReservation = 36.dp
 
     StatusBarGlyphToneAndSystemBarTint(lightBackground = MaterialTheme.colors.isLight)
 
