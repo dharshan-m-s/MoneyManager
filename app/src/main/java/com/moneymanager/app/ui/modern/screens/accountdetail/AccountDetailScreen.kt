@@ -1,7 +1,6 @@
 package com.moneymanager.app.ui.modern.screens.accountdetail
 
 import androidx.compose.foundation.background
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -79,7 +78,6 @@ import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.formatFullDate
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.revealOnAppear
-import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.mmSharedElement
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.mmPageBackdrop
@@ -113,7 +111,6 @@ fun AccountDetailScreen(
     // same gesture means the same thing everywhere and no white-on-light-green icon appears in
     // dark mode.
     var addExpanded by remember { mutableStateOf(false) }
-    val scrollChrome = rememberScrollChromeState()
 
     Scaffold(
         backgroundColor = MmColors.background,
@@ -165,10 +162,10 @@ fun AccountDetailScreen(
             }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).mmPageBackdrop().nestedScroll(scrollChrome.connection)) {
+        Column(Modifier.fillMaxSize().padding(padding).mmPageBackdrop()) {
             AccountHeader(
                 state = state,
-                compact = scrollChrome.collapsed,
+                compact = false,
                 onBack = onBack,
                 onEdit = {
                     account?.let { if (state.isCreditCard) onEditCreditCard(it.id) else onEditAccount(it.id) }
@@ -199,6 +196,7 @@ fun AccountDetailScreen(
                 }
             }
 
+            Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 account == null -> MmEmptyState(
                     icon = Icons.Filled.AccountBalance,
@@ -259,6 +257,7 @@ fun AccountDetailScreen(
                     onLoadMore = viewModel::loadMore,
                     emptyMessage = "No transactions for this account yet."
                 )
+            }
             }
         }
     }
