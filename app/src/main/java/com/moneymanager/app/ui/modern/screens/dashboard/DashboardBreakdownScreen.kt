@@ -38,7 +38,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -322,43 +321,82 @@ fun DashboardBreakdownScreen(
 }
 
 @Composable
-private fun FlowBreakdownHeroCard(kind: DashboardBreakdownKind, total: Money, transactions: List<com.moneymanager.app.data.local.entity.TransactionEntity>, formula: String) {
+private fun FlowBreakdownHeroCard(
+    kind: DashboardBreakdownKind,
+    total: Money,
+    transactions: List<com.moneymanager.app.data.local.entity.TransactionEntity>,
+    formula: String
+) {
     val isIncome = kind == DashboardBreakdownKind.INCOME
-    val tint = if (isIncome) Color(0xFF35C99A) else Color(0xFFFF8291)
-    val amounts = transactions.map { maxOf(it.debitMinorUnits, it.creditMinorUnits) }.filter { it > 0L }
+    val tint = if (isIncome) MmColors.income else MmColors.expense
+    val amounts = transactions.map {
+        if (isIncome) it.creditMinorUnits else it.debitMinorUnits
+    }.filter { it > 0L }
     val average = if (amounts.isEmpty()) 0L else amounts.sum() / amounts.size
     val largest = amounts.maxOrNull() ?: 0L
-    val bars = amounts.take(8).reversed()
-    val maxBar = (bars.maxOrNull() ?: 1L).coerceAtLeast(1L)
-    MmCard(contentPadding = PaddingValues(0.dp)) {
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Brush.linearGradient(listOf(tint.copy(alpha = 0.90f), Color(0xFF20243B)))).padding(MmSpacing.xl), verticalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
-            Text(if (isIncome) "TOTAL INCOME" else "TOTAL SPENT", style = MmType.caption.copy(letterSpacing = 1.sp), color = Color.White.copy(alpha = 0.76f), fontWeight = FontWeight.SemiBold)
-            Text(MoneyFormat.rupeesNoDecimals(total), style = MmType.amountHero, color = Color.White, maxLines = 1, softWrap = false)
-            Text(formula, style = MmType.caption, color = Color.White.copy(alpha = 0.78f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Row(Modifier.fillMaxWidth().height(74.dp), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.Bottom) {
-                if (bars.isEmpty()) {
-                    repeat(6) { Box(Modifier.weight(1f).height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.25f))) }
-                } else {
-                    bars.forEachIndexed { index, amount ->
-                        val fraction = (amount.toFloat() / maxBar.toFloat()).coerceIn(0.08f, 1f)
-                        Box(Modifier.weight(1f).height((fraction * 66f).dp).clip(RoundedCornerShape(topStart = 7.dp, topEnd = 7.dp)).background(Color.White.copy(alpha = 0.30f + index * 0.07f)))
-                    }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
-                FlowStat("Transactions", transactions.size.toString(), Modifier.weight(1f))
-                FlowStat("Average", MoneyFormat.rupeesNoDecimals(Money(average)), Modifier.weight(1f))
-                FlowStat("Largest", MoneyFormat.rupeesNoDecimals(Money(largest)), Modifier.weight(1f))
-            }
+
+    Column(verticalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
+        MmBalancePanel(
+            label = if (isIncome) "TOTAL INCOME" else "TOTAL SPENT",
+            value = MoneyFormat.rupeesNoDecimals(total),
+            caption = formula,
+            tint = tint,
+            animatedValueMinorUnits = total.minorUnits,
+            visualValues = amounts.takeLast(6),
+            visualLabel = "RECENT FLOW",
+            artworkKind = if (isIncome) "income" else "spending"
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
+            FlowStat(
+                label = "Transactions",
+                value = transactions.size.toString(),
+                tint = MmColors.accent,
+                modifier = Modifier.weight(1f)
+            )
+            FlowStat(
+                label = "Average",
+                value = MoneyFormat.rupeesNoDecimals(Money(average)),
+                tint = MmColors.income,
+                modifier = Modifier.weight(1f)
+            )
+            FlowStat(
+                label = "Largest",
+                value = MoneyFormat.rupeesNoDecimals(Money(largest)),
+                tint = MmColors.warning,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
 
 @Composable
-private fun FlowStat(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier.clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = 0.10f)).padding(10.dp)) {
-        Text(label, style = MmType.caption.copy(fontSize = 9.sp), color = Color.White.copy(alpha = 0.7f), maxLines = 1)
-        Text(value, style = MmType.label, color = Color.White, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+private fun FlowStat(
+    label: String,
+    value: String,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(tint.copy(alpha = 0.075f))
+            .padding(horizontal = MmSpacing.sm, vertical = MmSpacing.md)
+    ) {
+        Text(
+            label,
+            style = MmType.caption.copy(fontSize = 9.sp),
+            color = MmColors.textSecondary,
+            maxLines = 1
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            value,
+            style = MmType.label,
+            color = MmColors.textPrimary,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
