@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Text
@@ -50,6 +51,8 @@ import com.moneymanager.app.ui.components.MmLegendDot
 import com.moneymanager.app.ui.components.MmProgressBar
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.LocalDockContentPadding
+import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -64,6 +67,7 @@ fun BudgetScreen(
     viewModel: BudgetViewModel = hiltViewModel()
 ) {
     val state by viewModel.ui.collectAsState()
+    val scrollChrome = rememberScrollChromeState(collapseDistance = 184.dp)
     LaunchedEffect(state.saved) { if (state.saved) onClose() }
 
     val spendThisMonth = state.trend.lastOrNull()?.amount ?: 0L
@@ -78,15 +82,16 @@ fun BudgetScreen(
     }
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
-        MoneyManagerTopBar(title = "Monthly budget", onBack = onClose)
+        MoneyManagerTopBar(title = "Monthly budget", onBack = onClose, collapseProgress = scrollChrome.progress)
 
         Column(
             Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                 .verticalScroll(rememberScrollState())
+                .nestedScroll(scrollChrome.connection)
                 .imePadding()
                 .padding(horizontal = MmSpacing.screen)
-                .padding(bottom = MmSpacing.xxl),
+                .padding(bottom = MmSpacing.xxl + LocalDockContentPadding.current),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
             MmCard(

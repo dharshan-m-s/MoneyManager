@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,6 +67,7 @@ import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmProgressBar
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.spendsummary.MonthWindow
 import com.moneymanager.app.ui.spendsummary.SpendCategoryRow
@@ -235,15 +237,17 @@ fun SpendSummaryScreen(
         selectedPeriod?.let { viewModel.selectPeriod(it, previousPeriod) }
     }
 
+    val scrollChrome = rememberScrollChromeState(collapseDistance = 216.dp)
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
             title = "Spend summary",
             subtitle = selectedPeriod?.label.orEmpty(),
-            onBack = onBack
+            onBack = onBack,
+            collapseProgress = scrollChrome.progress
         )
 
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
             contentPadding = PaddingValues(
                 start = MmSpacing.screen,
                 end = MmSpacing.screen,

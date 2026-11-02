@@ -65,10 +65,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -95,6 +97,9 @@ import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import java.math.BigDecimal
 import java.time.Instant
@@ -119,6 +124,15 @@ fun BillsScreen(
     viewModel: BillsViewModel = hiltViewModel()
 ) {
     val bills by viewModel.bills.collectAsState()
+    var query by rememberSaveable { mutableStateOf("") }
+    val scrollChrome = rememberScrollChromeState(collapseDistance = 112.dp)
+    val visibleBills = remember(bills, query) {
+        if (query.isBlank()) bills else bills.filter { row ->
+            listOf(row.bill.billerName, row.bill.nickname, row.bill.accountReferenceId)
+                .filterNotNull()
+                .any { it.contains(query.trim(), ignoreCase = true) }
+        }
+    }
     val paymentSearch by viewModel.paymentSearch.collectAsState()
     val snackbarState = remember { SnackbarHostState() }
 
@@ -137,6 +151,7 @@ fun BillsScreen(
                 title = "Bills & EMIs",
                 subtitle = "Track upcoming payments without duplicate transactions",
                 onBack = onBack,
+                collapseProgress = scrollChrome.progress,
                 actions = {
                     // The empty state already has a full-width "Add a bill" action.
                     // Once bills exist, use a labelled contextual action instead of a
@@ -174,23 +189,41 @@ fun BillsScreen(
                 }
             )
 
+            CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
+                        .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.48f)
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MmSearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        hint = "Search bills",
+                        glassField = true
+                    )
+                }
+            }
+
             Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (bills.isEmpty()) {
+            if (bills.isEmpty() || visibleBills.isEmpty()) {
                 MmEmptyState(
                     icon = Icons.Filled.Payments,
-                    title = "No bills yet",
-                    message = "Add the bills you pay regularly - rent, maid, EMI, utilities - and track " +
-                        "them here. Recurring payments found in imported statements appear automatically.",
-                    actionLabel = "Add a bill",
-                    onAction = onAddBiller
+                    title = if (bills.isEmpty()) "No bills yet" else "No matching bills",
+                    message = if (bills.isEmpty()) "Add the bills you pay regularly - rent, maid, EMI, utilities - and track " +
+                        "them here. Recurring payments found in imported statements appear automatically."
+                    else "Try another biller name or clear your search.",
+                    actionLabel = if (bills.isEmpty()) "Add a bill" else "Clear search",
+                    onAction = if (bills.isEmpty()) onAddBiller else ({ query = "" })
                 )
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: 36.dp),
+                    modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
+                    contentPadding = PaddingValues(start = MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = maxOf(36.dp, LocalDockContentPadding.current)),
                     verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {
-                    itemsIndexed(bills, key = { _, row -> row.bill.id }) { index, row ->
+                    itemsIndexed(visibleBills, key = { _, row -> row.bill.id }) { index, row ->
                         BillCard(
                             row = row,
                             modifier = Modifier.revealOnAppear(index = index),

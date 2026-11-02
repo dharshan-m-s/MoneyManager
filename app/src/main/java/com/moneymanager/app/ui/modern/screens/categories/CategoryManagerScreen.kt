@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +60,8 @@ import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
@@ -105,6 +108,7 @@ fun CategoryManagerScreen(
                 collapseProgress = scrollChrome.progress
             )
 
+            CompositionLocalProvider(LocalMmGlassEnabled provides true) {
             Column(Modifier.padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed.value) MmSpacing.xs else MmSpacing.sm), verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)) {
                 AnimatedVisibility(visible = !scrollChrome.collapsed.value && !selectionMode) {
                     Row(
@@ -125,7 +129,9 @@ fun CategoryManagerScreen(
                     }
                 }
                 Row(
-                    Modifier.fillMaxWidth(),
+                    Modifier.fillMaxWidth()
+                        .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.42f)
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {
@@ -133,7 +139,8 @@ fun CategoryManagerScreen(
                         MmSearchField(
                             value = query,
                             onValueChange = { query = it },
-                            hint = "Search categories"
+                            hint = "Search categories",
+                            glassField = true
                         )
                     }
                     if (!selectionMode) {
@@ -158,6 +165,7 @@ fun CategoryManagerScreen(
                         }
                     }
                 }
+            }
             }
 
             if (visible.isEmpty()) {

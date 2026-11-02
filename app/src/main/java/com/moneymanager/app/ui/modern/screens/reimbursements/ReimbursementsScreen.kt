@@ -1,6 +1,12 @@
 package com.moneymanager.app.ui.modern.screens.reimbursements
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,6 +39,10 @@ import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.LocalDockContentPadding
+import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -52,14 +62,40 @@ fun ReimbursementsScreen(
     viewModel: ReimbursementsViewModel = hiltViewModel()
 ) {
     val pending by viewModel.pending.collectAsState()
+    var query by rememberSaveable { mutableStateOf("") }
+    val scrollChrome = rememberScrollChromeState(collapseDistance = 112.dp)
+    val visiblePending = remember(pending, query) {
+        if (query.isBlank()) pending else pending.filter { txn ->
+            listOfNotNull(txn.merchantReceiverSender, txn.rawCategoryName, txn.notes)
+                .any { it.contains(query.trim(), ignoreCase = true) }
+        }
+    }
     val owedTotal = pending.sumOf { it.debitMinorUnits - it.creditMinorUnits }
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
             title = "Reimbursements",
             subtitle = "${pending.size} pending",
-            onBack = onBack
+            onBack = onBack,
+            collapseProgress = scrollChrome.progress
         )
+
+        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
+                    .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.48f)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MmSearchField(
+                    value = query,
+                    onValueChange = { query = it },
+                    hint = "Search reimbursements",
+                    glassField = true
+                )
+            }
+        }
 
         if (pending.isEmpty()) {
             MmEmptyState(
@@ -73,12 +109,12 @@ fun ReimbursementsScreen(
         }
 
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
             contentPadding = PaddingValues(
                 start = MmSpacing.lg,
                 end = MmSpacing.lg,
                 top = MmSpacing.lg,
-                bottom = MmSpacing.xxl
+                bottom = MmSpacing.xxl + LocalDockContentPadding.current
             ),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
         ) {
@@ -92,7 +128,7 @@ fun ReimbursementsScreen(
                 )
             }
 
-            itemsIndexed(pending, key = { _, txn -> txn.id }) { index, txn ->
+            itemsIndexed(visiblePending, key = { _, txn -> txn.id }) { index, txn ->
                 MmCard(
                     modifier = Modifier.revealOnAppear(index = index),
                     contentPadding = PaddingValues(0.dp)

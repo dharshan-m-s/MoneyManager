@@ -15,6 +15,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -53,6 +54,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -90,6 +92,9 @@ import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.modernTopInsets
 import com.moneymanager.app.ui.components.LocalDockContentPadding
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.formatFullDate
 import com.moneymanager.app.ui.theme.MmColors
@@ -154,6 +159,7 @@ fun TransactionsScreen(
     var filters by remember { mutableStateOf(TxnFilters()) }
     var showSort by remember { mutableStateOf(false) }
     var showFilter by remember { mutableStateOf(false) }
+    val scrollChrome = rememberScrollChromeState(collapseDistance = 112.dp)
 
     val activeSort = TxnSort.valueOf(sort)
     val categoryNames = remember(categories) { categories.associate { it.id to it.name } }
@@ -219,22 +225,42 @@ fun TransactionsScreen(
     }
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
-        TransactionsHeader(
-            countText = "${visibleRows.size} of ${rows.size} transactions",
-            onBack = onBack,
-            onSort = { showSort = true },
-            onFilter = { showFilter = true },
-            filterActive = filters.isActive,
-            showBack = false,
-            compact = false
+        MoneyManagerTopBar(
+            title = "Transactions",
+            subtitle = "${visibleRows.size} of ${rows.size} transactions",
+            collapseProgress = scrollChrome.progress,
+            glassChrome = true
         )
 
-        Box(Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)) {
-            MmSearchField(
-                value = query,
-                onValueChange = { query = it },
-                hint = "Merchant, bank, category, notes, account or amount"
-            )
+        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
+                    .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.52f)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs)
+            ) {
+                Box(Modifier.weight(1f)) {
+                    MmSearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        hint = "Search transactions",
+                        glassField = true
+                    )
+                }
+                TransactionsHeaderAction(
+                    icon = Icons.Filled.NorthEast,
+                    contentDescription = "Sort transactions",
+                    onClick = { showSort = true }
+                )
+                TransactionsHeaderAction(
+                    icon = Icons.Filled.FilterList,
+                    contentDescription = "Filter transactions",
+                    onClick = { showFilter = true },
+                    badge = filters.isActive
+                )
+            }
         }
 
         // Type selection is the filter that is used most often, so it lives one tap away.
@@ -248,6 +274,7 @@ fun TransactionsScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .scrollCollapse(scrollChrome.progress)
                     .horizontalScroll(rememberScrollState())
                     .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
                 horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
@@ -299,7 +326,7 @@ fun TransactionsScreen(
             )
         } else {
             LazyColumn(
-                modifier = Modifier,
+                modifier = Modifier.nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.md
                 )
