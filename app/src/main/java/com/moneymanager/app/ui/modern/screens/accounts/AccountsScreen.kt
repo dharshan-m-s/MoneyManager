@@ -497,8 +497,9 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(19.dp))
-                    .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.085f), MmColors.surface, MmColors.surfaceElevated)))
-                    .border(0.85.dp, tint.copy(alpha = 0.24f), RoundedCornerShape(19.dp))
+                    .background(tint.copy(alpha = if (MmColors.isLight) 0.105f else 0.14f))
+                    .border(0.85.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(19.dp))
+                    .mmGlassHighlight(cornerRadius = 19.dp, intensity = 0.72f)
                     .clickable(onClick = if (editMode) onEdit else onClick)
                     .padding(horizontal = MmSpacing.md, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -581,8 +582,9 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(19.dp))
-                    .background(MmColors.surface)
-                    .border(0.75.dp, MmColors.outline.copy(alpha = 0.42f), RoundedCornerShape(19.dp))
+                    .background(MmColors.surface.copy(alpha = if (MmColors.isLight) 0.62f else 0.54f))
+                    .border(0.75.dp, MmColors.outline.copy(alpha = 0.48f), RoundedCornerShape(19.dp))
+                    .mmGlassHighlight(cornerRadius = 19.dp, intensity = 0.62f)
                     .clickable(onClick = if (editMode) onEdit else onClick)
                     .padding(horizontal = MmSpacing.md, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -642,9 +644,10 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.10f), MmColors.surface, MmColors.surfaceElevated)))
-                    .border(0.85.dp, tint.copy(alpha = 0.24f), RoundedCornerShape(20.dp))
-                    .clickable(onClick = onClick)
+                    .background(tint.copy(alpha = if (MmColors.isLight) 0.095f else 0.13f))
+                    .border(0.85.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(20.dp))
+                    .mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.72f)
+                    .clickable(onClick = if (editMode) onEdit else onClick)
                     .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -701,8 +704,9 @@ private fun AddAccountRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Brush.linearGradient(listOf(MmColors.accentFill.copy(alpha = 0.16f), MmColors.surface)))
-            .border(1.dp, MmColors.accentFill.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+            .background(MmColors.accentFill.copy(alpha = if (MmColors.isLight) 0.10f else 0.14f))
+            .border(1.dp, MmColors.accentFill.copy(alpha = 0.42f), RoundedCornerShape(18.dp))
+            .mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.58f)
             .clickable(onClick = onClick)
     ) {
         Row(
@@ -753,8 +757,9 @@ private fun ModernAllAccountTypesBrowser(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.12f), MmColors.surface)))
-                    .border(1.dp, tint.copy(alpha = 0.26f), RoundedCornerShape(18.dp))
+                    .background(tint.copy(alpha = if (MmColors.isLight) 0.085f else 0.12f))
+                    .border(1.dp, tint.copy(alpha = 0.28f), RoundedCornerShape(18.dp))
+                    .mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.62f)
             ) {
                 Column(Modifier.fillMaxWidth().padding(MmSpacing.md)) {
                   Row(
