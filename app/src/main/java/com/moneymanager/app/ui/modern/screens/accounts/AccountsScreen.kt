@@ -340,7 +340,10 @@ private fun AccountsHeader(
 ) {
     Column(Modifier.fillMaxWidth()) {
         Row(
-            Modifier.fillMaxWidth().padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm),
+            Modifier.fillMaxWidth()
+                .padding(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
+                .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.38f)
+                .padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = MmSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (showBack) {
