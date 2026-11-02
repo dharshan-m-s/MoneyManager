@@ -1201,6 +1201,8 @@ private fun PinVerifyDialog(
                         keyboardType = KeyboardType.NumberPassword,
                         imeAction = ImeAction.Done
                     ),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = com.moneymanager.app.ui.components.mmFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
                 error?.let {
