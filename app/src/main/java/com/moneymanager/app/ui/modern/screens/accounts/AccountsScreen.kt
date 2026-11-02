@@ -328,7 +328,18 @@ private fun AccountsHeader(
         Row(
             Modifier.fillMaxWidth()
                 .padding(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
-                .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.38f)
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            MmColors.accent.copy(alpha = 0.13f),
+                            MmColors.surface.copy(alpha = 0.10f),
+                            Color.White.copy(alpha = 0.025f)
+                        )
+                    ),
+                    RoundedCornerShape(24.dp)
+                )
+                .clip(RoundedCornerShape(24.dp))
+                .mmGlassHighlight(cornerRadius = 24.dp, intensity = 0.82f)
                 .padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = MmSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
