@@ -1,5 +1,6 @@
 package com.moneymanager.app.ui.components
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -73,10 +74,11 @@ fun MmCard(
     val interactionSource = remember { MutableInteractionSource() }
     Surface(
         modifier = modifier
+            .animateContentSize(animationSpec = spring(dampingRatio = 0.88f, stiffness = 420f))
             .fillMaxWidth()
             .then(
                 if (onClick != null) Modifier
-                    .pressScale(interactionSource, pressedScale = 0.985f)
+                    .pressScale(interactionSource, pressedScale = 0.975f)
                     .clickable(
                         interactionSource = interactionSource,
                         indication = null,
@@ -112,12 +114,21 @@ fun MmMetricCard(
     onClick: (() -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(22.dp)
+    val interactionSource = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
             .clip(shape)
             .background(MmColors.surface)
             .border(BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.42f)), shape)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(
+                if (onClick != null) Modifier
+                    .pressScale(interactionSource, pressedScale = 0.975f)
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick
+                    ) else Modifier
+            )
             .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -298,7 +309,9 @@ fun MmPill(
     val bg = if (filled) tint.copy(alpha = 0.14f) else Color.Transparent
     val borderColor = if (filled) tint.copy(alpha = 0.3f) else MmColors.outline
     Surface(
-        modifier = modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        modifier = modifier.then(
+            if (onClick != null) Modifier.pressableClick(haptic = true, onClick = onClick) else Modifier
+        ),
         shape = RoundedCornerShape(999.dp),
         color = bg,
         border = BorderStroke(1.dp, borderColor)
@@ -373,7 +386,7 @@ fun MmSegmentedControl(
                             .weight(1f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(999.dp))
-                            .clickable(onClick = { onSelect(index) }),
+                            .pressableClick(haptic = true, onClick = { onSelect(index) }),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -401,7 +414,9 @@ fun MmSwitchRow(
     badge: (@Composable () -> Unit)? = null
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(MmSpacing.radiusRow)).clickable { onCheckedChange(!checked) }.padding(MmSpacing.card),
+        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(MmSpacing.radiusRow))
+            .pressableClick(haptic = true) { onCheckedChange(!checked) }
+            .padding(MmSpacing.card),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
@@ -462,7 +477,7 @@ fun MmEmptyState(
         }
         if (actionLabel != null && onAction != null) {
             Surface(
-                modifier = Modifier.clickable(onClick = onAction),
+                modifier = Modifier.pressableClick(haptic = true, onClick = onAction),
                 shape = RoundedCornerShape(999.dp),
                 color = MmColors.accentFill,
                 border = BorderStroke(1.dp, MmColors.accentFill)
@@ -605,7 +620,9 @@ fun MmQuickAction(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.clip(RoundedCornerShape(MmSpacing.radiusRow)).clickable(onClick = onClick).padding(vertical = 8.dp),
+        modifier = modifier.clip(RoundedCornerShape(MmSpacing.radiusRow))
+            .pressableClick(haptic = true, onClick = onClick)
+            .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {

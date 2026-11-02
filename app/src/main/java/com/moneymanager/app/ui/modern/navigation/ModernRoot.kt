@@ -55,6 +55,9 @@ import com.moneymanager.app.ui.navigation.Destination
 import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.security.LockMethod
 import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.StatusBarGlyphToneAndSystemBarTint
 import com.moneymanager.app.ui.components.mmBrandWash
@@ -238,22 +241,32 @@ fun ModernRoot() {
         }
     }
 
-    // Keep navigation interactive and deterministic while the backdrop renderer is isolated.
-    // mmLiquidGlass falls back to its stable material surface when no backdrop is provided.
-    Box(Modifier.fillMaxSize()) {
-        CompositionLocalProvider(
-            LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
-        ) {
-            ModernNavHost(
-                navController = navController,
-                onOpenMore = {
-                    overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
-                },
-                modifier = Modifier
+    // Record the live page once at reduced resolution. Floating controls sample this layer
+    // for real backdrop blur and lens refraction; without this provider mmLiquidGlass must
+    // deliberately fall back to a flat surface.
+    val glassBackdrop = rememberLayerBackdrop()
+
+    CompositionLocalProvider(LocalMmGlassBackdrop provides glassBackdrop) {
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
                     .fillMaxSize()
-                    .then(if (dockVisible) Modifier else Modifier.navigationBarsPadding())
-            )
-        }
+                    .layerBackdrop(glassBackdrop)
+            ) {
+                CompositionLocalProvider(
+                    LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
+                ) {
+                    ModernNavHost(
+                        navController = navController,
+                        onOpenMore = {
+                            overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(if (dockVisible) Modifier else Modifier.navigationBarsPadding())
+                    )
+                }
+            }
 
         // The scrim dismisses on an outside tap. It is drawn before the dock and the menus, so
         // the trigger stays tappable (re-tap closes) and the open card is never blocked by a
@@ -276,15 +289,17 @@ fun ModernRoot() {
                 .align(Alignment.BottomEnd)
                 .padding(horizontal = MmSpacing.lg, vertical = 0.dp)
                 .padding(bottom = measuredDockHeight + 10.dp),
-            enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(140)) +
+            enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)) +
                 androidx.compose.animation.scaleIn(
-                    initialScale = 0.97f,
-                    animationSpec = androidx.compose.animation.core.tween(140)
+                    initialScale = 0.92f,
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 1f),
+                    animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 460f)
                 ),
-            exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(90)) +
+            exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(110)) +
                 androidx.compose.animation.scaleOut(
-                    targetScale = 0.97f,
-                    animationSpec = androidx.compose.animation.core.tween(90)
+                    targetScale = 0.96f,
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 1f),
+                    animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 520f)
                 )
         ) {
             ModernMorePopover(
@@ -294,10 +309,6 @@ fun ModernRoot() {
                     if (destination.route == navController.currentDestination?.route) {
                         return@ModernMorePopover
                     }
-                    // Treat each More destination as a peer of the dock tabs. Keeping one
-                    // root entry prevents Back from walking through a trail of unrelated
-                    // sections after several navigation changes, while save/restore retains
-                    // each section's scroll and filter state.
                     navController.navigate(destination.route) {
                         popUpTo(Destination.Dashboard.route) { saveState = true }
                         launchSingleTop = true
@@ -313,17 +324,17 @@ fun ModernRoot() {
                 .align(Alignment.BottomCenter)
                 .padding(horizontal = MmSpacing.lg)
                 .padding(bottom = measuredDockHeight + 8.dp),
-            enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(140)) +
+            enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)) +
                 androidx.compose.animation.scaleIn(
-                    initialScale = 0.97f,
+                    initialScale = 0.90f,
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f),
-                    animationSpec = androidx.compose.animation.core.tween(140)
+                    animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.68f, stiffness = 440f)
                 ),
-            exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(90)) +
+            exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(110)) +
                 androidx.compose.animation.scaleOut(
-                    targetScale = 0.97f,
+                    targetScale = 0.96f,
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f),
-                    animationSpec = androidx.compose.animation.core.tween(90)
+                    animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 520f)
                 )
         ) {
             ModernAddActionSurface(
@@ -401,6 +412,7 @@ fun ModernRoot() {
                     overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
                 }
             )
+        }
         }
     }
 }

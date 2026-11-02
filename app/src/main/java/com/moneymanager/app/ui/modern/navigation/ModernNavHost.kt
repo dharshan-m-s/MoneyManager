@@ -2,6 +2,8 @@ package com.moneymanager.app.ui.modern.navigation
 
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.spring
@@ -114,9 +116,11 @@ fun ModernNavHost(
             val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
                 targetState.destination.route in SECTION_ROUTES
             if (sectionSwitch) {
-                fadeIn(animationSpec = tween(180))
+                fadeIn(animationSpec = tween(170)) +
+                    scaleIn(initialScale = 0.985f, animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f))
             } else {
                 fadeIn(animationSpec = tween(170)) +
+                    scaleIn(initialScale = 0.985f, animationSpec = spring(dampingRatio = 0.88f, stiffness = 440f)) +
                     slideInHorizontally(
                         initialOffsetX = { width -> width / 14 },
                         animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f)
@@ -127,9 +131,11 @@ fun ModernNavHost(
             val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
                 targetState.destination.route in SECTION_ROUTES
             if (sectionSwitch) {
-                fadeOut(animationSpec = tween(130))
+                fadeOut(animationSpec = tween(130)) +
+                    scaleOut(targetScale = 0.992f, animationSpec = spring(dampingRatio = 0.94f, stiffness = 500f))
             } else {
                 fadeOut(animationSpec = tween(130)) +
+                    scaleOut(targetScale = 0.992f, animationSpec = spring(dampingRatio = 0.92f, stiffness = 480f)) +
                     slideOutHorizontally(
                         targetOffsetX = { width -> -width / 28 },
                         animationSpec = spring(dampingRatio = 0.92f, stiffness = 460f)
@@ -140,9 +146,11 @@ fun ModernNavHost(
             val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
                 targetState.destination.route in SECTION_ROUTES
             if (sectionSwitch) {
-                fadeIn(animationSpec = tween(180))
+                fadeIn(animationSpec = tween(170)) +
+                    scaleIn(initialScale = 0.985f, animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f))
             } else {
                 fadeIn(animationSpec = tween(170)) +
+                    scaleIn(initialScale = 0.985f, animationSpec = spring(dampingRatio = 0.88f, stiffness = 440f)) +
                     slideInHorizontally(
                         initialOffsetX = { width -> -width / 28 },
                         animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f)
@@ -153,9 +161,11 @@ fun ModernNavHost(
             val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
                 targetState.destination.route in SECTION_ROUTES
             if (sectionSwitch) {
-                fadeOut(animationSpec = tween(130))
+                fadeOut(animationSpec = tween(130)) +
+                    scaleOut(targetScale = 0.992f, animationSpec = spring(dampingRatio = 0.94f, stiffness = 500f))
             } else {
                 fadeOut(animationSpec = tween(130)) +
+                    scaleOut(targetScale = 0.992f, animationSpec = spring(dampingRatio = 0.92f, stiffness = 480f)) +
                     slideOutHorizontally(
                         targetOffsetX = { width -> width / 14 },
                         animationSpec = spring(dampingRatio = 0.92f, stiffness = 460f)

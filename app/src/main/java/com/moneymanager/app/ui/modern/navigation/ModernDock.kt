@@ -3,6 +3,9 @@ package com.moneymanager.app.ui.modern.navigation
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -138,8 +141,8 @@ internal fun ModernDock(
                         .offset(x = indicatorX)
                         .size(width = 62.dp, height = 58.dp)
                         .graphicsLayer {
-                            scaleX = 1f + travelLag * 0.14f
-                            scaleY = 1f - travelLag * 0.07f
+                            scaleX = 1f + travelLag * 0.22f
+                            scaleY = 1f - travelLag * 0.10f
                         }
                         // A second, smaller lens lets the selected item refract the page
                         // independently of the dock's broader frosted surface.
@@ -204,7 +207,7 @@ private fun AddOrb(
                 )
             )
             .mmGlassHighlight(cornerRadius = 27.dp, intensity = 1.15f)
-            .clickable(onClick = onClick)
+            .pressableClick(haptic = true, onClick = onClick)
             .semantics {
                 contentDescription = if (expanded) "Close add menu" else "Add transaction"
             },
@@ -233,17 +236,40 @@ private fun DockItem(
         animationSpec = spring(dampingRatio = 0.9f, stiffness = 500f),
         label = "dockTint"
     )
-    val iconScale by animateFloatAsState(
-        targetValue = if (selected) 1.06f else 1f,
-        animationSpec = spring(dampingRatio = 0.76f, stiffness = 440f),
-        label = "dockIconScale"
-    )
+    val iconScale = remember { Animatable(1f) }
+    val iconRotation = remember { Animatable(0f) }
+    LaunchedEffect(selected) {
+        if (selected) {
+            // A tiny squash, overshoot and settle gives the selected symbol a tactile arrival.
+            iconScale.snapTo(0.88f)
+            iconRotation.snapTo(-7f)
+            iconScale.animateTo(
+                targetValue = 1.16f,
+                animationSpec = spring(dampingRatio = 0.48f, stiffness = 620f)
+            )
+            iconRotation.animateTo(
+                targetValue = 4f,
+                animationSpec = spring(dampingRatio = 0.42f, stiffness = 560f)
+            )
+            iconScale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(dampingRatio = 0.62f, stiffness = 560f)
+            )
+            iconRotation.animateTo(
+                targetValue = 0f,
+                animationSpec = spring(dampingRatio = 0.68f, stiffness = 620f)
+            )
+        } else {
+            iconScale.animateTo(1f, spring(dampingRatio = 0.82f, stiffness = 520f))
+            iconRotation.animateTo(0f, spring(dampingRatio = 0.78f, stiffness = 600f))
+        }
+    }
     Column(
         modifier = modifier
             .fillMaxHeight()
             .padding(horizontal = 2.dp, vertical = 5.dp)
             .clip(RoundedCornerShape(24.dp))
-            .pressableClick(onClick = onClick)
+            .pressableClick(haptic = true, onClick = onClick)
             .semantics {
                 contentDescription = if (selected) "${tab.label}, selected" else tab.label
             }
@@ -255,7 +281,11 @@ private fun DockItem(
             tab.icon,
             contentDescription = null,
             tint = tint,
-            modifier = Modifier.size(22.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale }
+            modifier = Modifier.size(22.dp).graphicsLayer {
+                scaleX = iconScale.value
+                scaleY = iconScale.value
+                rotationZ = iconRotation.value
+            }
         )
         Text(
             tab.label,

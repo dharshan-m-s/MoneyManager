@@ -418,9 +418,23 @@ private class DrawBackdropNode(
     private fun updateEffects() {
         if (!isRenderEffectSupported()) return
 
-        effectScope.apply(effects)
-        graphicsLayer?.renderEffect = effectScope.renderEffect
-        padding = effectScope.padding
+        try {
+            effectScope.apply(effects)
+            graphicsLayer?.renderEffect = effectScope.renderEffect
+            padding = effectScope.padding
+        } catch (_: RuntimeException) {
+            // Some device renderers reject an otherwise API-compatible effect chain.
+            // Fall back to the sampled backdrop without GPU effects instead of crashing
+            // the entire Compose window. The glass tint/highlight is drawn separately.
+            effectScope.renderEffect = null
+            effectScope.padding = 0f
+            padding = 0f
+            try {
+                graphicsLayer?.renderEffect = null
+            } catch (_: RuntimeException) {
+                // The layer will be recreated by Compose if its renderer is lost.
+            }
+        }
     }
 
     override fun onAttach() {

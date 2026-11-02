@@ -39,10 +39,10 @@ class SpendSummaryViewModel @Inject constructor(
     private val _selectedMonthIndex = MutableStateFlow(0)
     val selectedMonthIndex: StateFlow<Int> = _selectedMonthIndex
 
-    /** The six months the user can pick, newest first — matching the reference graph. Built once from a single "now". */
-    val availableMonths: List<MonthWindow> = run {
+    /** Month windows are newest first and share one clock snapshot for stable boundaries. */
+    private val monthWindows: List<MonthWindow> = run {
         val now = ZonedDateTime.now(zone)
-        (0..5).map { index ->
+        (0..17).map { index ->
             val start = now.toLocalDate().withDayOfMonth(1).minusMonths(index.toLong()).atStartOfDay(zone)
             val startInclusive = start.toInstant().toEpochMilli()
             val endExclusive = start.plusMonths(1).toInstant().toEpochMilli()
@@ -50,6 +50,12 @@ class SpendSummaryViewModel @Inject constructor(
             MonthWindow(startInclusive, endExclusive, label)
         }
     }
+
+    /** Six-month window used by the full Spend Summary screen. */
+    val availableMonths: List<MonthWindow> = monthWindows.take(6)
+
+    /** Eighteen months for the dashboard's swipeable six-month chart window. */
+    val dashboardMonths: List<MonthWindow> = monthWindows
 
     /** Category totals for the selected month ONLY — never cumulative all-time data. */
     val categoryRows: StateFlow<List<SpendCategoryRow>> = combine(
@@ -109,6 +115,14 @@ class SpendSummaryViewModel @Inject constructor(
         }
     ) { values: Array<Long> -> values.toList() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), List(availableMonths.size) { 0L })
+
+    /** Dashboard-only history stream; does not change the six-month Spend Summary queries. */
+    val dashboardMonthlyTotals: StateFlow<List<Long>> = combine(
+        dashboardMonths.map { window ->
+            transactionDao.observeTotalSpendInRange(window.startInclusive, window.endExclusive)
+        }
+    ) { values: Array<Long> -> values.toList() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), List(dashboardMonths.size) { 0L })
 
     fun selectMonth(index: Int) {
         if (index in availableMonths.indices) {

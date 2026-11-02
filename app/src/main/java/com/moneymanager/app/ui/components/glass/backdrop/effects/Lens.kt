@@ -30,41 +30,51 @@ fun BackdropEffectScope.lens(
     if (!isRuntimeShaderSupported()) return
     if (refractionHeight <= 0f || refractionAmount <= 0f) return
 
-    if (padding > 0f) {
-        padding = (padding - refractionHeight).fastCoerceAtLeast(0f)
-    }
-
-    val cornerRadii = cornerRadii
-    val effect =
-        if (cornerRadii != null) {
-            val shader =
-                if (!chromaticAberration) {
-                    obtainRuntimeShader(
-                        "Refraction",
-                        RoundedRectRefractionShaderString
-                    )
-                } else {
-                    obtainRuntimeShader(
-                        "RefractionWithDispersion",
-                        RoundedRectRefractionWithDispersionShaderString
-                    )
-                }
-            shader.apply {
-                setFloatUniform("size", size.width, size.height)
-                setFloatUniform("offset", -padding, -padding)
-                setFloatUniform("cornerRadii", cornerRadii)
-                setFloatUniform("refractionHeight", refractionHeight)
-                setFloatUniform("refractionAmount", -refractionAmount)
-                setFloatUniform("depthEffect", if (depthEffect) 1f else 0f)
-                if (chromaticAberration) {
-                    setFloatUniform("chromaticAberration", 1f)
-                }
-            }
-            RuntimeShaderEffect(shader, "content")
-        } else {
-            throwUnsupportedSDFException()
+    // RuntimeShader availability is device/GPU dependent even on API 33+.
+    // Keep the already-composed blur/tint material if shader creation, uniform setup,
+    // or effect chaining is rejected by the device renderer.
+    val originalPadding = padding
+    try {
+        if (padding > 0f) {
+            padding = (padding - refractionHeight).fastCoerceAtLeast(0f)
         }
-    effect(effect)
+
+        val cornerRadii = cornerRadii
+        val effect =
+            if (cornerRadii != null) {
+                val shader =
+                    if (!chromaticAberration) {
+                        obtainRuntimeShader(
+                            "Refraction",
+                            RoundedRectRefractionShaderString
+                        )
+                    } else {
+                        obtainRuntimeShader(
+                            "RefractionWithDispersion",
+                            RoundedRectRefractionWithDispersionShaderString
+                        )
+                    }
+                shader.apply {
+                    setFloatUniform("size", size.width, size.height)
+                    setFloatUniform("offset", -padding, -padding)
+                    setFloatUniform("cornerRadii", cornerRadii)
+                    setFloatUniform("refractionHeight", refractionHeight)
+                    setFloatUniform("refractionAmount", -refractionAmount)
+                    setFloatUniform("depthEffect", if (depthEffect) 1f else 0f)
+                    if (chromaticAberration) {
+                        setFloatUniform("chromaticAberration", 1f)
+                    }
+                }
+                RuntimeShaderEffect(shader, "content")
+            } else {
+                throwUnsupportedSDFException()
+            }
+        effect(effect)
+    } catch (_: RuntimeException) {
+        // Refraction is an enhancement, not a requirement for the glass surface.
+        // Restore blur padding so the existing RenderEffect chain remains valid.
+        padding = originalPadding
+    }
 }
 
 // Vendored change: support for io.github.kyant0:shapes' RoundedRectangularShape was

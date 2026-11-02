@@ -43,11 +43,8 @@ private val moreDestinations = listOf(
     Destination.Bills,
     Destination.Cash,
     Destination.Income,
-    Destination.Budget,
-    Destination.SpendSummary,
     Destination.Categories,
     Destination.Reimbursements,
-    Destination.PersonalLoan,
     Destination.Settings
 )
 

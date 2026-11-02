@@ -161,15 +161,23 @@ internal class HighlightNode(
         paint.color = highlight.style.color
         paint.strokeWidth = ceil(highlight.width.toPx().fastCoerceAtMost(size.minDimension / 2f)) * 2f
         paint.blur(highlight.blurRadius.toPx())
+        // A RuntimeShader can be rejected by a device GPU despite API 33+ support.
+        // Always clear the previous frame's shader first, then treat the highlight shader
+        // as optional so a renderer-specific failure cannot crash the whole screen.
+        paint.setRuntimeShader(null)
         if (isRuntimeShaderSupported()) {
-            val shader =
-                with(highlight.style) {
-                    createShader(
-                        shape = shapeProvider.shape,
-                        runtimeShaderCache = runtimeShaderCache
-                    )
-                }
-            paint.setRuntimeShader(shader)
+            try {
+                val shader =
+                    with(highlight.style) {
+                        createShader(
+                            shape = shapeProvider.shape,
+                            runtimeShaderCache = runtimeShaderCache
+                        )
+                    }
+                paint.setRuntimeShader(shader)
+            } catch (_: RuntimeException) {
+                paint.setRuntimeShader(null)
+            }
         }
     }
 }

@@ -5,6 +5,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -37,10 +38,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import android.view.HapticFeedbackConstants
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -48,42 +51,85 @@ import com.moneymanager.app.ui.theme.MmType
 import kotlin.math.roundToLong
 
 /**
- * The interaction layer for the Modern Look.
+ * Shared motion tokens. Keep touch feedback and layout springs consistent across components.
+ * Spring-based transitions remain interruptible when a new pointer interaction arrives.
+ */
+internal object MmMotion {
+    const val pressDamping = 0.52f
+    const val pressStiffness = 720f
+    const val pressDepthDp = 1.2f
+    const val contentDamping = 0.88f
+    const val contentStiffness = 420f
+}
+
+/**
+ * Shared motion language for Money Manager.
  *
- * Motion is short (120–320ms), eased and never bouncing: it acknowledges a tap, assembles content
- * calmly and counts changed money values. Nothing loops except the loading shimmer, and nothing
- * delays a financial action.
+ * Prefer interruptible, velocity-aware springs for touch-driven movement. Keep financial
+ * information legible: numeric changes settle smoothly, while decorative movement stays subtle.
+ * Compose's platform overscroll remains enabled so Android 12+ supplies its native stretch edge.
  */
 
-/** Press feedback: the surface dips slightly while held. */
+/** Press feedback: the surface compresses vertically and stretches horizontally. */
 @Composable
 fun Modifier.pressScale(
     interactionSource: MutableInteractionSource,
-    pressedScale: Float = 0.975f,
+    pressedScale: Float = 0.965f,
     enabled: Boolean = true
 ): Modifier {
     val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed && enabled) pressedScale else 1f,
-        animationSpec = tween(durationMillis = 120),
-        label = "pressScale"
+    // Compress vertically while the surface expands slightly horizontally. This
+    // squash-and-stretch response feels tactile without moving surrounding layout.
+    val isPressed = pressed && enabled
+    val compression = pressedScale.coerceIn(0.90f, 1f)
+    val scaleX by animateFloatAsState(
+        targetValue = if (isPressed) 1f + (1f - compression) * 0.34f else 1f,
+        animationSpec = spring(
+            dampingRatio = MmMotion.pressDamping,
+            stiffness = MmMotion.pressStiffness
+        ),
+        label = "elasticPressX"
+    )
+    val scaleY by animateFloatAsState(
+        targetValue = if (isPressed) compression else 1f,
+        animationSpec = spring(
+            dampingRatio = MmMotion.pressDamping,
+            stiffness = MmMotion.pressStiffness
+        ),
+        label = "elasticPressY"
+    )
+    val pressDepth by animateFloatAsState(
+        targetValue = if (isPressed) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.62f, stiffness = 760f),
+        label = "elasticPressDepth"
     )
     return this.graphicsLayer {
-        scaleX = scale
-        scaleY = scale
+        this.scaleX = scaleX
+        this.scaleY = scaleY
+        translationY = pressDepth * MmMotion.pressDepthDp.dp.toPx()
+        transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
     }
 }
 
-/** A clickable that also dips under the finger (the ripple stays). */
+/** A clickable surface with elastic press feedback and optional platform haptics. */
 @Composable
 fun Modifier.pressableClick(
     enabled: Boolean = true,
+    haptic: Boolean = false,
     onClick: () -> Unit
 ): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
+    val view = LocalView.current
     return this
         .pressScale(interactionSource, enabled = enabled)
-        .clickable(enabled = enabled, interactionSource = interactionSource, onClick = onClick)
+        .clickable(
+            enabled = enabled,
+            interactionSource = interactionSource,
+            onClick = {
+                if (haptic) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                onClick()
+            }
+        )
 }
 
 /** A soft entrance: the element fades in and rises a little, staggered by [index]. */
@@ -119,7 +165,7 @@ fun MmAnimatedAmount(
 ) {
     val animated by animateFloatAsState(
         targetValue = value.toFloat(),
-        animationSpec = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+        animationSpec = spring(dampingRatio = 0.94f, stiffness = 190f),
         label = "amount"
     )
     Text(
@@ -185,19 +231,11 @@ fun MmPrimaryButton(
     loading: Boolean = false
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed && enabled) 0.97f else 1f,
-        animationSpec = tween(durationMillis = 120),
-        label = "primaryButton"
-    )
+    val view = LocalView.current
     val glow = MmColors.accentFill
     Box(
         modifier = modifier
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
+            .pressScale(interactionSource, pressedScale = 0.955f, enabled = enabled)
             .clip(MmShape.row)
             .background(
                 if (enabled) {
@@ -213,7 +251,10 @@ fun MmPrimaryButton(
                 enabled = enabled,
                 role = Role.Button,
                 interactionSource = interactionSource,
-                onClick = onClick
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    onClick()
+                }
             )
             .padding(horizontal = MmSpacing.xl, vertical = 15.dp),
         contentAlignment = Alignment.Center
@@ -251,18 +292,10 @@ fun MmSecondaryButton(
     contentColor: Color = MmColors.accent
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed && enabled) 0.97f else 1f,
-        animationSpec = tween(durationMillis = 120),
-        label = "secondaryButton"
-    )
+    val view = LocalView.current
     Box(
         modifier = modifier
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
+            .pressScale(interactionSource, pressedScale = 0.955f, enabled = enabled)
             .clip(MmShape.row)
             .background(MmColors.surface)
             .border(1.dp, MmColors.hairline, MmShape.row)
@@ -270,7 +303,10 @@ fun MmSecondaryButton(
                 enabled = enabled,
                 role = Role.Button,
                 interactionSource = interactionSource,
-                onClick = onClick
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    onClick()
+                }
             )
             .padding(horizontal = MmSpacing.xl, vertical = 15.dp),
         contentAlignment = Alignment.Center

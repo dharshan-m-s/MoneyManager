@@ -1,6 +1,9 @@
 package com.moneymanager.app.ui.appearance
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.LocalOverscrollFactory
+import androidx.compose.foundation.rememberPlatformOverscrollFactory
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.draw.drawBehind
@@ -8,8 +11,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.dp
 import com.moneymanager.app.ui.modern.navigation.ModernRoot
 import com.moneymanager.app.ui.theme.ModernSystemColors
 import com.moneymanager.app.ui.theme.ModernTheme
@@ -24,12 +29,21 @@ fun AppRoot(
     darkTheme: Boolean
 ) {
     ModernTheme(darkTheme = darkTheme) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .modernAtmosphere()
-        ) {
-            ModernRoot()
+        // Keep the platform stretch effect enabled across every scrollable in the app.
+        // Android 12+ renders the native elastic stretch; older supported versions retain
+        // a restrained brand-coloured edge glow instead of silently disabling overscroll.
+        val overscrollFactory = rememberPlatformOverscrollFactory(
+            glowColor = MmColors.accent.copy(alpha = 0.24f),
+            glowDrawPadding = PaddingValues(horizontal = 8.dp)
+        )
+        CompositionLocalProvider(LocalOverscrollFactory provides overscrollFactory) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .modernAtmosphere()
+            ) {
+                ModernRoot()
+            }
         }
     }
 }

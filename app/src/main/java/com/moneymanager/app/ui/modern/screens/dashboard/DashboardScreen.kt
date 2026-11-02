@@ -4,9 +4,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -57,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -100,6 +103,8 @@ import com.moneymanager.app.ui.dashboard.DashboardUiState
 import com.moneymanager.app.ui.dashboard.DashboardViewModel
 import com.moneymanager.app.ui.dashboard.SafeToSpendMode
 import com.moneymanager.app.ui.settings.SettingsEntryPoint
+import com.moneymanager.app.ui.spendsummary.MonthWindow
+import com.moneymanager.app.ui.spendsummary.SpendSummaryViewModel
 
 private val dashboardZone: ZoneId = ZoneId.of("Asia/Kolkata")
 
@@ -127,13 +132,17 @@ fun DashboardScreen(
     onOpenCash: () -> Unit = {},
     onTransactionClick: (Long) -> Unit = {},
     onOpenBreakdown: (DashboardBreakdownKind) -> Unit = {},
-    viewModel: DashboardViewModel = hiltViewModel()
+    viewModel: DashboardViewModel = hiltViewModel(),
+    spendViewModel: SpendSummaryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     // Render the hero + a lightweight loader until the first real snapshot arrives, so a
     // returning user never sees a frame of the "start here" empty state (or ₹0 balances) right
     // after unlocking. Once loaded, the state streams in without a second flash.
     val state = uiState
+    val monthlySpendTotals by spendViewModel.dashboardMonthlyTotals.collectAsState()
+    var selectedSpendMonth by rememberSaveable { mutableStateOf(0) }
+    var monthWindowStart by rememberSaveable { mutableStateOf(0) }
     if (state == null) {
         Column(
             Modifier
@@ -214,6 +223,34 @@ fun DashboardScreen(
                     onOpenSpent = { onOpenBreakdown(DashboardBreakdownKind.SPENT) },
                     onOpenIncome = { onOpenBreakdown(DashboardBreakdownKind.INCOME) }
                 )
+            }
+
+            item {
+                SectionBlock(
+                    title = "Monthly spending",
+                    subtitle = "Swipe right to explore older months · select a bar",
+                    actionLabel = "See all",
+                    onAction = onSeeAllSpendAreas
+                ) {
+                    MonthlySpendTrendChart(
+                        months = spendViewModel.dashboardMonths,
+                        monthlyTotals = monthlySpendTotals,
+                        selectedIndex = selectedSpendMonth,
+                        windowStartIndex = monthWindowStart,
+                        hideAmounts = hideAmounts,
+                        onSelectMonth = { selectedSpendMonth = it },
+                        onShowOlder = {
+                            val next = (monthWindowStart + 1).coerceAtMost(spendViewModel.dashboardMonths.size - 6)
+                            monthWindowStart = next
+                            selectedSpendMonth = next
+                        },
+                        onShowNewer = {
+                            val next = (monthWindowStart - 1).coerceAtLeast(0)
+                            monthWindowStart = next
+                            selectedSpendMonth = next
+                        }
+                    )
+                }
             }
 
             if (!state.hasAnyData) {
@@ -793,6 +830,249 @@ private fun SafeToSpendCard(
                         Icons.Filled.ChevronRight,
                         contentDescription = "Set a budget",
                         tint = MmColors.textSecondary
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Swipeable six-month spending history for the home dashboard. Values are sourced
+ * from Room-backed month windows and tapping a bar selects that month.
+ */
+@Composable
+private fun MonthlySpendTrendChart(
+    months: List<MonthWindow>,
+    monthlyTotals: List<Long>,
+    selectedIndex: Int,
+    windowStartIndex: Int,
+    hideAmounts: Boolean,
+    onSelectMonth: (Int) -> Unit,
+    onShowOlder: () -> Unit,
+    onShowNewer: () -> Unit
+) {
+    val safeStart = windowStartIndex.coerceIn(0, (months.size - 6).coerceAtLeast(0))
+    val visibleIndices = (safeStart until (safeStart + 6).coerceAtMost(months.size)).toList()
+    val chartIndices = visibleIndices.asReversed()
+    val chartMonths = chartIndices.map { months[it] }
+    val chartValues = chartIndices.map { monthlyTotals.getOrNull(it) ?: 0L }
+    val selectedIndexSafe = selectedIndex.coerceIn(0, (months.size - 1).coerceAtLeast(0))
+    val selectedTotal = monthlyTotals.getOrNull(selectedIndexSafe) ?: 0L
+    val selectedLabel = months.getOrNull(selectedIndexSafe)?.label.orEmpty()
+    val previousTotal = monthlyTotals.getOrNull(selectedIndexSafe - 1)
+    val difference = previousTotal?.let { selectedTotal - it }
+    val maxTotal = (chartValues.maxOrNull() ?: 0L).coerceAtLeast(1L)
+    MmCard(contentPadding = PaddingValues(0.dp)) {
+        Column {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Brush.linearGradient(MmColors.heroGradient))
+                    .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg)
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "TOTAL SPENT",
+                                style = MmType.caption.copy(fontSize = 10.sp, letterSpacing = 1.2.sp),
+                                color = Color.White.copy(alpha = 0.72f),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.height(5.dp))
+                            Text(
+                                if (hideAmounts) "••••••" else MoneyFormat.rupeesNoDecimals(Money(selectedTotal)),
+                                style = MmType.amountLarge,
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(selectedLabel, style = MmType.label, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text("Selected month", style = MmType.caption, color = Color.White.copy(alpha = 0.68f))
+                        }
+                    }
+                    if (difference != null) {
+                        Spacer(Modifier.height(MmSpacing.md))
+                        Row(
+                            Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color.White.copy(alpha = 0.13f))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val arrow = when {
+                                difference > 0L -> "↑"
+                                difference < 0L -> "↓"
+                                else -> "•"
+                            }
+                            Text(
+                                if (hideAmounts) "$arrow Compared with previous month"
+                                else "$arrow ${MoneyFormat.rupeesNoDecimals(Money(kotlin.math.abs(difference)))} vs previous month",
+                                style = MmType.caption,
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+
+            val chartAccent = MmColors.accent
+            val chartAccentFill = MmColors.accentFill
+            val chartOutline = MmColors.outline
+            val chartBackground = MmColors.background
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .pointerInput(months.size, safeStart) {
+                        var totalDrag = 0f
+                        detectHorizontalDragGestures(
+                            onDragEnd = {
+                                when {
+                                    totalDrag > 55f && safeStart < months.size - 6 -> onShowOlder()
+                                    totalDrag < -55f && safeStart > 0 -> onShowNewer()
+                                }
+                                totalDrag = 0f
+                            },
+                            onDragCancel = { totalDrag = 0f },
+                            onHorizontalDrag = { change, dragAmount ->
+                                totalDrag += dragAmount
+                                change.consume()
+                            }
+                        )
+                    }
+                    .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Spending trend", style = MmType.sectionTitle, color = MmColors.textPrimary)
+                        Text("Swipe right for older months", style = MmType.caption, color = MmColors.textTertiary)
+                    }
+                    Text(
+                        "${safeStart + 1}–${(safeStart + chartMonths.size).coerceAtMost(months.size)} / ${months.size}",
+                        style = MmType.caption.copy(fontSize = 10.sp, letterSpacing = 0.5.sp),
+                        color = MmColors.textTertiary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Spacer(Modifier.height(MmSpacing.md))
+
+                Canvas(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(148.dp)
+                ) {
+                    if (chartValues.isNotEmpty()) {
+                        val left = 8.dp.toPx()
+                        val right = size.width - 8.dp.toPx()
+                        val top = 10.dp.toPx()
+                        val bottom = size.height - 8.dp.toPx()
+                        val plotHeight = (bottom - top).coerceAtLeast(1f)
+                        val slotWidth = (right - left) / chartValues.size
+                        val barWidth = (slotWidth * 0.48f).coerceAtMost(34.dp.toPx()).coerceAtLeast(12.dp.toPx())
+
+                        for (grid in 0..3) {
+                            val y = top + plotHeight * grid / 3f
+                            drawLine(
+                                color = chartOutline.copy(alpha = 0.18f),
+                                start = Offset(left, y),
+                                end = Offset(right, y),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        }
+
+                        chartValues.forEachIndexed { displayIndex, amount ->
+                            val centerX = left + slotWidth * (displayIndex + 0.5f)
+                            val barHeight = if (amount <= 0L) 3.dp.toPx() else
+                                (amount.toFloat() / maxTotal.toFloat()).coerceIn(0f, 1f) * (plotHeight * 0.88f)
+                            val topY = bottom - barHeight
+                            val globalIndex = chartIndices[displayIndex]
+                            val selected = globalIndex == selectedIndexSafe
+                            val rectLeft = centerX - barWidth / 2f
+
+                            if (selected) {
+                                drawRoundRect(
+                                    color = chartAccent.copy(alpha = 0.12f),
+                                    topLeft = Offset(rectLeft - 5.dp.toPx(), topY - 5.dp.toPx()),
+                                    size = Size(barWidth + 10.dp.toPx(), barHeight + 10.dp.toPx()),
+                                    cornerRadius = CornerRadius(12.dp.toPx())
+                                )
+                            }
+                            drawRoundRect(
+                                color = chartOutline.copy(alpha = if (selected) 0.20f else 0.10f),
+                                topLeft = Offset(rectLeft, top),
+                                size = Size(barWidth, plotHeight),
+                                cornerRadius = CornerRadius(barWidth / 2f)
+                            )
+                            drawRoundRect(
+                                brush = Brush.verticalGradient(
+                                    colors = if (selected) {
+                                        listOf(chartAccent, chartAccentFill, chartAccent.copy(alpha = 0.72f))
+                                    } else {
+                                        listOf(chartAccent.copy(alpha = 0.68f), chartAccent.copy(alpha = 0.36f))
+                                    },
+                                    startY = topY,
+                                    endY = bottom
+                                ),
+                                topLeft = Offset(rectLeft, topY),
+                                size = Size(barWidth, barHeight),
+                                cornerRadius = CornerRadius(barWidth / 2f)
+                            )
+                            if (selected) {
+                                drawCircle(
+                                    color = chartBackground,
+                                    radius = 4.dp.toPx(),
+                                    center = Offset(centerX, (topY - 7.dp.toPx()).coerceAtLeast(top))
+                                )
+                                drawCircle(
+                                    color = chartAccent,
+                                    radius = 2.dp.toPx(),
+                                    center = Offset(centerX, (topY - 7.dp.toPx()).coerceAtLeast(top))
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    chartMonths.forEachIndexed { displayIndex, month ->
+                        val index = chartIndices[displayIndex]
+                        val selected = index == selectedIndexSafe
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (selected) MmColors.accent.copy(alpha = 0.13f)
+                                    else Color.Transparent
+                                )
+                                .pressableClick { onSelectMonth(index) }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                month.label.substringBefore(" "),
+                                style = MmType.caption.copy(fontSize = 10.sp),
+                                color = if (selected) MmColors.accent else MmColors.textTertiary,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+                if (chartValues.all { it <= 0L }) {
+                    Spacer(Modifier.height(MmSpacing.sm))
+                    Text(
+                        "Your monthly spending trend will appear here once you record transactions.",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
                     )
                 }
             }
