@@ -228,7 +228,16 @@ fun DeleteCategoryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Delete \"${category.name}\"?") },
+        shape = RoundedCornerShape(28.dp),
+        backgroundColor = MmColors.surface,
+        contentColor = MmColors.textPrimary,
+        title = {
+            Text(
+                "Delete \"${category.name}\"?",
+                style = MmType.sectionTitle,
+                color = MmColors.textPrimary
+            )
+        },
         text = {
             Column {
                 Text(
