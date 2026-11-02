@@ -5,7 +5,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -100,7 +99,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import com.moneymanager.app.ui.components.pressableClick
-import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.MmPrimaryButton
 
 private val txnZone: ZoneId = ZoneId.of("Asia/Kolkata")
@@ -156,7 +154,6 @@ fun TransactionsScreen(
     var filters by remember { mutableStateOf(TxnFilters()) }
     var showSort by remember { mutableStateOf(false) }
     var showFilter by remember { mutableStateOf(false) }
-    val scrollChrome = rememberScrollChromeState()
 
     val activeSort = TxnSort.valueOf(sort)
     val categoryNames = remember(categories) { categories.associate { it.id to it.name } }
@@ -229,10 +226,10 @@ fun TransactionsScreen(
             onFilter = { showFilter = true },
             filterActive = filters.isActive,
             showBack = false,
-            compact = scrollChrome.collapsed
+            compact = false
         )
 
-        Box(Modifier.padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed) MmSpacing.xs else MmSpacing.md)) {
+        Box(Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)) {
             MmSearchField(
                 value = query,
                 onValueChange = { query = it },
@@ -244,7 +241,7 @@ fun TransactionsScreen(
         // Five classifications no longer fit a fixed segmented control on narrow phones;
         // a scrolling chip row keeps every option reachable and the labels readable.
         AnimatedVisibility(
-            visible = !scrollChrome.collapsed,
+            visible = true,
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically()
         ) {
@@ -265,7 +262,7 @@ fun TransactionsScreen(
             }
         }
 
-        if (filters.isActive && !scrollChrome.collapsed) {
+        if (filters.isActive) {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -301,7 +298,7 @@ fun TransactionsScreen(
             )
         } else {
             LazyColumn(
-                modifier = Modifier.nestedScroll(scrollChrome.connection),
+                modifier = Modifier,
                 contentPadding = PaddingValues(
                     bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.md
                 )
