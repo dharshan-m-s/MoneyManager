@@ -56,90 +56,96 @@ fun MoneyManagerTopBar(
     compact: Boolean = false,
     glassChrome: Boolean = true
 ) {
-    Column(
-        Modifier.fillMaxWidth().then(
-            if (glassChrome) Modifier.padding(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
-                .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.34f)
-            else Modifier
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .modernTopInsets()
-                .heightIn(min = if (compact) 54.dp else 74.dp)
-                .animateContentSize()
-                .padding(horizontal = MmSpacing.screen, vertical = if (compact) 2.dp else 5.dp),
-            verticalAlignment = Alignment.CenterVertically
+    Column(Modifier.fillMaxWidth().modernTopInsets()) {
+        // Keep system-bar and camera-cutout clearance outside the glass surface. The
+        // glass capsule starts below the status area instead of outlining the whole screen.
+        Box(
+            modifier = Modifier.fillMaxWidth().then(
+                if (glassChrome) {
+                    Modifier
+                        .padding(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
+                        .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.52f)
+                        .mmGlassHighlight(cornerRadius = 24.dp, intensity = 0.62f)
+                } else Modifier
+            )
         ) {
-            if (onNavigationClick != null) {
-                Surface(
-                    modifier = Modifier.size(44.dp).clip(CircleShape),
-                    shape = CircleShape,
-                    color = MmColors.surfaceContainer,
-                    border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.34f)),
-                    elevation = 0.dp
-                ) {
-                    IconButton(onClick = onNavigationClick) {
-                        Icon(
-                            navigationIcon,
-                            contentDescription = "Back",
-                            tint = MmColors.textPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            } else {
-                Spacer(Modifier.width(MmSpacing.xs))
-            }
-
-            Column(Modifier.weight(1f).padding(horizontal = MmSpacing.md)) {
-                AnimatedVisibility(
-                    visible = !compact,
-                    enter = fadeIn() + expandVertically() +
-                        androidx.compose.animation.scaleIn(
-                            initialScale = 0.94f,
-                            animationSpec = androidx.compose.animation.core.spring(
-                                dampingRatio = 0.86f,
-                                stiffness = 430f
-                            )
-                        ),
-                    exit = fadeOut() + shrinkVertically() +
-                        androidx.compose.animation.scaleOut(
-                            targetScale = 0.97f,
-                            animationSpec = androidx.compose.animation.core.spring(
-                                dampingRatio = 0.9f,
-                                stiffness = 500f
-                            )
-                        )
-                ) {
-                    Column {
-                        Text(
-                            title,
-                            style = MmType.screenTitle.copy(fontSize = 25.sp, lineHeight = 31.sp),
-                            color = MmColors.textPrimary,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (!subtitle.isNullOrBlank()) {
-                            Text(
-                                subtitle,
-                                style = MmType.caption,
-                                color = MmColors.textSecondary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = if (compact) 54.dp else 74.dp)
+                    .animateContentSize()
+                    .padding(horizontal = MmSpacing.screen, vertical = if (compact) 2.dp else 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onNavigationClick != null) {
+                    Surface(
+                        modifier = Modifier.size(44.dp).clip(CircleShape),
+                        shape = CircleShape,
+                        color = MmColors.surfaceContainer.copy(alpha = 0.68f),
+                        border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.28f)),
+                        elevation = 0.dp
+                    ) {
+                        IconButton(onClick = onNavigationClick) {
+                            Icon(
+                                navigationIcon,
+                                contentDescription = "Back",
+                                tint = MmColors.textPrimary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
+                } else {
+                    Spacer(Modifier.width(MmSpacing.xs))
                 }
+
+                Column(Modifier.weight(1f).padding(horizontal = MmSpacing.md)) {
+                    AnimatedVisibility(
+                        visible = !compact,
+                        enter = fadeIn() + expandVertically() +
+                            androidx.compose.animation.scaleIn(
+                                initialScale = 0.94f,
+                                animationSpec = androidx.compose.animation.core.spring(
+                                    dampingRatio = 0.86f,
+                                    stiffness = 430f
+                                )
+                            ),
+                        exit = fadeOut() + shrinkVertically() +
+                            androidx.compose.animation.scaleOut(
+                                targetScale = 0.97f,
+                                animationSpec = androidx.compose.animation.core.spring(
+                                    dampingRatio = 0.9f,
+                                    stiffness = 500f
+                                )
+                            )
+                    ) {
+                        Column {
+                            Text(
+                                title,
+                                style = MmType.screenTitle.copy(fontSize = 25.sp, lineHeight = 31.sp),
+                                color = MmColors.textPrimary,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (!subtitle.isNullOrBlank()) {
+                                Text(
+                                    subtitle,
+                                    style = MmType.caption,
+                                    color = MmColors.textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs),
+                    modifier = Modifier.padding(start = MmSpacing.xs),
+                    content = actions
+                )
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs),
-                modifier = Modifier.padding(start = MmSpacing.xs),
-                content = actions
-            )
         }
     }
 }
