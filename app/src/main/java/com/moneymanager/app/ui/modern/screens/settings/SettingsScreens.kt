@@ -104,6 +104,7 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
 import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.MmSpotlightPanel
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.appearance.AppearanceEntryPoint
 import com.moneymanager.app.ui.appearance.AppearancePreferences
@@ -477,6 +478,13 @@ fun SettingsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = MmSpacing.xxl + LocalDockContentPadding.current)
             ) {
+                MmSpotlightPanel(
+                    eyebrow = "YOUR MONEY SPACE",
+                    title = "Make it yours",
+                    description = "Shape how you view, protect and back up your financial life.",
+                    icon = Icons.Filled.Info,
+                    modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
+                )
                 SettingsSectionHeader("Appearance", "Choose how Money Manager feels")
                 SettingsGroup {
                     SettingsSwitchRow(
@@ -1003,17 +1011,13 @@ fun FeedbackScreen(onBack: () -> Unit) {
                 .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
         ) {
-            MmCard {
-                Text("Something wrong with your numbers?", style = MmType.sectionTitle, color = MmColors.textPrimary)
-                Spacer(Modifier.height(MmSpacing.xs))
-                Text(
-                    "Include the screen you were on, what you expected and what you saw. Never attach " +
-                        "your exported CSV or backup file to a public issue - it contains your real " +
-                        "financial data.",
-                    style = MmType.caption,
-                    color = MmColors.textSecondary
-                )
-            }
+            MmSpotlightPanel(
+                eyebrow = "HELP & FEEDBACK",
+                title = "Help make the app better",
+                description = "Share the screen, expected result and what happened. Never attach exports or backups to a public issue.",
+                icon = Icons.Filled.BugReport,
+                tint = MmColors.accent
+            )
             SettingsRow(
                 title = "Report a bug",
                 subtitle = "Opens a new issue on the project's GitHub repository",
@@ -1066,14 +1070,15 @@ fun OpenSourceScreen(onBack: () -> Unit) {
                 .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
         ) {
+            MmSpotlightPanel(
+                eyebrow = "OPEN SOURCE",
+                title = "Built in the open",
+                description = "A local-first finance app. Your ledger stays on this device unless you choose to export it.",
+                icon = Icons.Filled.Code,
+                tint = MmColors.income
+            )
             MmCard {
-                Text("Money Manager", style = MmType.sectionTitle, color = MmColors.textPrimary)
-                Text(
-                    "A local-first personal finance app. There is no account, no server and no " +
-                        "analytics - your ledger lives in a database on this device.",
-                    style = MmType.caption,
-                    color = MmColors.textSecondary
-                )
+                Text("Source repository", style = MmType.sectionTitle, color = MmColors.textPrimary)
                 Spacer(Modifier.height(MmSpacing.md))
                 MmPrimaryButton(
                     text = "Open the repository",
@@ -1115,24 +1120,13 @@ fun AboutScreen(onBack: () -> Unit) {
                 .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
         ) {
-            MmCard {
-                Text("Money Manager", style = MmType.screenTitle, color = MmColors.textPrimary)
-                Text(
-                    "Version ${BuildConfig.VERSION_NAME} • build ${BuildConfig.VERSION_CODE}",
-                    style = MmType.caption,
-                    color = MmColors.textSecondary
-                )
-                Spacer(Modifier.height(MmSpacing.md))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MmColors.income, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(MmSpacing.sm))
-                    Text(
-                        "Local-first: nothing leaves this device unless you export it",
-                        style = MmType.caption,
-                        color = MmColors.textSecondary
-                    )
-                }
-            }
+            MmSpotlightPanel(
+                eyebrow = "MONEY MANAGER",
+                title = "Your finances, on your device",
+                description = "Version ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE} · local-first by design.",
+                icon = Icons.Filled.Info,
+                tint = MmColors.income
+            )
             SettingsRow(
                 title = "Project repository",
                 subtitle = "Source code and documentation",
