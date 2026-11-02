@@ -146,8 +146,11 @@ fun BillsScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarState) }
-    ) { padding ->
-        Column(Modifier.fillMaxSize().background(MmColors.background).padding(padding)) {
+    ) { _ ->
+        // The shared top bar applies the safe status/cutout inset once. Applying Scaffold's
+        // system-bar padding here as well would double the top gap and reserve bottom space
+        // behind the floating dock.
+        Column(Modifier.fillMaxSize().background(MmColors.background)) {
             MoneyManagerTopBar(
                 title = "Bills & EMIs",
                 subtitle = "Track upcoming payments without duplicate transactions",
