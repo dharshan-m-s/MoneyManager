@@ -427,6 +427,9 @@ fun SettingsScreen(
     if (pendingRestoreUri != null) {
         AlertDialog(
             onDismissRequest = { if (!restoreBusy) pendingRestoreUri = null },
+            shape = RoundedCornerShape(28.dp),
+            backgroundColor = MmColors.surface,
+            contentColor = MmColors.textPrimary,
             title = { Text("Restore this backup?") },
             text = {
                 Text(
@@ -801,6 +804,9 @@ fun SettingsScreen(
     confirmSwitchTo?.let { target ->
         AlertDialog(
             onDismissRequest = { confirmSwitchTo = null },
+            shape = RoundedCornerShape(28.dp),
+            backgroundColor = MmColors.surface,
+            contentColor = MmColors.textPrimary,
             title = { Text("Change how you unlock?") },
             text = {
                 Text(
@@ -835,6 +841,9 @@ fun SettingsScreen(
     if (switchArmed) {
         AlertDialog(
             onDismissRequest = { switchArmed = false },
+            shape = RoundedCornerShape(28.dp),
+            backgroundColor = MmColors.surface,
+            contentColor = MmColors.textPrimary,
             title = { Text("Turn off app lock?") },
             text = {
                 Text(
@@ -1165,6 +1174,9 @@ private fun PinVerifyDialog(
 
     AlertDialog(
         onDismissRequest = { if (!checking) onDismiss() },
+            shape = RoundedCornerShape(28.dp),
+            backgroundColor = MmColors.surface,
+            contentColor = MmColors.textPrimary,
         title = { Text("Confirm your PIN") },
         text = {
             Column {
