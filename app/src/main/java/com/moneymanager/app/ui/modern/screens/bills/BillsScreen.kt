@@ -174,6 +174,7 @@ fun BillsScreen(
                 }
             )
 
+            Box(Modifier.weight(1f).fillMaxWidth()) {
             if (bills.isEmpty()) {
                 MmEmptyState(
                     icon = Icons.Filled.Payments,
@@ -185,6 +186,7 @@ fun BillsScreen(
                 )
             } else {
                 LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: 36.dp),
                     verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {
@@ -198,6 +200,7 @@ fun BillsScreen(
                         )
                     }
                 }
+            }
             }
         }
     }
