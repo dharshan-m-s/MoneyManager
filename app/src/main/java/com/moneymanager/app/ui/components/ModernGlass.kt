@@ -88,6 +88,20 @@ fun Modifier.mmPageBackdrop(): Modifier {
             radius = size.maxDimension * 0.62f,
             center = secondCenter
         )
+        // Give the lower navigation area a gentle colour field as well. The dock still
+        // samples live page pixels; this only prevents an otherwise pure-black backdrop
+        // when a short screen has no content underneath the floating controls.
+        val dockGlowCenter = Offset(size.width * 0.52f, size.height * 0.96f)
+        val dockGlowAlpha = if (light) 0.075f else 0.19f
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(accent.copy(alpha = dockGlowAlpha), Color.Transparent),
+                center = dockGlowCenter,
+                radius = size.maxDimension * 0.42f
+            ),
+            radius = size.maxDimension * 0.42f,
+            center = dockGlowCenter
+        )
     }
 }
 
@@ -122,7 +136,7 @@ fun Modifier.mmLiquidGlass(
     }
 
     val density = LocalDensity.current
-    val blurRadius = with(density) { 9.dp.toPx() * BACKDROP_SCALE * safeIntensity }
+    val blurRadius = with(density) { 18.dp.toPx() * BACKDROP_SCALE * safeIntensity }
     val lensHeight = with(density) { 20.dp.toPx() * BACKDROP_SCALE * safeIntensity }
     val lensAmount = with(density) { 12.dp.toPx() * BACKDROP_SCALE * safeIntensity }
 
