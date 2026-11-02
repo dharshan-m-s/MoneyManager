@@ -1,6 +1,8 @@
 package com.moneymanager.app.ui.modern.screens.accounts
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -32,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -132,7 +135,21 @@ fun AccountSelectionScreen(
             return@Column
         }
 
-        Column(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md)) {
+        Column(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md), verticalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
+                    .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.14f), MmColors.surfaceElevated, MmColors.surface)))
+                    .border(1.dp, MmColors.accent.copy(alpha = 0.20f), RoundedCornerShape(23.dp))
+                    .padding(horizontal = 16.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("CHOOSE AN ACCOUNT", style = MmType.caption.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp), color = MmColors.accent)
+                    Text("${accounts.size} available accounts", style = MmType.sectionTitle, color = MmColors.textPrimary)
+                    Text("Select where this transaction belongs", style = MmType.caption, color = MmColors.textSecondary)
+                }
+                Icon(Icons.Filled.AccountBalance, contentDescription = null, tint = MmColors.accent, modifier = Modifier.size(23.dp))
+            }
             MmSearchField(
                 value = query,
                 onValueChange = { query = it },

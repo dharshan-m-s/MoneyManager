@@ -1,6 +1,8 @@
 package com.moneymanager.app.ui.modern.screens.categories
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,8 +40,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.entity.CategoryEntity
 import com.moneymanager.app.ui.components.MmCard
@@ -87,7 +91,25 @@ fun CategoryManagerScreen(
                 onBack = onBack
             )
 
-            Column(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md)) {
+            Column(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md), verticalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
+                if (!selectionMode) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
+                            .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.15f), MmColors.surfaceElevated, MmColors.surface)))
+                            .border(1.dp, MmColors.accent.copy(alpha = 0.20f), RoundedCornerShape(23.dp))
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("YOUR CATEGORY LIBRARY", style = MmType.caption.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp), color = MmColors.accent)
+                            Text("${categories.count { it.active }} active categories", style = MmType.sectionTitle, color = MmColors.textPrimary)
+                            Text("Organise the labels behind every transaction", style = MmType.caption, color = MmColors.textSecondary)
+                        }
+                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(MmColors.accent.copy(alpha = 0.13f)), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.Category, contentDescription = null, tint = MmColors.accent, modifier = Modifier.size(21.dp))
+                        }
+                    }
+                }
                 MmSearchField(
                     value = query,
                     onValueChange = { query = it },

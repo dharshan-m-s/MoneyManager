@@ -1,7 +1,13 @@
 package com.moneymanager.app.ui.modern.screens.bills
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +22,7 @@ import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Home
@@ -30,10 +37,12 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.moneymanager.app.data.local.entity.BillerType
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmIconBadge
@@ -77,7 +86,29 @@ fun BillTypeSelectionScreen(
             onBack = onBack
         )
 
-        LazyVerticalGrid(
+        Column(
+            Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Brush.linearGradient(listOf(MmColors.warning.copy(alpha = 0.15f), MmColors.surfaceElevated, MmColors.surface)))
+                    .border(1.dp, MmColors.warning.copy(alpha = 0.22f), RoundedCornerShape(24.dp))
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(MmColors.warning.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.ReceiptLong, contentDescription = null, tint = MmColors.warning, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(MmSpacing.md))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("BILLS & COMMITMENTS", style = MmType.caption.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp), color = MmColors.warning)
+                    Text("What do you need to track?", style = MmType.sectionTitle, color = MmColors.textPrimary)
+                    Text("Choose a type to set up reminders and payments", style = MmType.caption, color = MmColors.textSecondary)
+                }
+            }
+            LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 104.dp),
             contentPadding = PaddingValues(MmSpacing.lg, MmSpacing.sm, MmSpacing.lg, MmSpacing.xxl),
             horizontalArrangement = Arrangement.spacedBy(MmSpacing.md),
@@ -90,6 +121,7 @@ fun BillTypeSelectionScreen(
                     onClick = { onBillTypeSelected(option.type) },
                     modifier = Modifier.revealOnAppear(index = index)
                 )
+            }
             }
         }
     }
