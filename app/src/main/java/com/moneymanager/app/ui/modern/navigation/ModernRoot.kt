@@ -266,41 +266,43 @@ fun ModernRoot() {
         }
     }
 
-    // The previous page-capture backdrop created a cyclic HWUI RenderNode graph
-    // when glass descendants sampled a layer recording their own NavHost subtree.
-    // Keep the shared transition container, but deliberately provide no captured layer.
-    // mmLiquidGlass() then uses its lightweight translucent material fallback, which
-    // keeps the floating dock visually distinct without introducing RenderNode cycles.
+    // Capture only the page. The NavHost subtree receives no backdrop reference, so
+    // glass descendants cannot sample the layer that is currently recording them.
+    // Floating controls are siblings of this capture and may safely sample its finished frame.
+    val glassBackdrop = rememberLayerBackdrop()
+
     SharedTransitionLayout {
         CompositionLocalProvider(
-            LocalMmSharedTransitionScope provides this,
-            LocalMmGlassBackdrop provides null,
-            LocalMmGlassEnabled provides false
+            LocalMmSharedTransitionScope provides this
         ) {
             Box(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxSize().mmBrandWash())
                 Box(Modifier.fillMaxSize()) {
-                    CompositionLocalProvider(
-                        LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
-                    ) {
-                        Box(
-                            Modifier.fillMaxSize()
-                                .onSizeChanged { navHostHeightPx = it.height }
-                                .graphicsLayer {
-                                    translationY = sheetDragOffset
-                                    val travel = (navHostHeightPx * 0.9f).coerceAtLeast(1f)
-                                    alpha = 1f - (sheetDragOffset / travel).coerceIn(0f, 0.18f)
-                                }
+                    Box(Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+                        CompositionLocalProvider(
+                            LocalMmGlassBackdrop provides null,
+                            LocalMmGlassEnabled provides false,
+                            LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
                         ) {
-                            ModernNavHost(
-                                navController = navController,
-                                onOpenMore = {
-                                    overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
-                                },
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .then(if (dockVisible) Modifier else Modifier.navigationBarsPadding())
-                            )
+                            Box(
+                                Modifier.fillMaxSize()
+                                    .onSizeChanged { navHostHeightPx = it.height }
+                                    .graphicsLayer {
+                                        translationY = sheetDragOffset
+                                        val travel = (navHostHeightPx * 0.9f).coerceAtLeast(1f)
+                                        alpha = 1f - (sheetDragOffset / travel).coerceIn(0f, 0.18f)
+                                    }
+                            ) {
+                                ModernNavHost(
+                                    navController = navController,
+                                    onOpenMore = {
+                                        overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .then(if (dockVisible) Modifier else Modifier.navigationBarsPadding())
+                                )
+                            }
                         }
                     }
 
@@ -365,6 +367,12 @@ fun ModernRoot() {
                         }
                     }
 
+        // Everything below is outside the page capture. These floating surfaces may
+        // sample the completed page without creating a page -> glass -> page cycle.
+        CompositionLocalProvider(
+            LocalMmGlassBackdrop provides glassBackdrop,
+            LocalMmGlassEnabled provides true
+        ) {
         // The scrim dismisses on an outside tap. It is drawn before the dock and the menus, so
         // the trigger stays tappable (re-tap closes) and the open card is never blocked by a
         // stale full-screen layer.
@@ -509,6 +517,7 @@ fun ModernRoot() {
                     overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
                 }
             )
+        }
         }
         }
         }
