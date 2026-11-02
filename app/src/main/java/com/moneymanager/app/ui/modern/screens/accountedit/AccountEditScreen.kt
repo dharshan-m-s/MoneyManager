@@ -303,6 +303,9 @@ fun AccountEditScreen(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
+            shape = RoundedCornerShape(28.dp),
+            backgroundColor = MmColors.surface,
+            contentColor = MmColors.textPrimary,
             title = { Text("Delete this account?") },
             text = {
                 val accountLabel = AccountTypeCatalog.label(state.accountType)
