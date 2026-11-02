@@ -148,7 +148,7 @@ fun AccountsScreen(
             }
     }
 
-    Column(Modifier.fillMaxSize().mmPageBackdrop()) {
+    Column(Modifier.fillMaxSize().modernTopInsets().mmPageBackdrop()) {
         AnimatedVisibility(
             visible = !scrollChrome.collapsed,
             enter = fadeIn() + expandVertically(),
@@ -210,6 +210,7 @@ fun AccountsScreen(
 
         if (tab == AccountsTab.ALL && !inactiveView) {
             ModernAllAccountTypesBrowser(
+                modifier = Modifier.weight(1f),
                 accounts = accounts,
                 scrollConnection = scrollChrome.connection,
                 onSelectType = { type ->
@@ -272,7 +273,7 @@ fun AccountsScreen(
             )
         } else {
             LazyColumn(
-                modifier = Modifier.nestedScroll(scrollChrome.connection),
+                modifier = Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
                     end = MmSpacing.screen,
@@ -337,7 +338,7 @@ private fun AccountsHeader(
     onToggleEdit: () -> Unit,
     showBack: Boolean = true
 ) {
-    Column(Modifier.fillMaxWidth().modernTopInsets()) {
+    Column(Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth().padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
@@ -759,13 +760,14 @@ private fun AddAccountRow(
 
 @Composable
 private fun ModernAllAccountTypesBrowser(
+    modifier: Modifier = Modifier,
     accounts: List<AccountEntity>,
     scrollConnection: androidx.compose.ui.input.nestedscroll.NestedScrollConnection,
     onSelectType: (AccountType) -> Unit,
     onAddType: (AccountType) -> Unit
 ) {
     LazyColumn(
-        modifier = Modifier.nestedScroll(scrollConnection),
+        modifier = modifier.nestedScroll(scrollConnection),
         contentPadding = PaddingValues(
             start = MmSpacing.screen,
             top = MmSpacing.sm,
