@@ -170,7 +170,7 @@ fun ModernRoot() {
                         promptAttempt += 1
                     })
                 } else {
-                    Box(Modifier.fillMaxSize().mmPageBackdrop())
+                    Box(Modifier.fillMaxSize().mmBrandWash())
                 }
             }
             appLock.method() == LockMethod.IN_APP_PIN && !appLock.hasPin() -> {
@@ -279,9 +279,9 @@ fun ModernRoot() {
             Box(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
-                        // Include the ambient page wash in the captured pixels. Otherwise
-                        // transparent regions at the bottom of the NavHost can sample as black.
-                        Box(Modifier.fillMaxSize().mmBrandWash())
+                        // Record a subtle, living colour wash beneath the page so the floating dock
+                        // samples something richer than a flat black window background.
+                        Box(Modifier.fillMaxSize().mmPageBackdrop())
                         CompositionLocalProvider(
                             LocalMmGlassBackdrop provides null,
                             LocalMmGlassEnabled provides false,
