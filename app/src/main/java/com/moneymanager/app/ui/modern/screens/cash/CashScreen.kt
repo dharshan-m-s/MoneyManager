@@ -1,6 +1,7 @@
 package com.moneymanager.app.ui.modern.screens.cash
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,9 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -32,6 +35,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
@@ -264,13 +271,23 @@ private fun CashMetric(
     tint: Color,
     modifier: Modifier = Modifier
 ) {
-    MmMetricCard(
-        label = label,
-        value = amount,
-        tint = tint,
-        icon = icon,
-        modifier = modifier
-    )
+    val shape = RoundedCornerShape(21.dp)
+    Row(
+        modifier.fillMaxWidth().clip(shape)
+            .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.18f), MmColors.surfaceElevated, MmColors.surface)))
+            .border(1.dp, tint.copy(alpha = 0.22f), shape)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(32.dp).clip(RoundedCornerShape(11.dp)).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+        }
+        Spacer(Modifier.width(9.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(label, style = MmType.caption.copy(fontSize = 10.sp), color = MmColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(amount, style = MmType.amountTile.copy(fontSize = 15.sp), color = MmColors.textPrimary, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+        }
+    }
 }
 
 @Composable

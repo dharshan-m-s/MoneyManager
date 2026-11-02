@@ -332,6 +332,10 @@ private fun AccountHeader(
             ),
             contentPadding = PaddingValues(MmSpacing.xl)
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (isCreditCard) "CARD LIABILITY" else "ACCOUNT VALUE", style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.1.sp), color = MmColors.textTertiary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                MmPill(if (account.active) "Active" else "Inactive", tint = if (account.active) MmColors.income else MmColors.textSecondary, filled = true)
+            }
             if (isCreditCard) {
                 Text("Outstanding", style = MmType.caption, color = MmColors.textSecondary)
                 MmAnimatedAmount(

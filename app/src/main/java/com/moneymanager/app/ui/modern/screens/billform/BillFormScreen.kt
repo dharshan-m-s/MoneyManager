@@ -1,7 +1,9 @@
 package com.moneymanager.app.ui.modern.screens.billform
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,9 +37,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.BillerType
@@ -106,6 +114,23 @@ fun BillFormScreen(
                 .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp))
+                    .background(Brush.linearGradient(listOf(MmColors.warning.copy(alpha = 0.17f), MmColors.surfaceElevated, MmColors.surface)))
+                    .border(1.dp, MmColors.warning.copy(alpha = 0.24f), RoundedCornerShape(26.dp))
+                    .padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(MmColors.warning.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Receipt, contentDescription = null, tint = MmColors.warning, modifier = Modifier.size(26.dp))
+                }
+                Spacer(Modifier.width(MmSpacing.md))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(if (editingBillId == null) "NEW PAYMENT" else "PAYMENT PROFILE", style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.1.sp), color = MmColors.warning, fontWeight = FontWeight.Bold)
+                    Text(state.billerName.ifBlank { "Name this bill" }, style = MmType.sectionTitle, color = MmColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(pretty(state.billerType.name) + " · " + com.moneymanager.app.domain.billing.BillSchedule.label(state.billingCycle), style = MmType.caption, color = MmColors.textSecondary)
+                }
+            }
             MmSectionHeader(title = "What is it")
 
             MmCard {

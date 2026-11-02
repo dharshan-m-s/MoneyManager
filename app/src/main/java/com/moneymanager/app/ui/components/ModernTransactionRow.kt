@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -116,7 +117,7 @@ fun MmTransactionRow(
     MmTransactionRowContent(
         title = title,
         subtitle = rowSubtitle(txn, inDayGroup = groupPosition != null),
-        leading = { MmIconBadge(icon = icon, tint = tint, size = 46.dp) },
+        leading = { MmIconBadge(icon = icon, tint = tint, size = 48.dp) },
         amountText = when {
             hideAmounts -> "••••"
             isTransfer || isNotSpend -> MoneyFormat.rupeesNoDecimals(amount.abs())
@@ -203,16 +204,17 @@ private fun MmTransactionRowContent(
                 .then(
                     if (grouped) Modifier
                         .clip(shape)
-                        .background(MmColors.surface)
-                        .border(0.65.dp, MmColors.outline.copy(alpha = 0.38f), shape)
+                        .background(Brush.linearGradient(listOf(MmColors.surfaceElevated, MmColors.surface)))
+                        .border(0.75.dp, MmColors.outline.copy(alpha = 0.48f), shape)
                     else Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MmColors.surface)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Brush.linearGradient(listOf(MmColors.surfaceElevated.copy(alpha = 0.78f), MmColors.surface)))
+                        .border(0.65.dp, MmColors.outline.copy(alpha = 0.38f), RoundedCornerShape(22.dp))
                 )
                 .pressableClick(onClick = onClick)
                 .padding(
                     horizontal = if (grouped) MmSpacing.md else MmSpacing.lg,
-                    vertical = 15.dp
+                    vertical = 17.dp
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {

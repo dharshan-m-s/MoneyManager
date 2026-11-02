@@ -468,28 +468,26 @@ fun DashboardScreen(
                         )
                     } else {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(MmSpacing.radiusRow))
-                                .background(MmColors.surfaceMuted)
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
+                                .background(Brush.linearGradient(listOf(MmColors.warning.copy(alpha = 0.15f), MmColors.surface, MmColors.surfaceElevated)))
+                                .border(1.dp, MmColors.warning.copy(alpha = 0.24f), RoundedCornerShape(23.dp))
                                 .pressableClick { onOpenBreakdown(DashboardBreakdownKind.BILLS) }
-                                .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md)
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    "${state.upcomingBillsCount} bill${if (state.upcomingBillsCount == 1) "" else "s"} coming up",
-                                    style = MmType.body,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MmColors.textPrimary
-                                )
-                                Text("Tap for the included occurrences", style = MmType.caption, color = MmColors.textSecondary)
+                            Box(Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(MmColors.warning.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                                Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, tint = MmColors.warning, modifier = Modifier.size(23.dp))
                             }
-                            Text(
-                                MoneyFormat.rupeesNoDecimals(state.upcomingBillsTotal),
-                                style = MmType.amountRow,
-                                color = MmColors.warning
-                            )
+                            Spacer(Modifier.width(MmSpacing.md))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("${state.upcomingBillsCount} upcoming payment${if (state.upcomingBillsCount == 1) "" else "s"}", style = MmType.label, color = MmColors.textPrimary, fontWeight = FontWeight.SemiBold)
+                                Text("Scheduled bills and EMIs", style = MmType.caption, color = MmColors.textSecondary)
+                                Text("Review payment schedule", style = MmType.caption, color = MmColors.accent, fontWeight = FontWeight.SemiBold)
+                            }
+                            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text(MoneyFormat.rupeesNoDecimals(state.upcomingBillsTotal), style = MmType.amountTile, color = MmColors.warning, maxLines = 1, softWrap = false)
+                                Icon(Icons.Filled.ChevronRight, contentDescription = "Open bills", tint = MmColors.warning)
+                            }
                         }
                     }
                 }
@@ -516,7 +514,7 @@ fun DashboardScreen(
             Spacer(Modifier.height(MmSpacing.md))
             Text("Type", style = MmType.label, color = MmColors.textSecondary)
             Spacer(Modifier.height(MmSpacing.sm))
-            Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
                 RecentTypeFilter.entries.forEach { option ->
                     MmChip(
                         label = option.label,
@@ -804,16 +802,33 @@ private fun MonthSummaryCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    MmMetricCard(
-        label = label,
-        value = if (hideAmounts) "••••" else MoneyFormat.rupeesNoDecimals(amount),
-        tint = tint,
-        icon = icon,
-        modifier = modifier,
-        onClick = onClick
-    )
+    val shape = RoundedCornerShape(25.dp)
+    Box(
+        modifier.fillMaxWidth().clip(shape)
+            .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.20f), MmColors.surface, MmColors.surfaceElevated)))
+            .border(1.dp, tint.copy(alpha = 0.26f), shape)
+            .pressableClick(onClick = onClick)
+            .padding(horizontal = 15.dp, vertical = 16.dp)
+    ) {
+        Canvas(Modifier.matchParentSize()) {
+            drawCircle(brush = Brush.radialGradient(listOf(tint.copy(alpha = 0.16f), Color.Transparent)), radius = size.minDimension * 0.78f, center = Offset(size.width * 0.96f, size.height * 0.02f))
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(34.dp).clip(RoundedCornerShape(12.dp)).background(tint.copy(alpha = 0.17f)), contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(17.dp))
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(label, style = MmType.caption, color = MmColors.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = tint.copy(alpha = 0.82f), modifier = Modifier.size(16.dp))
+            }
+            Text(if (hideAmounts) "••••" else MoneyFormat.rupeesNoDecimals(amount), style = MmType.amountTile.copy(fontSize = 21.sp), color = MmColors.textPrimary, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(tint.copy(alpha = 0.13f))) {
+                Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(Brush.horizontalGradient(listOf(tint, tint.copy(alpha = 0.12f)))))
+            }
+        }
+    }
 }
-
 /** Budget ring + remaining summary, or the set-up call to action when no budget exists. */
 @Composable
 private fun BudgetCard(

@@ -1,6 +1,7 @@
 package com.moneymanager.app.ui.modern.screens.addtransaction
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -126,14 +129,21 @@ fun AddTransactionScreen(
                 .padding(bottom = MmSpacing.xxl),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
-            MmCard(
-                contentPadding = PaddingValues(horizontal = MmSpacing.xl, vertical = MmSpacing.xxl),
-                backgroundColor = MmColors.surface
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))
+                    .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.22f), MmColors.surfaceElevated, MmColors.surface)))
+                    .border(1.dp, MmColors.accent.copy(alpha = 0.24f), RoundedCornerShape(30.dp))
+                    .padding(horizontal = MmSpacing.xl, vertical = MmSpacing.xl)
             ) {
-                MmAmountHero(
-                    value = state.amountText,
-                    onValueChange = viewModel::onAmountChange
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("TRANSACTION VALUE", style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.15.sp), color = MmColors.textTertiary, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.weight(1f))
+                        Text(if (state.isIncome) "MONEY IN" else "MONEY OUT", style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 0.8.sp), color = if (state.isIncome) MmColors.income else MmColors.expense, fontWeight = FontWeight.Bold)
+                    }
+                    MmAmountHero(value = state.amountText, onValueChange = viewModel::onAmountChange)
+                    Text("Enter the exact amount recorded on your account", style = MmType.caption, color = MmColors.textSecondary)
+                }
             }
 
             MmCard {

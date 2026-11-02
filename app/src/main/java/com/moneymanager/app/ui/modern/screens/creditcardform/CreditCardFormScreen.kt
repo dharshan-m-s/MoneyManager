@@ -163,7 +163,7 @@ fun CreditCardFormScreen(
             )
 
             MmCard {
-                Text("Card details", style = MmType.label, color = MmColors.textSecondary)
+                Text("01  ·  CARD IDENTITY", style = MmType.caption.copy(letterSpacing = 1.0.sp, fontWeight = FontWeight.Bold), color = MmColors.accent)
                 Spacer(Modifier.height(MmSpacing.md))
                 MmTextField(
                     value = state.billerName,
@@ -196,7 +196,7 @@ fun CreditCardFormScreen(
 
             // --- Financial information: always vertical stack for consistent layout ---
             MmCard {
-                Text("Financial information", style = MmType.label, color = MmColors.textSecondary)
+                Text("02  ·  FINANCIAL POSITION", style = MmType.caption.copy(letterSpacing = 1.0.sp, fontWeight = FontWeight.Bold), color = MmColors.accent)
                 Spacer(Modifier.height(MmSpacing.md))
                 MmAmountField(
                     value = state.outstanding,
@@ -241,7 +241,7 @@ fun CreditCardFormScreen(
 
             // --- Billing settings ---
             MmCard {
-                Text("Billing settings", style = MmType.label, color = MmColors.textSecondary)
+                Text("03  ·  BILLING CYCLE", style = MmType.caption.copy(letterSpacing = 1.0.sp, fontWeight = FontWeight.Bold), color = MmColors.accent)
                 Spacer(Modifier.height(MmSpacing.md))
                 MmStepper(
                     label = "Billing cycle starts on",
@@ -285,7 +285,7 @@ fun CreditCardFormScreen(
 
             // --- Options ---
             MmCard {
-                Text("Options", style = MmType.label, color = MmColors.textSecondary)
+                Text("04  ·  PREFERENCES", style = MmType.caption.copy(letterSpacing = 1.0.sp, fontWeight = FontWeight.Bold), color = MmColors.accent)
                 Spacer(Modifier.height(MmSpacing.md))
                 Text("Account type", style = MmType.label, color = MmColors.textSecondary)
                 Spacer(Modifier.height(MmSpacing.sm))

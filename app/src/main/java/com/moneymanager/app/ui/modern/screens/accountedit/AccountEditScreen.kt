@@ -1,6 +1,7 @@
 package com.moneymanager.app.ui.modern.screens.accountedit
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -35,8 +37,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.AccountTypeCatalog
@@ -96,6 +101,17 @@ fun AccountEditScreen(
                 .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp))
+                    .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.18f), MmColors.surfaceElevated, MmColors.surface)))
+                    .border(1.dp, MmColors.accent.copy(alpha = 0.22f), RoundedCornerShape(26.dp))
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text("ACCOUNT PROFILE", style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.2.sp), color = MmColors.accent, fontWeight = FontWeight.Bold)
+                Text(state.nickname.ifBlank { state.institutionName.ifBlank { "Your account" } }, style = MmType.sectionTitle, color = MmColors.textPrimary)
+                Text("Personalise how this account appears throughout your ledger", style = MmType.caption, color = MmColors.textSecondary)
+            }
             MmCard {
                 if (AccountTypeCatalog.info(state.accountType).isCard) {
                     val cardTypeLabel = when (state.accountType) {

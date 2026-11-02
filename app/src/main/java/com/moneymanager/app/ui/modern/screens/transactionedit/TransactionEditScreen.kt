@@ -1,5 +1,7 @@
 package com.moneymanager.app.ui.modern.screens.transactionedit
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
@@ -40,7 +42,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -146,7 +150,13 @@ fun TransactionEditScreen(
                     }
 
                     // --- Amount + direction ---
-                    MmCard {
+                    Box(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))
+                            .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.16f), MmColors.surfaceElevated, MmColors.surface)))
+                            .border(1.dp, MmColors.outline.copy(alpha = 0.60f), RoundedCornerShape(28.dp))
+                            .padding(MmSpacing.lg)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
                         if (!state.isTransfer) {
                             MmSegmentedControl(
                                 options = listOf("Expense", "Income"),
@@ -199,6 +209,7 @@ fun TransactionEditScreen(
                                 color = MmColors.textSecondary,
                                 modifier = Modifier.padding(top = 3.dp)
                             )
+                        }
                         }
                     }
 

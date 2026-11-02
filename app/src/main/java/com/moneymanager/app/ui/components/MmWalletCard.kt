@@ -116,8 +116,8 @@ fun MmWalletCard(
     Box(
         modifier
             .fillMaxWidth()
-            .aspectRatio(1.586f)
-            .shadow(18.dp, shape, clip = false)
+            .aspectRatio(1.64f)
+            .shadow(22.dp, shape, clip = false)
             .clip(shape)
             .background(Brush.linearGradient(palette))
             .then(interaction)
@@ -133,7 +133,7 @@ fun MmWalletCard(
             val glowCenter = Offset(size.width * 0.88f, size.height * 0.16f)
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color.White.copy(alpha = 0.17f), Color.White.copy(alpha = 0.025f), Color.Transparent),
+                    colors = listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.025f), Color.Transparent),
                     center = glowCenter,
                     radius = size.minDimension * 0.84f
                 ),
@@ -218,7 +218,7 @@ fun MmWalletCard(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = 19.dp, vertical = 17.dp)
+                .padding(horizontal = 21.dp, vertical = 18.dp)
         ) {
             Row(
                 Modifier.fillMaxWidth(),

@@ -42,6 +42,7 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Home
@@ -788,19 +789,20 @@ private fun BillCard(
 
         Spacer(Modifier.height(MmSpacing.sm))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                MoneyFormat.rupeesNoDecimals(Money(amountRemainingMinor)),
-                style = MmType.amountRow,
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(
+                    MoneyFormat.rupeesNoDecimals(Money(amountRemainingMinor)),
+                    style = MmType.amountRow,
                 color = when {
                     overdue -> MmColors.expense
                     paid -> MmColors.income
                     else -> MmColors.textPrimary
                 }
             )
-            Spacer(Modifier.width(MmSpacing.sm))
-            MmPill(statusText, tint = statusColor, filled = true)
-            Spacer(Modifier.weight(1f))
-            Text(displayDate, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1)
+                MmPill(statusText, tint = statusColor, filled = true)
+                Text(displayDate, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1)
+            }
+            Icon(Icons.Filled.ChevronRight, contentDescription = "Open bill", tint = MmColors.textTertiary)
         }
 
         if (next != null && payable) {

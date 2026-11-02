@@ -402,67 +402,40 @@ private fun DayHeader(date: LocalDate, dayNet: Long) {
 /** Compact summary of what is currently visible, with no inferred trend. */
 @Composable
 private fun InViewSummary(income: Long, expense: Long) {
-    val reveal = androidx.compose.runtime.remember(income, expense) { Animatable(0f) }
-    LaunchedEffect(income, expense) {
-        reveal.snapTo(0f)
-        reveal.animateTo(1f, animationSpec = tween(620))
-    }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
-            .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(Color(0xFF222A45), Color(0xFF39476C), Color(0xFF20283F))
-                )
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(24.dp))
-            .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
-        horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically
+    val net = income - expense
+    val netTint = if (net >= 0L) MmColors.income else MmColors.expense
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
+            .clip(RoundedCornerShape(26.dp))
+            .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.18f), MmColors.surfaceElevated, MmColors.surface)))
+            .border(1.dp, MmColors.outline.copy(alpha = 0.62f), RoundedCornerShape(26.dp))
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        SummaryColumn(
-            "Net", income - expense, Modifier.weight(1f),
-            tint = Color.White, labelColor = Color.White.copy(alpha = 0.68f),
-            showSign = true
-        )
-        SummaryColumn(
-            "Income", income, Modifier.weight(1f),
-            tint = Color(0xFFB8F1D8), labelColor = Color.White.copy(alpha = 0.68f)
-        )
-        SummaryColumn(
-            "Spent", expense, Modifier.weight(1f),
-            tint = Color(0xFFFFC1B8), labelColor = Color.White.copy(alpha = 0.68f),
-            showSign = true
-        )
-        Canvas(Modifier.width(35.dp).height(42.dp)) {
-            val maximum = maxOf(income.coerceAtLeast(0L), expense.coerceAtLeast(0L), 1L).toFloat()
-            val values = listOf(
-                income.coerceAtLeast(0L).toFloat() / maximum,
-                expense.coerceAtLeast(0L).toFloat() / maximum
-            )
-            val colors = listOf(Color(0xFF9BE6C5), Color(0xFFFFAFA5))
-            val gap = 6.dp.toPx()
-            val barWidth = 10.dp.toPx()
-            val groupWidth = barWidth * 2f + gap
-            val startX = (size.width - groupWidth) / 2f
-            values.forEachIndexed { index, value ->
-                val h = (size.height * value * reveal.value).coerceAtLeast(2.dp.toPx())
-                val tint = colors[index]
-                drawRoundRect(
-                    brush = Brush.verticalGradient(
-                        listOf(tint.copy(alpha = 0.98f), tint.copy(alpha = 0.30f))
-                    ),
-                    topLeft = Offset(startX + index * (barWidth + gap), size.height - h),
-                    size = Size(barWidth, h),
-                    cornerRadius = CornerRadius(barWidth / 2f)
-                )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("NET FLOW", style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.1.sp), color = MmColors.textTertiary, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text((if (net < 0L) "−" else "+") + MoneyFormat.rupeesNoDecimals(Money(kotlin.math.abs(net))), style = MmType.amountLarge.copy(fontSize = 25.sp), color = netTint, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             }
+            Box(Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(netTint.copy(alpha = 0.13f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.NorthEast, contentDescription = null, tint = netTint, modifier = Modifier.size(21.dp))
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SummaryColumn("Income", income, Modifier.weight(1f), tint = MmColors.income, labelColor = MmColors.textSecondary)
+            SummaryColumn("Spent", expense, Modifier.weight(1f), tint = MmColors.expense, labelColor = MmColors.textSecondary, showSign = true)
+        }
+        val expenseTint = MmColors.expense
+        val incomeTint = MmColors.income
+        Canvas(Modifier.fillMaxWidth().height(5.dp)) {
+            val total = (income.coerceAtLeast(0L) + expense.coerceAtLeast(0L)).coerceAtLeast(1L).toFloat()
+            val incomeWidth = size.width * (income.coerceAtLeast(0L).toFloat() / total)
+            drawRoundRect(expenseTint.copy(alpha = 0.20f), cornerRadius = CornerRadius(size.height / 2f))
+            drawRoundRect(Brush.horizontalGradient(listOf(incomeTint, incomeTint.copy(alpha = 0.68f))), size = Size(incomeWidth, size.height), cornerRadius = CornerRadius(size.height / 2f))
         }
     }
 }
-
 @Composable
 private fun SummaryColumn(
     label: String,

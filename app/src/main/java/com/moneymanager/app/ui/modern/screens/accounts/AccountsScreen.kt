@@ -5,6 +5,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
@@ -390,51 +392,44 @@ private fun AccountsTabs(selected: Int, onSelect: (Int) -> Unit) {
     val primary = AccountsTab.primary
     val primaryIndices = primary.map { AccountsTab.entries.indexOf(it) }
     val allIndex = AccountsTab.entries.indexOf(AccountsTab.ALL)
-    val selectedIndexInPrimary = primaryIndices.indexOf(selected).coerceAtLeast(-1)
-    Column {
-        MmSegmentedControl(
-            options = primary.map { it.label },
-            selectedIndex = if (selected == allIndex) -1 else selectedIndexInPrimary,
-            onSelect = { onSelect(primaryIndices[it]) },
-            modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-        )
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
-            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-        ) {
-            val selAll = selected == allIndex
-            val selectedHiddenLabel = primaryIndices.none { it == selected } && !selAll
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(if (selAll) MmColors.accent.copy(alpha = 0.16f) else MmColors.surfaceElevated)
-                    .border(
-                        width = 1.dp,
-                        color = if (selAll) MmColors.accent.copy(alpha = 0.6f) else MmColors.outline,
-                        shape = RoundedCornerShape(50)
-                    )
-                    .pressableClick { onSelect(allIndex) }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
+    val selectedIndexInPrimary = primaryIndices.indexOf(selected)
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        primary.forEachIndexed { index, tab ->
+            val active = selectedIndexInPrimary == index
+            val tint = if (active) MmColors.accent else MmColors.textSecondary
+            Row(
+                Modifier.clip(RoundedCornerShape(18.dp))
+                    .background(if (active) MmColors.accent.copy(alpha = 0.16f) else MmColors.surface)
+                    .border(1.dp, if (active) MmColors.accent.copy(alpha = 0.58f) else MmColors.outline.copy(alpha = 0.62f), RoundedCornerShape(18.dp))
+                    .pressableClick { onSelect(primaryIndices[index]) }
+                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.MoreHoriz, contentDescription = null, tint = if (selAll) MmColors.accent else MmColors.textSecondary, modifier = Modifier.size(14.dp))
-                    Text(
-                        when {
-                            selAll -> "All account types · selected"
-                            selectedHiddenLabel -> "${AccountsTab.entries[selected].label} · Browse all account types"
-                            else -> "Browse all account types"
-                        },
-                        style = MmType.body,
-                        color = if (selAll) MmColors.accent else MmColors.textSecondary,
-                        fontWeight = if (selAll) FontWeight.SemiBold else FontWeight.Medium
-                    )
-                }
+                Icon(modernTypeIcon(tab.types.first()), contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+                Text(tab.label, style = MmType.label, color = tint, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
             }
+        }
+        val allSelected = selected == allIndex || selectedIndexInPrimary < 0
+        Row(
+            Modifier.clip(RoundedCornerShape(18.dp))
+                .background(if (allSelected) MmColors.accent.copy(alpha = 0.16f) else MmColors.surface)
+                .border(1.dp, if (allSelected) MmColors.accent.copy(alpha = 0.58f) else MmColors.outline.copy(alpha = 0.62f), RoundedCornerShape(18.dp))
+                .pressableClick { onSelect(allIndex) }
+                .padding(horizontal = 14.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Icon(Icons.Filled.MoreHoriz, contentDescription = null, tint = if (allSelected) MmColors.accent else MmColors.textSecondary, modifier = Modifier.size(16.dp))
+            Text("All types", style = MmType.label, color = if (allSelected) MmColors.accent else MmColors.textSecondary, fontWeight = if (allSelected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
         }
     }
 }
-
 @Composable
 private fun AccountRow(
     account: AccountEntity,
@@ -502,8 +497,8 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(19.dp))
-                    .background(MmColors.surface)
-                    .border(0.75.dp, MmColors.outline.copy(alpha = 0.42f), RoundedCornerShape(19.dp))
+                    .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.085f), MmColors.surface, MmColors.surfaceElevated)))
+                    .border(0.85.dp, tint.copy(alpha = 0.24f), RoundedCornerShape(19.dp))
                     .clickable(onClick = if (editMode) onEdit else onClick)
                     .padding(horizontal = MmSpacing.md, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -647,8 +642,8 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(MmColors.surface)
-                    .border(0.7.dp, MmColors.outline.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                    .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.10f), MmColors.surface, MmColors.surfaceElevated)))
+                    .border(0.85.dp, tint.copy(alpha = 0.24f), RoundedCornerShape(20.dp))
                     .clickable(onClick = onClick)
                     .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
                 verticalAlignment = Alignment.CenterVertically
