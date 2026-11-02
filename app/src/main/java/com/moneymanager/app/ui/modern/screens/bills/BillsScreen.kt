@@ -95,6 +95,7 @@ import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.LocalDockContentPadding
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneId
@@ -184,7 +185,7 @@ fun BillsScreen(
                 )
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(start = MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = 112.dp),
+                    contentPadding = PaddingValues(start = MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: 36.dp),
                     verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {
                     itemsIndexed(bills, key = { _, row -> row.bill.id }) { index, row ->
