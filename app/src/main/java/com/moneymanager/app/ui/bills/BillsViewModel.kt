@@ -100,6 +100,11 @@ class BillsViewModel @Inject constructor(
         private const val DAY_MS = 86_400_000L
     }
 
+    /** Removes the bill template and its scheduled occurrence/payment-allocation history. */
+    fun deleteBill(billId: Long) {
+        viewModelScope.launch { billDao.deleteById(billId) }
+    }
+
     fun findPaymentTransactions(row: BillRow, searchOlder: Boolean = false) {
         val instance = row.nextInstance ?: return
         _paymentSearch.value = BillPaymentSearchState(

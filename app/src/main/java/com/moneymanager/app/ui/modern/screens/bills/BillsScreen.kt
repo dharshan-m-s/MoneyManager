@@ -36,6 +36,7 @@ import androidx.compose.material.SnackbarHost
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
+import androidx.compose.material.AlertDialog
 import androidx.compose.material.RadioButton
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.icons.Icons
@@ -54,6 +55,7 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -156,7 +158,8 @@ fun BillsScreen(
                             row = row,
                             modifier = Modifier.revealOnAppear(index = index),
                             onClick = { onEditBiller(row.bill.id) },
-                            onMarkPaid = { if (row.nextInstance != null) viewModel.findPaymentTransactions(row) }
+                            onMarkPaid = { if (row.nextInstance != null) viewModel.findPaymentTransactions(row) },
+                            onDelete = { viewModel.deleteBill(row.bill.id) }
                         )
                     }
                 }
@@ -655,9 +658,11 @@ private fun BillCard(
     row: BillRow,
     onClick: () -> Unit,
     onMarkPaid: () -> Unit,
+    onDelete: () -> Unit,
     onConfirmDetectedPayment: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var showDeleteConfirmation by remember(row.bill.id) { mutableStateOf(false) }
     val now = System.currentTimeMillis()
     val next = row.nextInstance
     val latestPaid = row.latestPaid
@@ -776,6 +781,9 @@ private fun BillCard(
                     modifier = Modifier.size(18.dp)
                 )
             }
+            IconButton(onClick = { showDeleteConfirmation = true }) {
+                Icon(Icons.Filled.Delete, contentDescription = "Delete bill", tint = MmColors.textTertiary)
+            }
         }
 
         Spacer(Modifier.height(MmSpacing.sm))
@@ -819,6 +827,19 @@ private fun BillCard(
                 color = MmColors.textSecondary
             )
         }
+    }
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Delete ${row.bill.billerName}?") },
+            text = { Text("This removes the bill and its scheduled payment history. Transactions already recorded in your accounts will remain in your ledger.") },
+            confirmButton = {
+                TextButton(onClick = { showDeleteConfirmation = false; onDelete() }) {
+                    Text("Delete", color = MmColors.expense)
+                }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteConfirmation = false }) { Text("Cancel") } }
+        )
     }
 }
 

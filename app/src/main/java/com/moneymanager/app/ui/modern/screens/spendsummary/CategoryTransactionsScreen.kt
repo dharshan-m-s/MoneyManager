@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -70,6 +73,8 @@ fun CategoryTransactionsScreen(
     val monthLabel = remember(monthWindow) { viewModel.monthLabel(monthWindow) }
     val months = viewModel.availableMonths
     val selectedIdx by viewModel.selectedMonthIndex.collectAsState()
+    val monthlyTotalsFlow = remember(categoryId, viewModel) { viewModel.monthlyTotals(categoryId) }
+    val monthlyTotals by monthlyTotalsFlow.collectAsState()
 
     val spent = rows.sumOf { it.debitMinorUnits - it.creditMinorUnits }
 
@@ -82,9 +87,7 @@ fun CategoryTransactionsScreen(
         if (months.isNotEmpty()) {
             MonthBarGraph(
                 months = months,
-                monthlyTotals = List(months.size) { index ->
-                    if (index == selectedIdx) spent else 0L
-                },
+                monthlyTotals = monthlyTotals,
                 selectedIdx = selectedIdx,
                 onSelect = viewModel::selectMonth
             )
@@ -159,64 +162,28 @@ fun CategoryTransactionsScreen(
  * One bar per month for quick selection in category drill-down.
  */
 @Composable
-private fun MonthBarGraph(
-    months: List<MonthWindow>,
-    monthlyTotals: List<Long>,
-    selectedIdx: Int,
-    onSelect: (Int) -> Unit
-) {
-    val maxTotal = (monthlyTotals.maxOrNull() ?: 0L).coerceAtLeast(1L)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(96.dp)
-            .padding(horizontal = MmSpacing.lg),
-        horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-    ) {
-        months.asReversed().forEachIndexed { reversedIdx, month ->
+private fun MonthBarGraph(months: List<MonthWindow>, monthlyTotals: List<Long>, selectedIdx: Int, onSelect: (Int) -> Unit) {
+    val maxTotal = (monthlyTotals.maxOfOrNull { kotlin.math.abs(it) } ?: 0L).coerceAtLeast(1L)
+    LazyRow(modifier = Modifier.fillMaxWidth().height(112.dp), contentPadding = PaddingValues(horizontal = MmSpacing.lg), horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
+        itemsIndexed(months.asReversed(), key = { _, month -> month.startInclusive }) { reversedIdx, month ->
             val idx = months.lastIndex - reversedIdx
-            val totalForMonth = monthlyTotals.getOrNull(idx) ?: 0L
-            val hasData = totalForMonth > 0L
-            val isSelected = idx == selectedIdx
-            val fillFraction = if (hasData) (totalForMonth.toFloat() / maxTotal).coerceIn(0.12f, 1f) else 0f
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (hasData) MmColors.accent.copy(alpha = 0.14f) else MmColors.surfaceMuted)
-                        .pressableClick { onSelect(idx) },
-                    contentAlignment = Alignment.BottomCenter
-                ) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height((96.dp * fillFraction))
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                when {
-                                    isSelected -> MmColors.accent
-                                    hasData -> MmColors.accent.copy(alpha = 0.55f)
-                                    else -> MmColors.textTertiary.copy(alpha = 0.35f)
-                                }
-                            )
-                    )
+            val amount = monthlyTotals.getOrNull(idx) ?: 0L
+            val magnitude = kotlin.math.abs(amount)
+            val selected = idx == selectedIdx
+            val fraction = if (magnitude > 0L) (magnitude.toFloat() / maxTotal.toFloat()).coerceIn(0.08f, 1f) else 0f
+            Column(Modifier.width(52.dp).fillMaxHeight().pressableClick { onSelect(idx) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(if (amount == 0L) "₹0" else MoneyFormat.rupeesNoDecimals(Money(amount)), style = MmType.caption.copy(fontSize = 9.sp, fontWeight = FontWeight.SemiBold), color = if (selected) MmColors.accent else MmColors.textTertiary, maxLines = 1, softWrap = false)
+                Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 7.dp, vertical = 3.dp), contentAlignment = Alignment.BottomCenter) {
+                    Box(Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(12.dp)).background(MmColors.surfaceMuted.copy(alpha = 0.72f)), contentAlignment = Alignment.BottomCenter) {
+                        if (fraction > 0f) {
+                            Box(Modifier.fillMaxWidth().fillMaxHeight(fraction).clip(RoundedCornerShape(12.dp)).background(Brush.verticalGradient(listOf(MmColors.accent, MmColors.accentFill))))
+                        } else {
+                            Box(Modifier.fillMaxWidth(0.42f).height(3.dp).clip(CircleShape).background(MmColors.outline))
+                        }
+                    }
                 }
-                Spacer(Modifier.height(MmSpacing.xs))
-                Text(
-                    month.label,
-                    style = MmType.caption.copy(fontSize = 9.sp),
-                    color = if (isSelected) MmColors.accent else MmColors.textSecondary,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1
-                )
-            }
-            if (reversedIdx != months.lastIndex) {
-                Spacer(Modifier.width(MmSpacing.xs))
+                Text(month.label.substringBefore(" "), style = MmType.caption.copy(fontSize = 10.sp), color = if (selected) MmColors.accent else MmColors.textSecondary, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+                Text(month.label.substringAfter(" '", ""), style = MmType.caption.copy(fontSize = 8.sp), color = MmColors.textTertiary, maxLines = 1)
             }
         }
     }

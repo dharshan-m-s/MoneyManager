@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -146,10 +149,15 @@ fun DashboardBreakdownScreen(
                                 label = "YOUR NET WORTH",
                                 value = MoneyFormat.rupeesNoDecimals(state.total),
                                 animatedValueMinorUnits = state.total.minorUnits,
-                                visualValues = composition.map { it.amount },
-                                visualLabel = "Financial mix",
+                                visualValues = emptyList(),
+                                visualLabel = null,
+                                artworkKind = "net_worth",
                                 caption = "${allLines.size} accounts across ${grouped.size} account types"
                             )
+                            Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
+                                MmMetricCard(label = "Assets", value = MoneyFormat.rupeesNoDecimals(state.assetTotal), tint = MmColors.income, icon = Icons.Filled.AccountBalanceWallet, modifier = Modifier.weight(1f))
+                                MmMetricCard(label = "Liabilities", value = MoneyFormat.rupeesNoDecimals(state.liabilityTotal), tint = MmColors.expense, icon = Icons.Filled.AccountBalance, modifier = Modifier.weight(1f))
+                            }
                             BalanceCompositionCard(
                                 title = "Where your money is held",
                                 subtitle = "Live balances grouped by the account types you use",
@@ -158,27 +166,16 @@ fun DashboardBreakdownScreen(
                         }
                     }
                     else -> {
-                        MmCard {
-                            Text(
-                                when (kind) {
-                                    DashboardBreakdownKind.SPENT -> "Total spent"
-                                    DashboardBreakdownKind.INCOME -> "Total income"
-                                    DashboardBreakdownKind.BILLS -> "Total unpaid"
-                                    else -> "Overview"
-                                },
-                                style = MmType.caption,
-                                color = MmColors.textSecondary
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                MoneyFormat.rupeesNoDecimals(state.total),
-                                style = MmType.amountLarge,
-                                color = if (state.total.isNegative) MmColors.expense else MmColors.textPrimary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(Modifier.height(MmSpacing.sm))
-                            Text(state.formula, style = MmType.caption, color = MmColors.textSecondary)
+                        if (kind == DashboardBreakdownKind.SPENT || kind == DashboardBreakdownKind.INCOME) {
+                            FlowBreakdownHeroCard(kind, state.total, state.transactions, state.formula)
+                        } else {
+                            MmCard {
+                                Text("Total unpaid", style = MmType.caption, color = MmColors.textSecondary)
+                                Spacer(Modifier.height(4.dp))
+                                Text(MoneyFormat.rupeesNoDecimals(state.total), style = MmType.amountLarge, color = MmColors.textPrimary)
+                                Spacer(Modifier.height(MmSpacing.sm))
+                                Text(state.formula, style = MmType.caption, color = MmColors.textSecondary)
+                            }
                         }
                     }
                 }
@@ -324,6 +321,47 @@ fun DashboardBreakdownScreen(
     }
 }
 
+@Composable
+private fun FlowBreakdownHeroCard(kind: DashboardBreakdownKind, total: Money, transactions: List<com.moneymanager.app.data.local.entity.TransactionEntity>, formula: String) {
+    val isIncome = kind == DashboardBreakdownKind.INCOME
+    val tint = if (isIncome) Color(0xFF35C99A) else Color(0xFFFF8291)
+    val amounts = transactions.map { maxOf(it.debitMinorUnits, it.creditMinorUnits) }.filter { it > 0L }
+    val average = if (amounts.isEmpty()) 0L else amounts.sum() / amounts.size
+    val largest = amounts.maxOrNull() ?: 0L
+    val bars = amounts.take(8).reversed()
+    val maxBar = (bars.maxOrNull() ?: 1L).coerceAtLeast(1L)
+    MmCard(contentPadding = PaddingValues(0.dp)) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Brush.linearGradient(listOf(tint.copy(alpha = 0.90f), Color(0xFF20243B)))).padding(MmSpacing.xl), verticalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
+            Text(if (isIncome) "TOTAL INCOME" else "TOTAL SPENT", style = MmType.caption.copy(letterSpacing = 1.sp), color = Color.White.copy(alpha = 0.76f), fontWeight = FontWeight.SemiBold)
+            Text(MoneyFormat.rupeesNoDecimals(total), style = MmType.amountHero, color = Color.White, maxLines = 1, softWrap = false)
+            Text(formula, style = MmType.caption, color = Color.White.copy(alpha = 0.78f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(Modifier.fillMaxWidth().height(74.dp), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.Bottom) {
+                if (bars.isEmpty()) {
+                    repeat(6) { Box(Modifier.weight(1f).height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.25f))) }
+                } else {
+                    bars.forEachIndexed { index, amount ->
+                        val fraction = (amount.toFloat() / maxBar.toFloat()).coerceIn(0.08f, 1f)
+                        Box(Modifier.weight(1f).height((fraction * 66f).dp).clip(RoundedCornerShape(topStart = 7.dp, topEnd = 7.dp)).background(Color.White.copy(alpha = 0.30f + index * 0.07f)))
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
+                FlowStat("Transactions", transactions.size.toString(), Modifier.weight(1f))
+                FlowStat("Average", MoneyFormat.rupeesNoDecimals(Money(average)), Modifier.weight(1f))
+                FlowStat("Largest", MoneyFormat.rupeesNoDecimals(Money(largest)), Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun FlowStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier.clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = 0.10f)).padding(10.dp)) {
+        Text(label, style = MmType.caption.copy(fontSize = 9.sp), color = Color.White.copy(alpha = 0.7f), maxLines = 1)
+        Text(value, style = MmType.label, color = Color.White, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+    }
+}
+
 private data class CompositionSegment(
     val label: String,
     val amount: Long,
@@ -445,10 +483,11 @@ private fun BreakdownSectionHeader(title: String, total: String) {
 private fun AccountLineRow(line: AccountLine, liability: Boolean, modifier: Modifier = Modifier) {
     MmCard(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            MmBankLogo(
-                bankName = line.account.institutionName,
-                modifier = Modifier.size(42.dp)
-            )
+            if (line.account.accountType == AccountType.CASH) {
+                com.moneymanager.app.ui.components.FinanceArtwork(kind = "cash", tint = MmColors.income, modifier = Modifier.size(48.dp))
+            } else {
+                MmBankLogo(bankName = line.account.institutionName, modifier = Modifier.size(42.dp))
+            }
             Spacer(Modifier.width(MmSpacing.md))
             Column(Modifier.weight(1f)) {
                 Text(

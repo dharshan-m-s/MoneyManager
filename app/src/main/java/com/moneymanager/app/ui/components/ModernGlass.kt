@@ -64,7 +64,7 @@ fun Modifier.mmLiquidGlass(
     }
 
     val density = LocalDensity.current
-    val blurRadius = with(density) { 8.dp.toPx() * BACKDROP_SCALE * safeIntensity }
+    val blurRadius = with(density) { 12.dp.toPx() * BACKDROP_SCALE * safeIntensity }
     val lensHeight = with(density) { 30.dp.toPx() * BACKDROP_SCALE * safeIntensity }
     val lensAmount = with(density) { 22.dp.toPx() * BACKDROP_SCALE * safeIntensity }
 
@@ -92,7 +92,7 @@ fun Modifier.mmLiquidGlass(
             )
         },
         onDrawSurface = {
-            drawRect(tint.copy(alpha = if (light) 0.34f else 0.48f))
+            drawRect(tint.copy(alpha = if (light) 0.22f else 0.30f))
         },
         backdropScale = BACKDROP_SCALE
     ).clip(shape)

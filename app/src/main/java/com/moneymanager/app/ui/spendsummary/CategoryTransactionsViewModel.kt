@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -46,6 +47,16 @@ class CategoryTransactionsViewModel @Inject constructor(
         return flow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     }
 
+    /** Reactive month-by-month net totals for the category chart (newest first). */
+    fun monthlyTotals(categoryId: Long): StateFlow<List<Long>> {
+        val streams = availableMonths.map { window ->
+            transactionDao.observeByCategoryInRange(categoryId.takeIf { it >= 0L }, window.startInclusive, window.endExclusive)
+        }
+        return combine(streams) { monthRows ->
+            monthRows.map { rows -> rows.sumOf { it.debitMinorUnits - it.creditMinorUnits } }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), List(availableMonths.size) { 0L })
+    }
+
     suspend fun categoryName(categoryId: Long): String =
         categoryId.takeIf { it >= 0 }?.let { categoryDao.findById(it)?.name } ?: "Uncategorized"
 
@@ -64,7 +75,7 @@ class CategoryTransactionsViewModel @Inject constructor(
     private val zone = java.time.ZoneId.of("Asia/Kolkata")
     val availableMonths: List<MonthWindow> = run {
         val now = java.time.ZonedDateTime.now(zone)
-        (0..5).map { index ->
+        (0..17).map { index ->
             val start = now.toLocalDate().withDayOfMonth(1).minusMonths(index.toLong()).atStartOfDay(zone)
             val startInclusive = start.toInstant().toEpochMilli()
             val endExclusive = start.plusMonths(1).toInstant().toEpochMilli()

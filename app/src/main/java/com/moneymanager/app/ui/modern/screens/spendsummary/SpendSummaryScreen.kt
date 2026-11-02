@@ -60,6 +60,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.FinanceArtwork
+import com.moneymanager.app.ui.modern.screens.categories.CategoryVisual
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmProgressBar
 import com.moneymanager.app.ui.components.MoneyFormat
@@ -684,14 +686,12 @@ private fun SpendCategoryCard(
         contentPadding = PaddingValues(horizontal = MmSpacing.md, vertical = MmSpacing.md)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(15.dp))
-                    .background(color.copy(alpha = 0.13f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(Modifier.size(13.dp).clip(CircleShape).background(color))
+            Box(Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(Brush.linearGradient(listOf(color.copy(alpha = 0.28f), color.copy(alpha = 0.08f)))).padding(2.dp), contentAlignment = Alignment.Center) {
+                if (row.category != null) {
+                    CategoryVisual(category = row.category, size = 52.dp)
+                } else {
+                    FinanceArtwork(kind = "category_uncategorized", tint = color, modifier = Modifier.size(52.dp))
+                }
             }
             Spacer(Modifier.width(MmSpacing.md))
             Column(Modifier.weight(1f)) {

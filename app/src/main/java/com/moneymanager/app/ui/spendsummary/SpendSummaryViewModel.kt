@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.moneymanager.app.data.local.dao.CategoryDao
 import com.moneymanager.app.data.local.dao.CategoryTotal
+import com.moneymanager.app.data.local.entity.CategoryEntity
 import com.moneymanager.app.data.local.dao.TransactionDao
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,7 +23,7 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
-data class SpendCategoryRow(val categoryId: Long?, val name: String, val total: Long, val colorHex: String)
+data class SpendCategoryRow(val categoryId: Long?, val name: String, val total: Long, val colorHex: String, val category: CategoryEntity? = null)
 
 /** One selectable time window. */
 data class MonthWindow(val startInclusive: Long, val endExclusive: Long, val label: String)
@@ -80,7 +81,7 @@ class SpendSummaryViewModel @Inject constructor(
         // calculation. Consumers render negative rows as credits rather than dropping them.
         totals.filter { it.total != 0L }.map { t ->
             val cat = t.categoryId?.let { byId[it] }
-            SpendCategoryRow(t.categoryId, cat?.name ?: "Uncategorized", t.total, cat?.colorHex ?: "#9E9E9E")
+            SpendCategoryRow(t.categoryId, cat?.name ?: "Uncategorized", t.total, cat?.colorHex ?: "#9E9E9E", cat)
         }.sortedByDescending { it.total }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -127,9 +128,8 @@ class SpendSummaryViewModel @Inject constructor(
                 runCatching { YearMonth.parse(row.yearMonth) }.getOrNull()?.let { it to row.total }
             }.toMap()
             val currentMonth = YearMonth.now(zone)
-            val firstMonth = totalsByMonth.keys.minOrNull() ?: currentMonth
-            val count = java.time.temporal.ChronoUnit.MONTHS.between(firstMonth, currentMonth)
-                .toInt().coerceAtLeast(0)
+            // Keep a stable 18-month calendar window, even when earlier months have no spend.
+            val count = 17
             val labelFormat = DateTimeFormatter.ofPattern("MMM ''yy")
             val windows = (0..count).map { offset ->
                 val month = currentMonth.minusMonths(offset.toLong())

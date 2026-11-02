@@ -176,9 +176,9 @@ private fun aggregateSpendHistory(
     )
 }
 
-private fun sixMonthDashboardPreview(history: DashboardSpendHistory): DashboardSpendHistory {
+private fun dashboardHistoryPreview(history: DashboardSpendHistory): DashboardSpendHistory {
     val current = YearMonth.now(dashboardZone)
-    val windows = (0L..5L).map { offset ->
+    val windows = (0L..17L).map { offset ->
         val month = current.minusMonths(offset)
         val start = month.atDay(1).atStartOfDay(dashboardZone).toInstant().toEpochMilli()
         val end = month.plusMonths(1).atDay(1).atStartOfDay(dashboardZone).toInstant().toEpochMilli()
@@ -223,7 +223,7 @@ fun DashboardScreen(
     val state = uiState
     val dashboardSpendHistory by spendViewModel.dashboardSpendHistory.collectAsState()
     val dashboardPreviewHistory = remember(dashboardSpendHistory) {
-        sixMonthDashboardPreview(dashboardSpendHistory)
+        dashboardHistoryPreview(dashboardSpendHistory)
     }
     val customSpendHistory by spendViewModel.customSpendHistory.collectAsState()
     var selectedSpendMonth by rememberSaveable { mutableStateOf(0) }
@@ -1007,17 +1007,24 @@ private fun MonthlySpendTrendChart(
                     message = "Your recent monthly trend will appear here when you record transactions."
                 )
             } else {
-                Row(
-                    Modifier.fillMaxWidth().height(142.dp),
-                    horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs)
+                val chartState = rememberLazyListState()
+                LaunchedEffect(months.size, selected) {
+                    val selectedPosition = chronologicalIndices.indexOf(selected).coerceAtLeast(0)
+                    chartState.scrollToItem((selectedPosition - 5).coerceAtLeast(0))
+                }
+                LazyRow(
+                    state = chartState,
+                    modifier = Modifier.fillMaxWidth().height(142.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {
-                    chronologicalIndices.forEach { index ->
+                    itemsIndexed(items = chronologicalIndices, key = { _, index -> months[index].startInclusive }) { _, index ->
                         DashboardMonthBar(
                             month = months[index],
                             amount = monthlyTotals.getOrNull(index) ?: 0L,
                             maxMagnitude = maxMagnitude,
                             selected = index == selected,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.width(52.dp),
                             onClick = { onSelectMonth(index) }
                         )
                     }
