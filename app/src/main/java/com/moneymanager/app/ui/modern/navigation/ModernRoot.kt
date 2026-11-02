@@ -276,9 +276,11 @@ fun ModernRoot() {
             LocalMmSharedTransitionScope provides this
         ) {
             Box(Modifier.fillMaxSize()) {
-                Box(Modifier.fillMaxSize().mmBrandWash())
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+                        // Include the ambient page wash in the captured pixels. Otherwise
+                        // transparent regions at the bottom of the NavHost can sample as black.
+                        Box(Modifier.fillMaxSize().mmBrandWash())
                         CompositionLocalProvider(
                             LocalMmGlassBackdrop provides null,
                             LocalMmGlassEnabled provides false,
