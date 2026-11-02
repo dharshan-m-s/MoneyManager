@@ -727,10 +727,14 @@ private fun BillCard(
         contentPadding = PaddingValues(MmSpacing.card)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            MmIconBadge(
-                icon = billerIcon(row.bill.billerType),
-                tint = if (overdue) MmColors.expense else if (paid) MmColors.income else MmColors.warning,
-                size = 44.dp
+            com.moneymanager.app.ui.components.FinanceArtwork(
+                kind = "bill_${row.bill.billerType.name.lowercase()}",
+                tint = when {
+                    overdue -> MmColors.expense
+                    paid -> MmColors.income
+                    else -> MmColors.warning
+                },
+                modifier = Modifier.size(58.dp)
             )
             Spacer(Modifier.width(MmSpacing.md))
             Column(Modifier.weight(1f)) {

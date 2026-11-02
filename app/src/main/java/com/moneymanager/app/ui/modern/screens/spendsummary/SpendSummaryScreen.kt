@@ -1,5 +1,7 @@
 package com.moneymanager.app.ui.modern.screens.spendsummary
 
+import android.app.DatePickerDialog
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -20,6 +22,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Text
@@ -27,21 +32,31 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.moneymanager.app.ui.components.MmChip
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.MmCard
@@ -57,6 +72,91 @@ import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import java.util.Locale
+import java.time.LocalDate
+import java.time.ZoneId
+
+private enum class SpendSummaryRange(val label: String) {
+    MONTHLY("Monthly"),
+    BIMONTHLY("Bimonthly"),
+    QUARTERLY("Quarterly"),
+    YEARLY("Yearly"),
+    CUSTOM("Custom")
+}
+
+/** Aggregate all historical monthly buckets into calendar-aligned periods. */
+private fun aggregateSummaryHistory(
+    history: com.moneymanager.app.ui.spendsummary.DashboardSpendHistory,
+    range: SpendSummaryRange
+): com.moneymanager.app.ui.spendsummary.DashboardSpendHistory {
+    val zone = java.time.ZoneId.of("Asia/Kolkata")
+    if (history.months.isEmpty()) return history
+    val totalsByMonth = history.months.indices.associate { index ->
+        val month = java.time.YearMonth.from(
+            java.time.Instant.ofEpochMilli(history.months[index].startInclusive).atZone(zone)
+        )
+        month to (history.totals.getOrNull(index) ?: 0L)
+    }
+    val oldest = totalsByMonth.keys.minOrNull() ?: return history
+    val current = java.time.YearMonth.now(zone)
+    val denseMonths = mutableListOf<MonthWindow>()
+    val denseTotals = mutableListOf<Long>()
+    var cursor = oldest
+    while (!cursor.isAfter(current)) {
+        val start = cursor.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = cursor.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        denseMonths += MonthWindow(
+            start,
+            end,
+            cursor.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH) +
+                " '${cursor.year.toString().takeLast(2)}"
+        )
+        denseTotals += totalsByMonth[cursor] ?: 0L
+        cursor = cursor.plusMonths(1)
+    }
+    val denseHistory = com.moneymanager.app.ui.spendsummary.DashboardSpendHistory(
+        months = denseMonths.reversed(),
+        totals = denseTotals.reversed()
+    )
+    if (range == SpendSummaryRange.MONTHLY || range == SpendSummaryRange.CUSTOM) return denseHistory
+    val buckets = denseHistory.months.indices.groupBy { index ->
+        val month = java.time.YearMonth.from(
+            java.time.Instant.ofEpochMilli(denseHistory.months[index].startInclusive).atZone(zone)
+        )
+        when (range) {
+            SpendSummaryRange.MONTHLY -> month.toString()
+            SpendSummaryRange.BIMONTHLY -> "${month.year}-B${(month.monthValue - 1) / 2}"
+            SpendSummaryRange.QUARTERLY -> "${month.year}-Q${(month.monthValue - 1) / 3}"
+            SpendSummaryRange.YEARLY -> month.year.toString()
+            SpendSummaryRange.CUSTOM -> month.toString()
+        }
+    }
+    val grouped = buckets.values.map { indices ->
+        val windows = indices.map { denseHistory.months[it] }
+        val start = windows.minBy { it.startInclusive }
+        val end = windows.maxBy { it.endExclusive }
+        val month = java.time.YearMonth.from(
+            java.time.Instant.ofEpochMilli(start.startInclusive).atZone(zone)
+        )
+        val label = when (range) {
+            SpendSummaryRange.MONTHLY -> start.label
+            SpendSummaryRange.BIMONTHLY -> {
+                val first = java.time.YearMonth.of(month.year, ((month.monthValue - 1) / 2) * 2 + 1)
+                val last = first.plusMonths(1)
+                "${first.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH)}–" +
+                    "${last.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH)} '${first.year.toString().takeLast(2)}"
+            }
+            SpendSummaryRange.QUARTERLY -> "Q${(month.monthValue - 1) / 3 + 1} '${month.year.toString().takeLast(2)}"
+            SpendSummaryRange.YEARLY -> month.year.toString()
+            SpendSummaryRange.CUSTOM -> start.label
+        }
+        MonthWindow(start.startInclusive, end.endExclusive, label) to
+            indices.sumOf { denseHistory.totals.getOrNull(it) ?: 0L }
+    }.sortedByDescending { it.first.startInclusive }
+    return com.moneymanager.app.ui.spendsummary.DashboardSpendHistory(
+        months = grouped.map { it.first },
+        totals = grouped.map { it.second }
+    )
+}
 
 /**
  * Monthly spend analytics. All amounts and category rows are supplied by the existing
@@ -72,16 +172,71 @@ fun SpendSummaryScreen(
     val total by viewModel.selectedMonthTotal.collectAsState()
     val hasPrevData by viewModel.hasPreviousMonthData.collectAsState()
     val prevTotal by viewModel.previousMonthTotal.collectAsState()
-    val selectedIdx by viewModel.selectedMonthIndex.collectAsState()
-    val monthlyTotals by viewModel.monthlyTotals.collectAsState()
-    val months = viewModel.availableMonths
-    val selectedMonth = months.getOrNull(selectedIdx)
+    val history by viewModel.dashboardSpendHistory.collectAsState()
+    val customHistory by viewModel.customSpendHistory.collectAsState()
+    var rangeName by rememberSaveable { mutableStateOf(SpendSummaryRange.MONTHLY.name) }
+    var selectedBucketIndex by rememberSaveable { mutableIntStateOf(0) }
+    var customStartMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var customEndMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    val range = SpendSummaryRange.valueOf(rangeName)
+    val buckets = remember(history, range, customHistory) {
+        if (range == SpendSummaryRange.CUSTOM) customHistory else aggregateSummaryHistory(history, range)
+    }
+    val selectedIdx = selectedBucketIndex.coerceIn(0, (buckets.months.size - 1).coerceAtLeast(0))
+    val selectedPeriod = buckets.months.getOrNull(selectedIdx)
+    val previousPeriod = buckets.months.getOrNull(selectedIdx + 1)
+    val expectedMonths = when (range) {
+        SpendSummaryRange.MONTHLY -> 1L
+        SpendSummaryRange.BIMONTHLY -> 2L
+        SpendSummaryRange.QUARTERLY -> 3L
+        SpendSummaryRange.YEARLY -> 12L
+        SpendSummaryRange.CUSTOM -> 0L
+    }
+    fun completeMonthCount(window: MonthWindow): Long {
+        val zone = java.time.ZoneId.of("Asia/Kolkata")
+        val first = java.time.YearMonth.from(java.time.Instant.ofEpochMilli(window.startInclusive).atZone(zone))
+        val last = java.time.YearMonth.from(java.time.Instant.ofEpochMilli(window.endExclusive - 1L).atZone(zone))
+        return java.time.temporal.ChronoUnit.MONTHS.between(first, last) + 1L
+    }
+    val canCompare = selectedPeriod != null &&
+        previousPeriod != null &&
+        completeMonthCount(selectedPeriod) == expectedMonths &&
+        completeMonthCount(previousPeriod) == expectedMonths &&
+        selectedPeriod.endExclusive <= System.currentTimeMillis() &&
+        range != SpendSummaryRange.CUSTOM
     val positiveCategoryTotal = rows.asSequence().filter { it.total > 0L }.sumOf { it.total }
+    val context = LocalContext.current
+    val zone = ZoneId.of("Asia/Kolkata")
+    fun openCustomDatePicker(selectStart: Boolean) {
+        val fallback = if (selectStart) LocalDate.now(zone).minusMonths(5) else LocalDate.now(zone)
+        val currentMillis = if (selectStart) customStartMillis else customEndMillis
+        val date = currentMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: fallback
+        DatePickerDialog(context, { _, year, month, day ->
+            val picked = LocalDate.of(year, month + 1, day).atStartOfDay(zone).toInstant().toEpochMilli()
+            if (selectStart) {
+                customStartMillis = picked
+                if (customEndMillis == null || customEndMillis!! < picked) customEndMillis = picked
+            } else {
+                customEndMillis = picked
+                if (customStartMillis == null || customStartMillis!! > picked) customStartMillis = picked
+            }
+            val start = customStartMillis
+            val end = customEndMillis
+            if (start != null && end != null) viewModel.selectCustomRange(start, end)
+        }, date.year, date.monthValue - 1, date.dayOfMonth).show()
+    }
+
+    LaunchedEffect(rangeName, buckets.months) {
+        selectedBucketIndex = 0
+    }
+    LaunchedEffect(selectedIdx, buckets.months) {
+        selectedPeriod?.let { viewModel.selectPeriod(it, previousPeriod) }
+    }
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
             title = "Spend summary",
-            subtitle = selectedMonth?.label.orEmpty(),
+            subtitle = selectedPeriod?.label.orEmpty(),
             onBack = onBack
         )
 
@@ -91,16 +246,33 @@ fun SpendSummaryScreen(
                 start = MmSpacing.screen,
                 end = MmSpacing.screen,
                 top = MmSpacing.sm,
-                bottom = MmSpacing.xxxl
+                bottom = MmSpacing.xxxl + com.moneymanager.app.ui.components.LocalDockContentPadding.current
             ),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
             item {
                 MonthBarGraph(
-                    months = months,
-                    monthlyTotals = monthlyTotals,
+                    months = buckets.months,
+                    monthlyTotals = buckets.totals,
                     selectedIdx = selectedIdx,
-                    onSelect = viewModel::selectMonth
+                    rangeMode = range,
+                    onRangeChange = { selectedRange ->
+                        rangeName = selectedRange.name
+                        if (selectedRange == SpendSummaryRange.CUSTOM) {
+                            val today = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
+                            val start = LocalDate.now(zone).minusMonths(5).withDayOfMonth(1)
+                                .atStartOfDay(zone).toInstant().toEpochMilli()
+                            customStartMillis = start
+                            customEndMillis = today
+                            viewModel.selectCustomRange(start, today)
+                            openCustomDatePicker(true)
+                        }
+                    },
+                    customStartLabel = customStartMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate().toString() } ?: "Start date",
+                    customEndLabel = customEndMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate().toString() } ?: "End date",
+                    onChooseCustomStart = { openCustomDatePicker(true) },
+                    onChooseCustomEnd = { openCustomDatePicker(false) },
+                    onSelect = { selectedBucketIndex = it }
                 )
             }
 
@@ -108,9 +280,9 @@ fun SpendSummaryScreen(
                 SpendOverviewCard(
                     rows = rows,
                     total = total,
-                    hasPrevData = hasPrevData,
+                    hasPrevData = hasPrevData && canCompare,
                     previousTotal = prevTotal,
-                    previousLabel = viewModel.previousMonthLabel(selectedIdx)
+                    previousLabel = previousPeriod?.label.takeIf { canCompare }
                 )
             }
 
@@ -118,7 +290,7 @@ fun SpendSummaryScreen(
                 item {
                     MmEmptyState(
                         icon = Icons.Filled.PieChart,
-                        title = "No spending in ${selectedMonth?.label.orEmpty()}",
+                        title = "No spending in ${selectedPeriod?.label.orEmpty()}",
                         message = "When you record an expense, your spending will appear here by category.",
                         modifier = Modifier.fillMaxWidth().padding(vertical = MmSpacing.xl)
                     )
@@ -128,7 +300,7 @@ fun SpendSummaryScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Category breakdown", style = MmType.sectionTitle, color = MmColors.textPrimary)
                         Text(
-                            "Your spending, grouped by category",
+                            "Your spending for ${selectedPeriod?.label.orEmpty()}, grouped by category",
                             style = MmType.caption,
                             color = MmColors.textSecondary
                         )
@@ -217,17 +389,39 @@ private fun SpendOverviewCard(
             if (rows.isNotEmpty()) {
                 SpendDonutChart(rows = rows, total = total, modifier = Modifier.size(112.dp))
             } else {
-                Box(
-                    Modifier
-                        .size(112.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.09f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("—", color = Color.White.copy(alpha = 0.72f), style = MmType.sectionTitle)
-                }
+                SpendEmptyGraphic(Modifier.size(112.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun SpendEmptyGraphic(modifier: Modifier = Modifier) {
+    val reveal by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(900),
+        label = "emptySpendGraphicReveal"
+    )
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val outer = size.minDimension * 0.39f
+            val inner = size.minDimension * 0.27f
+            drawCircle(Color.White.copy(alpha = 0.10f), radius = outer, center = center, style = Stroke(width = 5.dp.toPx()))
+            drawCircle(Color.White.copy(alpha = 0.07f), radius = inner, center = center, style = Stroke(width = 4.dp.toPx()))
+            drawArc(
+                brush = Brush.sweepGradient(listOf(Color(0xFFB9B8FF), Color(0xFF6F79F5), Color(0xFFB9B8FF))),
+                startAngle = -90f,
+                sweepAngle = 285f * reveal,
+                useCenter = false,
+                topLeft = Offset(center.x - outer, center.y - outer),
+                size = Size(outer * 2f, outer * 2f),
+                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
+            )
+            drawCircle(Color.White.copy(alpha = 0.72f), radius = 3.dp.toPx(), center = Offset(center.x + outer * 0.72f, center.y - outer * 0.72f))
+            drawCircle(Color(0xFFB9B8FF), radius = 2.5.dp.toPx(), center = Offset(center.x - outer * 0.82f, center.y + outer * 0.35f))
+        }
+        Text("—", color = Color.White.copy(alpha = 0.82f), style = MmType.sectionTitle)
     }
 }
 
@@ -281,101 +475,199 @@ private fun MonthBarGraph(
     months: List<MonthWindow>,
     monthlyTotals: List<Long>,
     selectedIdx: Int,
+    rangeMode: SpendSummaryRange,
+    onRangeChange: (SpendSummaryRange) -> Unit,
+    customStartLabel: String,
+    customEndLabel: String,
+    onChooseCustomStart: () -> Unit,
+    onChooseCustomEnd: () -> Unit,
     onSelect: (Int) -> Unit
 ) {
-    val maxTotal = (monthlyTotals.maxOrNull() ?: 0L).coerceAtLeast(1L)
+    val chronologicalIndices = remember(months) { months.indices.reversed().toList() }
     val selectedTotal = monthlyTotals.getOrNull(selectedIdx) ?: 0L
+    val selectedLabel = months.getOrNull(selectedIdx)?.label.orEmpty()
+    val maxTotal = (monthlyTotals.maxOrNull() ?: 0L).coerceAtLeast(1L)
 
     MmCard(contentPadding = PaddingValues(MmSpacing.lg)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Spending trend", style = MmType.sectionTitle, color = MmColors.textPrimary)
-                Text("Select a month to explore", style = MmType.caption, color = MmColors.textSecondary)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    MoneyFormat.rupeesNoDecimals(Money(selectedTotal)),
-                    style = MmType.amountRow,
-                    color = MmColors.textPrimary,
-                    maxLines = 1,
-                    softWrap = false
-                )
-                Text(
-                    months.getOrNull(selectedIdx)?.label.orEmpty(),
-                    style = MmType.caption,
-                    color = MmColors.accent
-                )
-            }
-        }
-
-        Spacer(Modifier.height(MmSpacing.lg))
-        Row(
-            Modifier.fillMaxWidth().height(116.dp),
-            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-        ) {
-            months.asReversed().forEachIndexed { reversedIdx, month ->
-                val index = months.lastIndex - reversedIdx
-                val amount = monthlyTotals.getOrNull(index) ?: 0L
-                val selected = index == selectedIdx
-                val targetFraction = if (amount > 0L) {
-                    (amount.toFloat() / maxTotal.toFloat()).coerceIn(0.08f, 1f)
-                } else 0f
-                val barFraction by animateFloatAsState(
-                    targetValue = targetFraction,
-                    animationSpec = tween(durationMillis = 560),
-                    label = "spendSummaryBar"
-                )
-
-                Column(
-                    Modifier.weight(1f).fillMaxHeight(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(
-                                if (selected) MmColors.accent.copy(alpha = 0.10f)
-                                else MmColors.surfaceContainer
-                            )
-                            .pressableClick { onSelect(index) },
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        if (barFraction > 0f) {
-                            Box(
-                                Modifier
-                                    .fillMaxWidth(if (selected) 0.70f else 0.56f)
-                                    .fillMaxHeight(barFraction)
-                                    .clip(RoundedCornerShape(topStart = 9.dp, topEnd = 9.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
-                                    .background(
-                                        Brush.verticalGradient(
-                                            if (selected) listOf(MmColors.accent.copy(alpha = 0.68f), MmColors.accent)
-                                            else listOf(MmColors.accent.copy(alpha = 0.28f), MmColors.accent.copy(alpha = 0.72f))
-                                        )
-                                    )
-                            )
-                        } else {
-                            Box(
-                                Modifier
-                                    .fillMaxWidth(0.40f)
-                                    .height(3.dp)
-                                    .clip(CircleShape)
-                                    .background(MmColors.outline)
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(MmSpacing.xs))
+        Column(verticalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Spending trend", style = MmType.sectionTitle, color = MmColors.textPrimary)
+                    Text("Every month in your recorded timeline", style = MmType.caption, color = MmColors.textSecondary)
+                }
+                Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        month.label.substringBefore(" "),
-                        style = MmType.caption.copy(fontSize = 10.sp),
-                        color = if (selected) MmColors.accent else MmColors.textTertiary,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                        maxLines = 1
+                        MoneyFormat.rupeesNoDecimals(Money(selectedTotal)),
+                        style = MmType.amountRow,
+                        color = MmColors.textPrimary,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Text(selectedLabel, style = MmType.caption, color = MmColors.accent)
+                }
+            }
+
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs)
+            ) {
+                SpendSummaryRange.entries.forEach { option ->
+                    MmChip(
+                        label = option.label,
+                        selected = rangeMode == option,
+                        onClick = { onRangeChange(option) }
                     )
                 }
             }
+
+            if (rangeMode == SpendSummaryRange.CUSTOM) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
+                    androidx.compose.material.TextButton(onClick = onChooseCustomStart) {
+                        Text(customStartLabel, color = MmColors.accent)
+                    }
+                    androidx.compose.material.TextButton(onClick = onChooseCustomEnd) {
+                        Text(customEndLabel, color = MmColors.accent)
+                    }
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    when (rangeMode) {
+                        SpendSummaryRange.MONTHLY -> "Monthly view"
+                        SpendSummaryRange.BIMONTHLY -> "Two-month view"
+                        SpendSummaryRange.QUARTERLY -> "Quarterly view"
+                        SpendSummaryRange.YEARLY -> "Yearly view"
+                        SpendSummaryRange.CUSTOM -> "Custom date range"
+                    },
+                    style = MmType.caption,
+                    color = MmColors.textTertiary,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "${months.size} periods",
+                    style = MmType.caption.copy(fontSize = 10.sp, letterSpacing = 0.4.sp),
+                    color = MmColors.textTertiary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            if (chronologicalIndices.isNotEmpty()) {
+                val listState = rememberLazyListState()
+                LaunchedEffect(rangeMode, months.size) {
+                    listState.scrollToItem((chronologicalIndices.size - 6).coerceAtLeast(0))
+                }
+                LazyRow(
+                    state = listState,
+                    modifier = Modifier.fillMaxWidth().height(224.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                ) {
+                    itemsIndexed(
+                        items = chronologicalIndices,
+                        key = { _, index -> months[index].startInclusive }
+                    ) { _, index ->
+                        SummaryMonthBar(
+                            month = months[index],
+                            amount = monthlyTotals.getOrNull(index) ?: 0L,
+                            maxTotal = maxTotal,
+                            selected = index == selectedIdx,
+                            modifier = Modifier.width(56.dp),
+                            onClick = { onSelect(index) }
+                        )
+                    }
+                }
+            } else {
+                MmEmptyState(
+                    icon = Icons.Filled.PieChart,
+                    title = "No spending history yet",
+                    message = "Your monthly, quarterly and yearly bars will appear here as you record transactions."
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun SummaryMonthBar(
+    month: MonthWindow,
+    amount: Long,
+    maxTotal: Long,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val magnitude = kotlin.math.abs(amount)
+    val fraction by animateFloatAsState(
+        targetValue = if (magnitude > 0L) (magnitude.toDouble() / maxTotal.coerceAtLeast(1L).toDouble())
+            .toFloat().coerceIn(0.035f, 1f) else 0f,
+        animationSpec = tween(600),
+        label = "summaryTimelineBar"
+    )
+    val parsed = runCatching {
+        java.time.YearMonth.from(
+            java.time.Instant.ofEpochMilli(month.startInclusive).atZone(java.time.ZoneId.of("Asia/Kolkata"))
+        )
+    }.getOrNull()
+    // Resolve composable theme values before entering the non-composable Canvas draw scope.
+    val chartOutline = MmColors.outline
+    val chartIncome = MmColors.income
+    val chartAccent = MmColors.accent
+    val chartAccentFill = MmColors.accentFill
+    Column(
+        modifier.fillMaxHeight()
+            .pressableClick(onClick = onClick)
+            .padding(horizontal = 5.dp, vertical = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            if (amount == 0L) "₹0" else if (selected) MoneyFormat.rupeesNoDecimals(Money(amount)) else " ",
+            style = MmType.caption.copy(fontSize = 9.sp, fontWeight = if (selected || amount == 0L) FontWeight.SemiBold else FontWeight.Normal),
+            color = if (selected) MmColors.accent else MmColors.textTertiary,
+            maxLines = 1,
+            softWrap = false
+        )
+        Canvas(Modifier.weight(1f).fillMaxWidth()) {
+            val baseline = size.height * 0.78f
+            val barWidth = size.width * if (selected) 0.64f else 0.54f
+            val barHeight = if (amount == 0L) 5.dp.toPx() else {
+                val available = if (amount > 0L) baseline else size.height - baseline
+                (available * fraction).coerceAtLeast(3.dp.toPx())
+            }
+            val left = (size.width - barWidth) / 2f
+            val top = if (amount >= 0L) baseline - barHeight else baseline
+            drawLine(
+                color = chartOutline.copy(alpha = 0.34f),
+                start = Offset(0f, baseline),
+                end = Offset(size.width, baseline),
+                strokeWidth = 1.dp.toPx()
+            )
+            val colors = when {
+                amount == 0L -> listOf(chartOutline.copy(alpha = 0.22f), chartOutline.copy(alpha = 0.48f))
+                amount < 0L -> listOf(chartIncome.copy(alpha = 0.62f), chartIncome)
+                selected -> listOf(chartAccent, chartAccentFill)
+                else -> listOf(chartAccent.copy(alpha = 0.38f), chartAccent.copy(alpha = 0.88f))
+            }
+            val safeTop = top.coerceIn(0f, size.height)
+            val safeHeight = barHeight.coerceAtMost((size.height - safeTop).coerceAtLeast(0f))
+            drawRoundRect(
+                brush = Brush.verticalGradient(colors = colors, startY = safeTop, endY = (safeTop + safeHeight).coerceAtLeast(safeTop + 1f)),
+                topLeft = Offset(left, safeTop),
+                size = Size(barWidth, safeHeight),
+                cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
+            )
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(
+            parsed?.month?.getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH)
+                ?: month.label.substringBefore(" "),
+            style = MmType.caption.copy(fontSize = 10.sp),
+            color = if (selected) MmColors.accent else MmColors.textSecondary,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1
+        )
+        Text(parsed?.year?.toString()?.takeLast(2) ?: "",
+            style = MmType.caption.copy(fontSize = 8.sp), color = MmColors.textTertiary, maxLines = 1)
     }
 }
 

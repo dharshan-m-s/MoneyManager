@@ -55,7 +55,7 @@ fun SearchScreen(
             MmSearchField(
                 value = query,
                 onValueChange = viewModel::onQueryChange,
-                hint = "Merchant, category, account or note",
+                hint = "Merchant, bank, category, note or amount",
                 modifier = Modifier.focusRequester(focusRequester)
             )
             LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -73,7 +73,7 @@ fun SearchScreen(
             query.isBlank() -> MmEmptyState(
                 icon = Icons.Filled.Search,
                 title = "Search your ledger",
-                message = "Type a merchant, category, account or note to find a transaction.",
+                message = "Search by merchant, bank, category, note or amount — for example, 5000.",
                 modifier = Modifier.fillMaxSize()
             )
 

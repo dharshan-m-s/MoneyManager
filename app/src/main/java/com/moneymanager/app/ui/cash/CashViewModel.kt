@@ -27,7 +27,9 @@ data class CashUiState(
     val primaryCashAccountId: Long? = null,
     val transactions: List<TransactionEntity> = emptyList(),
     val topCategoryTotals: List<CatSpend> = emptyList(),
-    val monthTotals: Map<java.time.LocalDate, CashMonthTotals> = emptyMap()
+    val monthTotals: Map<java.time.LocalDate, CashMonthTotals> = emptyMap(),
+    val categoryNames: Map<Long, String> = emptyMap(),
+    val accountNames: Map<Long, String> = emptyMap()
 )
 
 @HiltViewModel
@@ -93,7 +95,10 @@ class CashViewModel @Inject constructor(
             .sortedByDescending { it.total }
             .take(6)
 
-        val monthTotals = monthRows
+        // Keep all historical month buckets for the cash-screen mini chart. The current
+        // month headline above continues to use monthRows only; these are the same canonical
+        // spend/income predicates applied to the complete cash ledger history.
+        val monthTotals = allCashTxns
             .groupBy {
                 java.time.Instant.ofEpochMilli(it.occurredAtEpochMillis)
                     .atZone(FinancialSummary.zone).toLocalDate().withDayOfMonth(1)
@@ -113,7 +118,14 @@ class CashViewModel @Inject constructor(
             primaryCashAccountId = includedCashAccounts.firstOrNull()?.id,
             transactions = allCashTxns,
             topCategoryTotals = categoryTotals,
-            monthTotals = monthTotals
+            monthTotals = monthTotals,
+            categoryNames = categories.associate { it.id to it.name },
+            accountNames = cashAccounts.associate { account ->
+                account.id to listOf(account.nickname, account.institutionName)
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .joinToString(" ")
+            }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CashUiState())
 

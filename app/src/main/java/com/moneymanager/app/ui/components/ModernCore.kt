@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.moneymanager.app.ui.theme.MmColors
@@ -169,38 +170,122 @@ fun MmBalancePanel(
     value: String,
     caption: String? = null,
     modifier: Modifier = Modifier,
-    tint: Color = MmColors.accent
+    tint: Color = MmColors.accent,
+    animatedValueMinorUnits: Long? = null,
+    visualValues: List<Long> = emptyList(),
+    visualLabel: String? = null,
+    artworkKind: String = "overview"
 ) {
     val shape = RoundedCornerShape(28.dp)
+    val maxVisual = visualValues.maxOfOrNull { kotlin.math.abs(it) }?.coerceAtLeast(1L) ?: 1L
     Column(
         modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(MmColors.surface)
+            .background(MmColors.surfaceContainer)
             .border(BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.44f)), shape)
             .padding(MmSpacing.xl)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(width = 4.dp, height = 18.dp).clip(RoundedCornerShape(4.dp)).background(tint))
+            Box(
+                Modifier
+                    .size(width = 4.dp, height = 18.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(tint)
+            )
             Spacer(Modifier.width(MmSpacing.sm))
-            Text(label, style = MmType.label, color = MmColors.textSecondary)
+            Text(label, style = MmType.label, color = MmColors.textSecondary, maxLines = 1)
         }
         Spacer(Modifier.height(MmSpacing.md))
-        Text(
-            value,
-            style = MmType.amountHero,
-            color = MmColors.textPrimary,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis
-        )
-        if (!caption.isNullOrBlank()) {
-            Spacer(Modifier.height(MmSpacing.sm))
-            Text(caption, style = MmType.caption, color = MmColors.textTertiary)
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                if (animatedValueMinorUnits != null) {
+                    MmAnimatedAmount(
+                        value = animatedValueMinorUnits,
+                        formatter = { MoneyFormat.rupeesNoDecimals(com.moneymanager.app.domain.model.Money(it)) },
+                        style = MmType.amountHero,
+                        color = MmColors.textPrimary
+                    )
+                } else {
+                    Text(
+                        value,
+                        style = MmType.amountHero,
+                        color = MmColors.textPrimary,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (!caption.isNullOrBlank()) {
+                    Spacer(Modifier.height(MmSpacing.sm))
+                    Text(
+                        caption,
+                        style = MmType.caption,
+                        color = MmColors.textTertiary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Spacer(Modifier.width(MmSpacing.md))
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                FinanceArtwork(
+                    kind = artworkKind,
+                    tint = tint,
+                    modifier = Modifier.size(76.dp)
+                )
+                if (!visualLabel.isNullOrBlank()) {
+                    Text(
+                        visualLabel.uppercase(),
+                        style = MmType.caption.copy(fontSize = 8.sp, letterSpacing = 0.75.sp),
+                        color = MmColors.textTertiary,
+                        maxLines = 1
+                    )
+                }
+                if (visualValues.isNotEmpty()) {
+                    Row(
+                        Modifier.width(94.dp).height(42.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        visualValues.takeLast(6).forEachIndexed { index, amount ->
+                            val fraction = (kotlin.math.abs(amount).toFloat() / maxVisual.toFloat())
+                                .coerceIn(0.06f, 1f)
+                            val animatedFraction by animateFloatAsState(
+                                targetValue = fraction,
+                                animationSpec = spring(dampingRatio = 0.82f, stiffness = 250f),
+                                label = "balancePanelBar$index"
+                            )
+                            Box(
+                                Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(MmColors.surface)
+                                    .padding(horizontal = 2.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.BottomCenter
+                            ) {
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .fillMaxHeight(animatedFraction)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(tint.copy(alpha = 0.38f + fraction * 0.54f))
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
-
 @Composable
 fun MmPlainCard(
     modifier: Modifier = Modifier,

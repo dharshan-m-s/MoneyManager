@@ -57,6 +57,10 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY occurredAtEpochMillis DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<TransactionEntity>>
 
+    /** Complete historical stream for the Activity screen; LazyColumn controls row composition. */
+    @Query("SELECT * FROM transactions ORDER BY occurredAtEpochMillis DESC, id DESC")
+    fun observeAllTransactions(): Flow<List<TransactionEntity>>
+
     @Query("SELECT * FROM transactions WHERE occurredAtEpochMillis >= :startInclusive AND occurredAtEpochMillis < :endExclusive ORDER BY occurredAtEpochMillis DESC")
     suspend fun findInRange(startInclusive: Long, endExclusive: Long): List<TransactionEntity>
 
@@ -128,8 +132,10 @@ interface TransactionDao {
     @Query(
         "SELECT t.* FROM transactions t " +
             "LEFT JOIN accounts a ON a.id = t.accountId " +
+            "LEFT JOIN categories c ON c.id = t.categoryId " +
             "WHERE t.merchantReceiverSender LIKE '%' || :query || '%' " +
             "OR t.rawCategoryName LIKE '%' || :query || '%' " +
+            "OR c.name LIKE '%' || :query || '%' " +
             "OR t.notes LIKE '%' || :query || '%' " +
             "OR t.rawPaymentType LIKE '%' || :query || '%' " +
             "OR t.txnType LIKE '%' || :query || '%' " +
@@ -137,10 +143,16 @@ interface TransactionDao {
             "OR t.txnKind LIKE '%' || :query || '%' " +
             "OR a.nickname LIKE '%' || :query || '%' " +
             "OR a.institutionName LIKE '%' || :query || '%' " +
-            "OR a.sourceAccountId LIKE '%' || :query || '%' " +
+            "OR (:amountMinorUnits IS NOT NULL AND " +
+            "ABS(ABS(t.debitMinorUnits - t.creditMinorUnits) - :amountMinorUnits) <= :amountToleranceMinorUnits) " +
             "ORDER BY t.occurredAtEpochMillis DESC LIMIT :limit"
     )
-    fun searchTransactions(query: String, limit: Int = 20000): Flow<List<TransactionEntity>>
+    fun searchTransactions(
+        query: String,
+        limit: Int = Int.MAX_VALUE,
+        amountMinorUnits: Long? = null,
+        amountToleranceMinorUnits: Long = 0L
+    ): Flow<List<TransactionEntity>>
 
     // --- Analytics-support queries (Step 12 will build on these) ---
 
@@ -164,6 +176,34 @@ interface TransactionDao {
             "AND t.occurredAtEpochMillis >= :startInclusive AND t.occurredAtEpochMillis < :endExclusive"
     )
     fun observeTotalSpendInRange(startInclusive: Long, endExclusive: Long): Flow<Long>
+
+    /** Canonical spend totals grouped by local calendar month for an unbounded history chart. */
+    @Query(
+        "SELECT strftime('%Y-%m', t.occurredAtEpochMillis / 1000, 'unixepoch', '+05:30') AS yearMonth, " +
+            "COALESCE(SUM(CASE WHEN " +
+            "(t.txnSubType = 'EXPENSE' OR t.txnKind = 'REFUND_REVERSAL') " +
+            "AND t.includeInStatistics = 1 AND $INCLUDED_ACCOUNT " +
+            "THEN t.debitMinorUnits - t.creditMinorUnits ELSE 0 END), 0) AS total " +
+            "FROM transactions t LEFT JOIN accounts a ON a.id = t.accountId " +
+            "GROUP BY yearMonth ORDER BY yearMonth DESC"
+    )
+    fun observeMonthlySpendTotals(): Flow<List<MonthlySpendTotal>>
+
+    /** One date-bounded aggregate for a custom range; callers fill inactive months with zero. */
+    @Query(
+        "SELECT strftime('%Y-%m', t.occurredAtEpochMillis / 1000, 'unixepoch', '+05:30') AS yearMonth, " +
+            "COALESCE(SUM(t.debitMinorUnits - t.creditMinorUnits), 0) AS total " +
+            "FROM transactions t INNER JOIN accounts a ON a.id = t.accountId " +
+            "WHERE (t.txnSubType = 'EXPENSE' OR t.txnKind = 'REFUND_REVERSAL') " +
+            "AND t.includeInStatistics = 1 AND $INCLUDED_ACCOUNT " +
+            "AND t.occurredAtEpochMillis >= :startInclusive " +
+            "AND t.occurredAtEpochMillis < :endExclusive " +
+            "GROUP BY yearMonth ORDER BY yearMonth DESC"
+    )
+    fun observeMonthlySpendTotalsInRange(
+        startInclusive: Long,
+        endExclusive: Long
+    ): Flow<List<MonthlySpendTotal>>
 
     @Query(
         "SELECT COALESCE(SUM(t.creditMinorUnits - t.debitMinorUnits), 0) " +
@@ -247,3 +287,5 @@ interface TransactionDao {
 }
 
 data class CategoryTotal(val categoryId: Long?, val total: Long)
+
+data class MonthlySpendTotal(val yearMonth: String, val total: Long)

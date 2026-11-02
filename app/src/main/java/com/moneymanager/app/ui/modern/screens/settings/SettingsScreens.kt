@@ -60,6 +60,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
+import com.moneymanager.app.ui.components.LocalDockContentPadding
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -474,7 +475,7 @@ fun SettingsScreen(
                 Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(bottom = MmSpacing.xxl)
+                    .padding(bottom = MmSpacing.xxl + LocalDockContentPadding.current)
             ) {
                 SettingsSectionHeader("Appearance", "Choose how Money Manager feels")
                 SettingsGroup {

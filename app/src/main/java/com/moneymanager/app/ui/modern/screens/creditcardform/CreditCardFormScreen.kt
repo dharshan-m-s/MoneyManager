@@ -47,7 +47,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.ui.components.MmAmountField
 import com.moneymanager.app.ui.components.MmCard
@@ -57,6 +60,7 @@ import com.moneymanager.app.ui.components.MmSegmentedControl
 import com.moneymanager.app.ui.components.MmStepper
 import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MmTextField
+import com.moneymanager.app.ui.components.MmWalletCard
 import com.moneymanager.app.ui.components.mmFieldShape
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -121,28 +125,42 @@ fun CreditCardFormScreen(
                 .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
-            // --- Card identity preview ---
-            MmCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    MmIconBadge(icon = Icons.Filled.CreditCard, tint = MmColors.accent, size = 46.dp)
-                    Spacer(Modifier.width(MmSpacing.md))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            state.nickname.ifBlank { state.billerName.ifBlank { "Your credit card" } },
-                            style = MmType.sectionTitle,
-                            color = MmColors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            state.maskedNumber,
-                            style = MmType.caption,
-                            color = MmColors.textSecondary,
-                            maxLines = 1
-                        )
-                    }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "CARD PREVIEW",
+                        style = MmType.label.copy(letterSpacing = 0.9.sp, fontWeight = FontWeight.SemiBold),
+                        color = MmColors.textPrimary
+                    )
+                    Text(
+                        "Updates as you edit the details",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
+                    )
                 }
+                Text(
+                    "LIVE",
+                    style = MmType.caption.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                    color = MmColors.accent,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(MmColors.accent.copy(alpha = 0.10f))
+                        .padding(horizontal = 11.dp, vertical = 6.dp)
+                )
             }
+
+            // Preview shows only the issuer, nickname and masked last four digits.
+            MmWalletCard(
+                issuer = state.billerName,
+                title = state.nickname.ifBlank { state.billerName.ifBlank { "Your credit card" } },
+                typeLabel = "Credit",
+                maskedNumber = state.maskedNumber,
+                active = !state.inactive,
+                modifier = Modifier.fillMaxWidth()
+            )
 
             MmCard {
                 Text("Card details", style = MmType.label, color = MmColors.textSecondary)
@@ -159,10 +177,13 @@ fun CreditCardFormScreen(
                 MmTextField(
                     value = state.cardNumber,
                     onValueChange = { viewModel.onField { copy(cardNumber = it) } },
-                    label = "Credit card number",
-                    placeholder = "Last 4 digits or full number",
+                    label = "Card number / reference",
+                    placeholder = "Enter card number",
+                    keyboardType = KeyboardType.NumberPassword,
+                    visualTransformation = PasswordVisualTransformation(),
                     isError = state.cardNumberError != null,
                     supportingText = state.cardNumberError
+                        ?: "Hidden while typing. Only the last four digits appear on card previews."
                 )
                 Spacer(Modifier.height(MmSpacing.md))
                 MmTextField(

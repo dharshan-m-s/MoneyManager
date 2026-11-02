@@ -108,6 +108,7 @@ private fun IncomeSummaryCard(
         value = MoneyFormat.rupeesNoDecimals(Money(total)),
         caption = "$transactionCount recorded ${if (transactionCount == 1) "entry" else "entries"}",
         modifier = modifier,
-        tint = MmColors.income
+        tint = MmColors.income,
+        artworkKind = "income"
     )
 }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmBankLogo
 import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MmTextField
 import com.moneymanager.app.ui.components.MmTopBarAction
@@ -105,7 +107,7 @@ fun BankLinkingScreen(
         ) {
             MmCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    MmIconBadge(icon = Icons.Filled.AccountBalance, tint = MmColors.accent, size = 44.dp)
+                    MmBankLogo(bankName, Modifier.size(48.dp))
                     Spacer(Modifier.width(MmSpacing.md))
                     Column(Modifier.weight(1f)) {
                         Text(bankName, style = MmType.sectionTitle, color = MmColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)

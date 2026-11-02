@@ -7,12 +7,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
@@ -24,9 +28,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmEmptyState
-import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmBankLogo
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
@@ -131,17 +136,20 @@ fun BankSelectionScreen(
                     item(key = "popular-header") {
                         BankSectionHeader("Popular banks")
                     }
-                    itemsIndexed(filteredPopular, key = { _, bank -> "p-${bank.name}" }) { index, bank ->
-                        BankRow(
-                            bank = bank,
-                            onClick = { onBankSelected(bank.name) },
-                            modifier = Modifier.revealOnAppear(index = index)
-                        )
+                    item(key = "popular-rail") {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = MmSpacing.lg),
+                            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                        ) {
+                            items(filteredPopular, key = { it.name }) { bank ->
+                                PopularBankTile(bank = bank, onClick = { onBankSelected(bank.name) })
+                            }
+                        }
                     }
                 }
                 if (filteredOther.isNotEmpty()) {
                     item(key = "other-header") {
-                        BankSectionHeader("Other banks")
+                        BankSectionHeader(if (query.isBlank()) "More banks" else "Other matches")
                     }
                     itemsIndexed(filteredOther, key = { _, bank -> "o-${bank.name}" }) { index, bank ->
                         BankRow(
@@ -152,6 +160,33 @@ fun BankSelectionScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PopularBankTile(bank: BankInfo, onClick: () -> Unit) {
+    MmCard(
+        modifier = Modifier.width(116.dp),
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = MmSpacing.sm, vertical = MmSpacing.md)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(88.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            MmBankLogo(bank.name, Modifier.size(48.dp))
+            Text(
+                bank.name,
+                style = MmType.caption.copy(fontWeight = FontWeight.SemiBold),
+                color = MmColors.textPrimary,
+                maxLines = 2,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -182,9 +217,22 @@ private fun BankRow(bank: BankInfo, onClick: () -> Unit, modifier: Modifier = Mo
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)
         ) {
-            MmIconBadge(icon = Icons.Filled.AccountBalance, tint = MmColors.accent, size = 40.dp)
-            Text(bank.name, style = MmType.body, color = MmColors.textPrimary, modifier = Modifier.weight(1f))
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MmColors.textTertiary)
+            MmBankLogo(bank.name, Modifier.size(46.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    bank.name,
+                    style = MmType.body.copy(fontWeight = FontWeight.SemiBold),
+                    color = MmColors.textPrimary,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Text(
+                    "Select this institution",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary
+                )
+            }
+            Icon(Icons.Filled.ChevronRight, contentDescription = "Select ${bank.name}", tint = MmColors.accent)
         }
     }
 }

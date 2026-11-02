@@ -4,7 +4,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,11 +16,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
@@ -42,6 +47,7 @@ import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,7 +65,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -104,7 +110,12 @@ import com.moneymanager.app.ui.dashboard.DashboardViewModel
 import com.moneymanager.app.ui.dashboard.SafeToSpendMode
 import com.moneymanager.app.ui.settings.SettingsEntryPoint
 import com.moneymanager.app.ui.spendsummary.MonthWindow
+import com.moneymanager.app.ui.spendsummary.DashboardSpendHistory
 import com.moneymanager.app.ui.spendsummary.SpendSummaryViewModel
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 
 private val dashboardZone: ZoneId = ZoneId.of("Asia/Kolkata")
 
@@ -114,6 +125,76 @@ private enum class RecentTypeFilter(val label: String) {
     INCOME("Income"),
     NOT_A_SPEND("Not a spend"),
     TRANSFER("Transfer")
+}
+
+private enum class SpendChartRange(val label: String) {
+    MONTHLY("Monthly"),
+    BIMONTHLY("Bimonthly"),
+    QUARTERLY("Quarterly"),
+    YEARLY("Yearly"),
+    CUSTOM("Custom")
+}
+
+private fun aggregateSpendHistory(
+    history: DashboardSpendHistory,
+    range: SpendChartRange
+): DashboardSpendHistory {
+    if (range == SpendChartRange.MONTHLY || range == SpendChartRange.CUSTOM) return history
+    val buckets = history.months.indices.groupBy { index ->
+        val month = YearMonth.from(
+            Instant.ofEpochMilli(history.months[index].startInclusive).atZone(dashboardZone)
+        )
+        when (range) {
+            SpendChartRange.YEARLY -> month.year.toString()
+            SpendChartRange.BIMONTHLY -> "${month.year}-B${(month.monthValue - 1) / 2}"
+            SpendChartRange.QUARTERLY -> "${month.year}-Q${(month.monthValue - 1) / 3}"
+            SpendChartRange.MONTHLY, SpendChartRange.CUSTOM -> month.toString()
+        }
+    }
+    val aggregated = buckets.values.map { indices ->
+        val windows = indices.map { history.months[it] }
+        val start = windows.minBy { it.startInclusive }
+        val end = windows.maxBy { it.endExclusive }
+        val firstMonth = YearMonth.from(Instant.ofEpochMilli(start.startInclusive).atZone(dashboardZone))
+        val label = when (range) {
+            SpendChartRange.YEARLY -> firstMonth.year.toString()
+            SpendChartRange.BIMONTHLY -> {
+                val pairStart = YearMonth.of(firstMonth.year, ((firstMonth.monthValue - 1) / 2) * 2 + 1)
+                val pairEnd = pairStart.plusMonths(1)
+                "${pairStart.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)}–" +
+                    "${pairEnd.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)} '${pairStart.year.toString().takeLast(2)}"
+            }
+            SpendChartRange.QUARTERLY -> "Q${(firstMonth.monthValue - 1) / 3 + 1} '${firstMonth.year.toString().takeLast(2)}"
+            SpendChartRange.MONTHLY, SpendChartRange.CUSTOM -> firstMonth.toString()
+        }
+        MonthWindow(start.startInclusive, end.endExclusive, label) to
+            indices.sumOf { history.totals.getOrNull(it) ?: 0L }
+    }.sortedByDescending { it.first.startInclusive }
+    return DashboardSpendHistory(
+        months = aggregated.map { it.first },
+        totals = aggregated.map { it.second }
+    )
+}
+
+private fun sixMonthDashboardPreview(history: DashboardSpendHistory): DashboardSpendHistory {
+    val current = YearMonth.now(dashboardZone)
+    val windows = (0L..5L).map { offset ->
+        val month = current.minusMonths(offset)
+        val start = month.atDay(1).atStartOfDay(dashboardZone).toInstant().toEpochMilli()
+        val end = month.plusMonths(1).atDay(1).atStartOfDay(dashboardZone).toInstant().toEpochMilli()
+        val existingIndex = history.months.indexOfFirst { window ->
+            YearMonth.from(Instant.ofEpochMilli(window.startInclusive).atZone(dashboardZone)) == month
+        }
+        MonthWindow(
+            startInclusive = start,
+            endExclusive = end,
+            label = month.format(DateTimeFormatter.ofPattern("MMM ''yy", Locale.ENGLISH))
+        ) to (history.totals.getOrNull(existingIndex)?.takeIf { existingIndex >= 0 } ?: 0L)
+    }
+    return DashboardSpendHistory(
+        months = windows.map { it.first },
+        totals = windows.map { it.second }
+    )
 }
 
 @Composable
@@ -140,9 +221,34 @@ fun DashboardScreen(
     // returning user never sees a frame of the "start here" empty state (or ₹0 balances) right
     // after unlocking. Once loaded, the state streams in without a second flash.
     val state = uiState
-    val monthlySpendTotals by spendViewModel.dashboardMonthlyTotals.collectAsState()
+    val dashboardSpendHistory by spendViewModel.dashboardSpendHistory.collectAsState()
+    val dashboardPreviewHistory = remember(dashboardSpendHistory) {
+        sixMonthDashboardPreview(dashboardSpendHistory)
+    }
+    val customSpendHistory by spendViewModel.customSpendHistory.collectAsState()
     var selectedSpendMonth by rememberSaveable { mutableStateOf(0) }
-    var monthWindowStart by rememberSaveable { mutableStateOf(0) }
+    var spendRangeName by rememberSaveable { mutableStateOf(SpendChartRange.MONTHLY.name) }
+    val spendRange = SpendChartRange.valueOf(spendRangeName)
+    val today = LocalDate.now(dashboardZone)
+    var customFromEpoch by rememberSaveable {
+        mutableStateOf<Long?>(today.withDayOfMonth(1).atStartOfDay(dashboardZone).toInstant().toEpochMilli())
+    }
+    var customToEpoch by rememberSaveable {
+        mutableStateOf<Long?>(today.atStartOfDay(dashboardZone).toInstant().toEpochMilli())
+    }
+    LaunchedEffect(spendRangeName, customFromEpoch, customToEpoch) {
+        if (spendRange == SpendChartRange.CUSTOM) {
+            selectedSpendMonth = 0
+            spendViewModel.selectCustomRange(customFromEpoch, customToEpoch)
+        }
+    }
+    LaunchedEffect(spendRangeName) {
+        selectedSpendMonth = 0
+    }
+    val rawSpendHistory = if (spendRange == SpendChartRange.CUSTOM) customSpendHistory else dashboardSpendHistory
+    val displayedSpendHistory = remember(rawSpendHistory, spendRange) {
+        aggregateSpendHistory(rawSpendHistory, spendRange)
+    }
     if (state == null) {
         Column(
             Modifier
@@ -212,7 +318,8 @@ fun DashboardScreen(
                     state = state,
                     hideAmounts = hideAmounts,
                     onToggleVisibility = { homePreferences.setHideAmounts(!hideAmounts) },
-                    onOpenBreakdown = { onOpenBreakdown(DashboardBreakdownKind.NET_WORTH) }
+                    onOpenBreakdown = { onOpenBreakdown(DashboardBreakdownKind.NET_WORTH) },
+                    modifier = Modifier.revealOnAppear(index = 0)
                 )
             }
 
@@ -227,28 +334,17 @@ fun DashboardScreen(
 
             item {
                 SectionBlock(
-                    title = "Monthly spending",
-                    subtitle = "Swipe right to explore older months · select a bar",
+                    title = "Spend summary",
+                    subtitle = "Explore your history and choose a time range",
                     actionLabel = "See all",
                     onAction = onSeeAllSpendAreas
                 ) {
                     MonthlySpendTrendChart(
-                        months = spendViewModel.dashboardMonths,
-                        monthlyTotals = monthlySpendTotals,
+                        months = dashboardPreviewHistory.months,
+                        monthlyTotals = dashboardPreviewHistory.totals,
                         selectedIndex = selectedSpendMonth,
-                        windowStartIndex = monthWindowStart,
                         hideAmounts = hideAmounts,
-                        onSelectMonth = { selectedSpendMonth = it },
-                        onShowOlder = {
-                            val next = (monthWindowStart + 1).coerceAtMost(spendViewModel.dashboardMonths.size - 6)
-                            monthWindowStart = next
-                            selectedSpendMonth = next
-                        },
-                        onShowNewer = {
-                            val next = (monthWindowStart - 1).coerceAtLeast(0)
-                            monthWindowStart = next
-                            selectedSpendMonth = next
-                        }
+                        onSelectMonth = { selectedSpendMonth = it }
                     )
                 }
             }
@@ -513,10 +609,15 @@ private fun BalanceHeroCard(
     state: DashboardUiState,
     hideAmounts: Boolean,
     onToggleVisibility: () -> Unit,
-    onOpenBreakdown: () -> Unit
+    onOpenBreakdown: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val orbitalShift = remember { androidx.compose.animation.core.Animatable(-18f) }
+    LaunchedEffect(Unit) {
+        orbitalShift.animateTo(12f, animationSpec = tween(durationMillis = 1_450))
+    }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.lg)
             .clip(RoundedCornerShape(32.dp))
@@ -543,6 +644,27 @@ private fun BalanceHeroCard(
                     )
                 )
         )
+        Canvas(Modifier.matchParentSize()) {
+            val center = Offset(size.width * 0.87f, size.height * 0.46f)
+            rotate(orbitalShift.value, pivot = center) {
+                for (ring in 0..2) {
+                    drawArc(
+                        color = Color.White.copy(alpha = 0.055f + ring * 0.025f),
+                        startAngle = 194f,
+                        sweepAngle = 138f,
+                        useCenter = false,
+                        topLeft = Offset(center.x - size.width * (0.20f + ring * 0.035f), center.y - size.height * (0.35f + ring * 0.025f)),
+                        size = Size(size.width * (0.40f + ring * 0.07f), size.height * (0.70f + ring * 0.05f)),
+                        style = Stroke(width = (1.0f + ring * 0.25f).dp.toPx())
+                    )
+                }
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.30f),
+                    radius = 2.5.dp.toPx(),
+                    center = Offset(center.x + size.width * 0.14f, center.y - size.height * 0.22f)
+                )
+            }
+        }
         Column(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.xl, vertical = MmSpacing.xl)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -846,237 +968,148 @@ private fun MonthlySpendTrendChart(
     months: List<MonthWindow>,
     monthlyTotals: List<Long>,
     selectedIndex: Int,
-    windowStartIndex: Int,
     hideAmounts: Boolean,
-    onSelectMonth: (Int) -> Unit,
-    onShowOlder: () -> Unit,
-    onShowNewer: () -> Unit
+    onSelectMonth: (Int) -> Unit
 ) {
-    val safeStart = windowStartIndex.coerceIn(0, (months.size - 6).coerceAtLeast(0))
-    val visibleIndices = (safeStart until (safeStart + 6).coerceAtMost(months.size)).toList()
-    val chartIndices = visibleIndices.asReversed()
-    val chartMonths = chartIndices.map { months[it] }
-    val chartValues = chartIndices.map { monthlyTotals.getOrNull(it) ?: 0L }
-    val selectedIndexSafe = selectedIndex.coerceIn(0, (months.size - 1).coerceAtLeast(0))
-    val selectedTotal = monthlyTotals.getOrNull(selectedIndexSafe) ?: 0L
-    val selectedLabel = months.getOrNull(selectedIndexSafe)?.label.orEmpty()
-    val previousTotal = monthlyTotals.getOrNull(selectedIndexSafe - 1)
-    val difference = previousTotal?.let { selectedTotal - it }
-    val maxTotal = (chartValues.maxOrNull() ?: 0L).coerceAtLeast(1L)
-    MmCard(contentPadding = PaddingValues(0.dp)) {
-        Column {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .background(Brush.linearGradient(MmColors.heroGradient))
-                    .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg)
-            ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "TOTAL SPENT",
-                                style = MmType.caption.copy(fontSize = 10.sp, letterSpacing = 1.2.sp),
-                                color = Color.White.copy(alpha = 0.72f),
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(Modifier.height(5.dp))
-                            Text(
-                                if (hideAmounts) "••••••" else MoneyFormat.rupeesNoDecimals(Money(selectedTotal)),
-                                style = MmType.amountLarge,
-                                color = Color.White,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(selectedLabel, style = MmType.label, color = Color.White, fontWeight = FontWeight.SemiBold)
-                            Text("Selected month", style = MmType.caption, color = Color.White.copy(alpha = 0.68f))
-                        }
-                    }
-                    if (difference != null) {
-                        Spacer(Modifier.height(MmSpacing.md))
-                        Row(
-                            Modifier
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(Color.White.copy(alpha = 0.13f))
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val arrow = when {
-                                difference > 0L -> "↑"
-                                difference < 0L -> "↓"
-                                else -> "•"
-                            }
-                            Text(
-                                if (hideAmounts) "$arrow Compared with previous month"
-                                else "$arrow ${MoneyFormat.rupeesNoDecimals(Money(kotlin.math.abs(difference)))} vs previous month",
-                                style = MmType.caption,
-                                color = Color.White,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
+    val chronologicalIndices = remember(months) { months.indices.reversed().toList() }
+    val selected = selectedIndex.coerceIn(0, (months.size - 1).coerceAtLeast(0))
+    val selectedTotal = monthlyTotals.getOrNull(selected) ?: 0L
+    val selectedLabel = months.getOrNull(selected)?.label.orEmpty()
+    val maxMagnitude = (monthlyTotals.maxOfOrNull { kotlin.math.abs(it) } ?: 0L).coerceAtLeast(1L)
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
+    ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("SELECTED PERIOD", style = MmType.caption.copy(fontSize = 10.sp, letterSpacing = 1.1.sp),
+                        color = MmColors.textTertiary, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (hideAmounts) "••••••" else MoneyFormat.rupeesNoDecimals(Money(selectedTotal)),
+                        style = MmType.amountLarge.copy(fontSize = 25.sp),
+                        color = MmColors.textPrimary,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(selectedLabel, style = MmType.label, color = MmColors.accent, fontWeight = FontWeight.SemiBold)
+                    Text("Recent history", style = MmType.caption, color = MmColors.textSecondary)
                 }
             }
-
-            val chartAccent = MmColors.accent
-            val chartAccentFill = MmColors.accentFill
-            val chartOutline = MmColors.outline
-            val chartBackground = MmColors.background
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .pointerInput(months.size, safeStart) {
-                        var totalDrag = 0f
-                        detectHorizontalDragGestures(
-                            onDragEnd = {
-                                when {
-                                    totalDrag > 55f && safeStart < months.size - 6 -> onShowOlder()
-                                    totalDrag < -55f && safeStart > 0 -> onShowNewer()
-                                }
-                                totalDrag = 0f
-                            },
-                            onDragCancel = { totalDrag = 0f },
-                            onHorizontalDrag = { change, dragAmount ->
-                                totalDrag += dragAmount
-                                change.consume()
-                            }
+            if (chronologicalIndices.isEmpty()) {
+                MmEmptyState(
+                    icon = Icons.Filled.PieChart,
+                    title = "No spending history yet",
+                    message = "Your recent monthly trend will appear here when you record transactions."
+                )
+            } else {
+                Row(
+                    Modifier.fillMaxWidth().height(142.dp),
+                    horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs)
+                ) {
+                    chronologicalIndices.forEach { index ->
+                        DashboardMonthBar(
+                            month = months[index],
+                            amount = monthlyTotals.getOrNull(index) ?: 0L,
+                            maxMagnitude = maxMagnitude,
+                            selected = index == selected,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onSelectMonth(index) }
                         )
                     }
-                    .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Spending trend", style = MmType.sectionTitle, color = MmColors.textPrimary)
-                        Text("Swipe right for older months", style = MmType.caption, color = MmColors.textTertiary)
-                    }
-                    Text(
-                        "${safeStart + 1}–${(safeStart + chartMonths.size).coerceAtMost(months.size)} / ${months.size}",
-                        style = MmType.caption.copy(fontSize = 10.sp, letterSpacing = 0.5.sp),
-                        color = MmColors.textTertiary,
-                        fontWeight = FontWeight.SemiBold
-                    )
                 }
-                Spacer(Modifier.height(MmSpacing.md))
-
-                Canvas(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(148.dp)
-                ) {
-                    if (chartValues.isNotEmpty()) {
-                        val left = 8.dp.toPx()
-                        val right = size.width - 8.dp.toPx()
-                        val top = 10.dp.toPx()
-                        val bottom = size.height - 8.dp.toPx()
-                        val plotHeight = (bottom - top).coerceAtLeast(1f)
-                        val slotWidth = (right - left) / chartValues.size
-                        val barWidth = (slotWidth * 0.48f).coerceAtMost(34.dp.toPx()).coerceAtLeast(12.dp.toPx())
-
-                        for (grid in 0..3) {
-                            val y = top + plotHeight * grid / 3f
-                            drawLine(
-                                color = chartOutline.copy(alpha = 0.18f),
-                                start = Offset(left, y),
-                                end = Offset(right, y),
-                                strokeWidth = 1.dp.toPx()
-                            )
-                        }
-
-                        chartValues.forEachIndexed { displayIndex, amount ->
-                            val centerX = left + slotWidth * (displayIndex + 0.5f)
-                            val barHeight = if (amount <= 0L) 3.dp.toPx() else
-                                (amount.toFloat() / maxTotal.toFloat()).coerceIn(0f, 1f) * (plotHeight * 0.88f)
-                            val topY = bottom - barHeight
-                            val globalIndex = chartIndices[displayIndex]
-                            val selected = globalIndex == selectedIndexSafe
-                            val rectLeft = centerX - barWidth / 2f
-
-                            if (selected) {
-                                drawRoundRect(
-                                    color = chartAccent.copy(alpha = 0.12f),
-                                    topLeft = Offset(rectLeft - 5.dp.toPx(), topY - 5.dp.toPx()),
-                                    size = Size(barWidth + 10.dp.toPx(), barHeight + 10.dp.toPx()),
-                                    cornerRadius = CornerRadius(12.dp.toPx())
-                                )
-                            }
-                            drawRoundRect(
-                                color = chartOutline.copy(alpha = if (selected) 0.20f else 0.10f),
-                                topLeft = Offset(rectLeft, top),
-                                size = Size(barWidth, plotHeight),
-                                cornerRadius = CornerRadius(barWidth / 2f)
-                            )
-                            drawRoundRect(
-                                brush = Brush.verticalGradient(
-                                    colors = if (selected) {
-                                        listOf(chartAccent, chartAccentFill, chartAccent.copy(alpha = 0.72f))
-                                    } else {
-                                        listOf(chartAccent.copy(alpha = 0.68f), chartAccent.copy(alpha = 0.36f))
-                                    },
-                                    startY = topY,
-                                    endY = bottom
-                                ),
-                                topLeft = Offset(rectLeft, topY),
-                                size = Size(barWidth, barHeight),
-                                cornerRadius = CornerRadius(barWidth / 2f)
-                            )
-                            if (selected) {
-                                drawCircle(
-                                    color = chartBackground,
-                                    radius = 4.dp.toPx(),
-                                    center = Offset(centerX, (topY - 7.dp.toPx()).coerceAtLeast(top))
-                                )
-                                drawCircle(
-                                    color = chartAccent,
-                                    radius = 2.dp.toPx(),
-                                    center = Offset(centerX, (topY - 7.dp.toPx()).coerceAtLeast(top))
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    chartMonths.forEachIndexed { displayIndex, month ->
-                        val index = chartIndices[displayIndex]
-                        val selected = index == selectedIndexSafe
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(
-                                    if (selected) MmColors.accent.copy(alpha = 0.13f)
-                                    else Color.Transparent
-                                )
-                                .pressableClick { onSelectMonth(index) }
-                                .padding(vertical = 7.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                month.label.substringBefore(" "),
-                                style = MmType.caption.copy(fontSize = 10.sp),
-                                color = if (selected) MmColors.accent else MmColors.textTertiary,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-                if (chartValues.all { it <= 0L }) {
-                    Spacer(Modifier.height(MmSpacing.sm))
-                    Text(
-                        "Your monthly spending trend will appear here once you record transactions.",
-                        style = MmType.caption,
-                        color = MmColors.textSecondary
-                    )
+                if (monthlyTotals.all { it == 0L }) {
+                    Text("No spending recorded in these months yet.",
+                        style = MmType.caption, color = MmColors.textSecondary)
                 }
             }
+    }
+}
+
+@Composable
+private fun DashboardMonthBar(
+    month: MonthWindow,
+    amount: Long,
+    maxMagnitude: Long,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val fraction by animateFloatAsState(
+        targetValue = if (amount == 0L) 0f else
+            (kotlin.math.abs(amount).toDouble() / maxMagnitude.coerceAtLeast(1L).toDouble())
+                .toFloat().coerceIn(0.035f, 1f),
+        animationSpec = tween(560),
+        label = "dashboardTimelineBar"
+    )
+    val parsed = runCatching {
+        YearMonth.from(Instant.ofEpochMilli(month.startInclusive).atZone(dashboardZone))
+    }.getOrNull()
+    // Resolve composable theme values before entering the non-composable Canvas draw scope.
+    val chartOutline = MmColors.outline
+    val chartIncome = MmColors.income
+    val chartAccent = MmColors.accent
+    val chartAccentFill = MmColors.accentFill
+    Column(
+        modifier.fillMaxHeight()
+            .pressableClick(onClick = onClick)
+            .padding(horizontal = 3.dp, vertical = 3.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            if (selected && amount != 0L) MoneyFormat.rupeesNoDecimals(Money(amount)) else " ",
+            style = MmType.caption.copy(fontSize = 8.sp, fontWeight = FontWeight.SemiBold),
+            color = if (selected) MmColors.accent else MmColors.textTertiary,
+            maxLines = 1,
+            softWrap = false
+        )
+        Canvas(Modifier.weight(1f).fillMaxWidth()) {
+            val baseline = size.height * 0.78f
+            val barWidth = size.width * if (selected) 0.38f else 0.30f
+            val barHeight = if (amount == 0L) 2.dp.toPx() else {
+                val available = if (amount > 0L) baseline else size.height - baseline
+                (available * fraction).coerceAtLeast(3.dp.toPx())
+            }
+            val left = (size.width - barWidth) / 2f
+            val top = if (amount >= 0L) baseline - barHeight else baseline
+            drawLine(
+                color = chartOutline.copy(alpha = 0.34f),
+                start = Offset(0f, baseline),
+                end = Offset(size.width, baseline),
+                strokeWidth = 1.dp.toPx()
+            )
+            val tint = when {
+                amount < 0L -> chartIncome
+                selected -> chartAccent
+                else -> chartAccent.copy(alpha = 0.78f)
+            }
+            drawRoundRect(
+                brush = Brush.verticalGradient(
+                    colors = if (amount < 0L) listOf(chartIncome.copy(alpha = 0.62f), chartIncome)
+                    else if (selected) listOf(chartAccent, chartAccentFill)
+                    else listOf(chartAccent.copy(alpha = 0.42f), tint),
+                    startY = top.coerceAtLeast(0f),
+                    endY = (top + barHeight).coerceAtMost(size.height)
+                ),
+                topLeft = Offset(left, top.coerceAtLeast(0f)),
+                size = Size(barWidth, barHeight.coerceAtMost(size.height - top.coerceAtLeast(0f))),
+                cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
+            )
         }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            parsed?.month?.getDisplayName(TextStyle.SHORT, Locale.ENGLISH) ?: month.label.substringBefore(" "),
+            style = MmType.caption.copy(fontSize = 9.sp),
+            color = if (selected) MmColors.accent else MmColors.textSecondary,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1
+        )
+        Text(parsed?.year?.toString()?.takeLast(2) ?: "",
+            style = MmType.caption.copy(fontSize = 8.sp), color = MmColors.textTertiary, maxLines = 1)
     }
 }
 

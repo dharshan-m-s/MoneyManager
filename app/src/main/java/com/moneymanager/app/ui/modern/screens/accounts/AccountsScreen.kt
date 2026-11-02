@@ -1,5 +1,7 @@
 package com.moneymanager.app.ui.modern.screens.accounts
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -53,6 +55,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.entity.AccountBalanceSource
 import com.moneymanager.app.data.local.entity.AccountEntity
@@ -62,6 +65,8 @@ import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.reporting.FinancialSummary
 import com.moneymanager.app.ui.accounts.AccountsTab
 import com.moneymanager.app.ui.accounts.AccountsViewModel
+import com.moneymanager.app.ui.components.MmWalletCard
+import com.moneymanager.app.ui.components.MmBankLogo
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmBalancePanel
 import com.moneymanager.app.ui.components.mmGlassHighlight
@@ -76,6 +81,7 @@ import com.moneymanager.app.ui.components.modernTopInsets
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.pressScale
+import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -135,6 +141,13 @@ fun AccountsScreen(
             isCreditCard = tab == AccountsTab.CREDIT_CARDS,
             count = shown.size,
             total = Money(total),
+            visualValues = shown.map { account ->
+                if (account.accountType == AccountType.CREDIT_CARD) {
+                    account.outstandingMinorUnits ?: 0L
+                } else {
+                    account.currentBalanceMinorUnits
+                }
+            }.sorted(),
             showingInactive = inactiveView,
             editMode = editMode,
             onBack = onBack,
@@ -240,6 +253,7 @@ fun AccountsScreen(
                 itemsIndexed(shown, key = { _, account -> account.id }) { index, account ->
                     AccountRow(
                 account = account,
+                modifier = Modifier.revealOnAppear(index = index),
                 isCreditCard = account.accountType == AccountType.CREDIT_CARD,
                 editMode = editMode,
                 showTopDivider = index > 0,
@@ -284,6 +298,7 @@ private fun AccountsHeader(
     isCreditCard: Boolean,
     count: Int,
     total: Money,
+    visualValues: List<Long>,
     showingInactive: Boolean,
     editMode: Boolean,
     onBack: () -> Unit,
@@ -331,8 +346,12 @@ private fun AccountsHeader(
                 else -> "Total balance"
             },
             value = MoneyFormat.rupeesNoDecimals(total),
+            animatedValueMinorUnits = total.minorUnits,
+            visualValues = visualValues,
+            visualLabel = "Account mix",
             caption = "$count ${if (count == 1) "account" else "accounts"} · $tabLabel" +
                 if (showingInactive) " · switched off" else "",
+            artworkKind = "account_${tabLabel.lowercase()}",
             modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
         )
     }
@@ -430,17 +449,36 @@ private fun AccountRow(
     val subtitle = when {
         !account.active -> "Inactive"
         account.hide -> "Hidden from totals"
-        account.manualBalanceOverrideMinorUnits != null -> "Manual balance"
         account.balanceSource == AccountBalanceSource.REPORTED && account.lastReportedAtEpochMillis != null ->
             "Reported ${formatDayMonth(account.lastReportedAtEpochMillis)}"
         isCreditCard -> "Outstanding"
         else -> "Available balance"
     }
     val institution = account.institutionName.takeIf { it.isNotBlank() && it != account.nickname }
-    val detail = listOfNotNull(institution, account.sourceAccountId.takeIf { it.isNotBlank() })
-        .joinToString(" • ")
+    val isCard = AccountTypeCatalog.info(account.accountType).isCard
+    val detail = if (isCard) institution.orEmpty() else {
+        listOfNotNull(
+            institution,
+            com.moneymanager.app.ui.components.maskedCardNumberFromSourceId(account.sourceAccountId)
+        ).joinToString(" • ")
+    }
     val effectiveLimit = account.creditLimitOverrideMinorUnits ?: account.creditLimitMinorUnits
     val available = (effectiveLimit ?: 0L) - amount
+    val usageFraction = if (isCreditCard && (effectiveLimit ?: 0L) > 0L) {
+        (amount.toFloat() / effectiveLimit!!.toFloat()).coerceIn(0f, 1f)
+    } else {
+        null
+    }
+    val animatedUsage by animateFloatAsState(
+        targetValue = usageFraction ?: 0f,
+        animationSpec = spring(dampingRatio = 0.88f, stiffness = 260f),
+        label = "accountCreditUsage"
+    )
+    val usageTint = when {
+        (usageFraction ?: 0f) >= 0.90f -> MmColors.expense
+        (usageFraction ?: 0f) >= 0.75f -> MmColors.warning
+        else -> MmColors.accent
+    }
     val tint = when (account.accountType) {
         AccountType.CREDIT_CARD -> MmColors.categoryPalette[5 % MmColors.categoryPalette.size]
         AccountType.CASH -> MmColors.income
@@ -449,79 +487,211 @@ private fun AccountRow(
     }
 
     Column(modifier.fillMaxWidth()) {
-        if (showTopDivider) {
+        if (showTopDivider && !isCard && account.accountType != AccountType.BANK) {
             Divider(
                 modifier = Modifier.padding(start = 60.dp, end = MmSpacing.screen),
                 color = MmColors.outline.copy(alpha = 0.55f),
                 thickness = 0.5.dp
             )
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(MmColors.surface)
-                .border(0.7.dp, MmColors.outline.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
-                .clickable(onClick = onClick)
-                .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            MmIconBadge(
-                icon = modernTypeIcon(account.accountType),
-                tint = tint,
-                size = 44.dp
-            )
-            Spacer(Modifier.width(MmSpacing.md))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    account.nickname.ifBlank { account.institutionName },
-                    style = MmType.body,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MmColors.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    if (detail.isNotBlank()) "$detail · $subtitle" else subtitle,
-                    style = MmType.caption,
-                    color = MmColors.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (isCreditCard && (effectiveLimit ?: 0L) > 0L) {
+
+        if (isCard) {
+            // Payment cards stay compact in the list. The full animated card is reserved for
+            // the opened account detail screen, where it has room to breathe.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(19.dp))
+                    .background(MmColors.surface)
+                    .border(0.75.dp, MmColors.outline.copy(alpha = 0.42f), RoundedCornerShape(19.dp))
+                    .clickable(onClick = if (editMode) onEdit else onClick)
+                    .padding(horizontal = MmSpacing.md, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MmIconBadge(icon = modernTypeIcon(account.accountType), tint = tint, size = 44.dp)
+                Spacer(Modifier.width(MmSpacing.md))
+                Column(Modifier.weight(1f)) {
                     Text(
-                        "Available ${MoneyFormat.rupeesNoDecimals(Money(available.coerceAtLeast(0L)))}",
+                        account.nickname.ifBlank { account.institutionName.ifBlank { "Payment card" } },
+                        style = MmType.body,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MmColors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        listOfNotNull(detail.takeIf { it.isNotBlank() }, subtitle).joinToString(" · "),
                         style = MmType.caption,
-                        color = MmColors.textTertiary,
-                        maxLines = 1
+                        color = MmColors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(Modifier.width(MmSpacing.sm))
+                Column(horizontalAlignment = Alignment.End) {
+                    com.moneymanager.app.ui.components.MmAnimatedAmount(
+                        value = amount,
+                        formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
+                        style = MmType.amountRow,
+                        color = MmColors.textPrimary
+                    )
+                    if (isCreditCard && (effectiveLimit ?: 0L) > 0L) {
+                        Text(
+                            "Available ${MoneyFormat.rupeesNoDecimals(Money(available.coerceAtLeast(0L)))}",
+                            style = MmType.caption,
+                            color = MmColors.textTertiary,
+                            maxLines = 1
+                        )
+                    }
+                }
+                Spacer(Modifier.width(MmSpacing.xs))
+                if (editMode) {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Edit card", tint = MmColors.accent)
+                    }
+                } else {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = "Open card", tint = tint, modifier = Modifier.size(18.dp))
+                }
+            }
+            if (usageFraction != null) {
+                Spacer(Modifier.height(MmSpacing.xs))
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 60.dp, end = MmSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "CREDIT UTILISATION",
+                        style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.sp),
+                        color = MmColors.textTertiary
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text("${(usageFraction * 100).toInt()}%", style = MmType.caption, color = usageTint)
+                }
+                Spacer(Modifier.height(5.dp))
+                Box(
+                    Modifier.padding(start = 60.dp, end = MmSpacing.sm)
+                        .fillMaxWidth().height(4.dp).clip(CircleShape)
+                        .background(MmColors.surfaceContainerHigh)
+                ) {
+                    Box(
+                        Modifier.fillMaxWidth(animatedUsage.coerceIn(0f, 1f))
+                            .height(4.dp).clip(CircleShape).background(usageTint)
                     )
                 }
             }
-            Spacer(Modifier.width(MmSpacing.sm))
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    MoneyFormat.rupeesNoDecimals(Money(amount)),
-                    style = MmType.amountRow,
-                    color = MmColors.textPrimary,
-                    maxLines = 1,
-                    softWrap = false
+        } else if (account.accountType == AccountType.BANK) {
+            // Bank accounts are ledger entries, not oversized payment cards. Keep the familiar
+            // row density, give the institution mark a clear place, and let the balance lead.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(19.dp))
+                    .background(MmColors.surface)
+                    .border(0.75.dp, MmColors.outline.copy(alpha = 0.42f), RoundedCornerShape(19.dp))
+                    .clickable(onClick = if (editMode) onEdit else onClick)
+                    .padding(horizontal = MmSpacing.md, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MmBankLogo(
+                    account.institutionName.ifBlank { account.nickname },
+                    Modifier.size(44.dp)
                 )
-                if (isCreditCard) {
-                    Text("Outstanding", style = MmType.caption, color = MmColors.textTertiary, maxLines = 1)
+                Spacer(Modifier.width(MmSpacing.md))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        account.nickname.ifBlank { account.institutionName.ifBlank { "Bank account" } },
+                        style = MmType.body,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MmColors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        listOfNotNull(detail.takeIf { it.isNotBlank() }, subtitle).joinToString(" • "),
+                        style = MmType.caption,
+                        color = MmColors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(Modifier.width(MmSpacing.sm))
+                Column(horizontalAlignment = Alignment.End) {
+                    com.moneymanager.app.ui.components.MmAnimatedAmount(
+                        value = amount,
+                        formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
+                        style = MmType.amountRow,
+                        color = MmColors.textPrimary
+                    )
+                    Text(
+                        if (!account.active) "INACTIVE" else "AVAILABLE",
+                        style = MmType.caption.copy(fontSize = 8.sp, letterSpacing = 0.6.sp),
+                        color = MmColors.textTertiary
+                    )
+                }
+                Spacer(Modifier.width(MmSpacing.xs))
+                if (editMode) {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Edit bank account", tint = MmColors.accent)
+                    }
+                } else {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = "Open bank account",
+                        tint = MmColors.accent,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
-            Spacer(Modifier.width(MmSpacing.xs))
-            if (editMode) {
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Edit account", tint = MmColors.accent)
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MmColors.surface)
+                    .border(0.7.dp, MmColors.outline.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MmIconBadge(icon = modernTypeIcon(account.accountType), tint = tint, size = 44.dp)
+                Spacer(Modifier.width(MmSpacing.md))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        account.nickname.ifBlank { account.institutionName },
+                        style = MmType.body,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MmColors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        if (detail.isNotBlank()) "$detail · $subtitle" else subtitle,
+                        style = MmType.caption,
+                        color = MmColors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-            } else {
-                Icon(
-                    Icons.Filled.ChevronRight,
-                    contentDescription = null,
-                    tint = tint,
-                    modifier = Modifier.size(18.dp)
+                Spacer(Modifier.width(MmSpacing.sm))
+                com.moneymanager.app.ui.components.MmAnimatedAmount(
+                    value = amount,
+                    formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
+                    style = MmType.amountRow,
+                    color = MmColors.textPrimary
                 )
+                Spacer(Modifier.width(MmSpacing.xs))
+                if (editMode) {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Edit account", tint = MmColors.accent)
+                    }
+                } else {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = tint,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }

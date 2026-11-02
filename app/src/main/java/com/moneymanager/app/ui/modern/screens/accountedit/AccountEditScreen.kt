@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -39,6 +43,9 @@ import com.moneymanager.app.domain.model.AccountTypeCatalog
 import com.moneymanager.app.domain.model.BusinessPersonal
 import com.moneymanager.app.ui.components.MmAmountField
 import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmBankLogo
+import com.moneymanager.app.ui.components.MmWalletCard
+import com.moneymanager.app.ui.components.maskedCardNumberFromSourceId
 import com.moneymanager.app.ui.components.MmSegmentedControl
 import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MmTextField
@@ -90,6 +97,31 @@ fun AccountEditScreen(
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
             MmCard {
+                if (AccountTypeCatalog.info(state.accountType).isCard) {
+                    val cardTypeLabel = when (state.accountType) {
+                        AccountType.CREDIT_CARD -> "Credit"
+                        AccountType.DEBIT_CARD -> "Debit"
+                        AccountType.PREPAID_CARD -> "Prepaid"
+                        else -> "Card"
+                    }
+                    MmWalletCard(
+                        issuer = state.institutionName,
+                        title = state.nickname.ifBlank { state.institutionName },
+                        typeLabel = cardTypeLabel,
+                        maskedNumber = maskedCardNumberFromSourceId(state.sourceAccountId),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        MmBankLogo(state.institutionName, Modifier.size(48.dp))
+                        Spacer(Modifier.width(MmSpacing.md))
+                        Column {
+                            Text(state.institutionName.ifBlank { "Institution" }, style = MmType.body, color = MmColors.textPrimary)
+                            Text(AccountTypeCatalog.label(state.accountType), style = MmType.caption, color = MmColors.textSecondary)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(MmSpacing.md))
                 Text("Account details", style = MmType.label, color = MmColors.textSecondary)
                 Spacer(Modifier.height(MmSpacing.md))
                 MmTextField(
@@ -106,11 +138,15 @@ fun AccountEditScreen(
                     placeholder = "e.g. HDFC Bank"
                 )
                 Spacer(Modifier.height(MmSpacing.md))
+                val sensitiveCardId = AccountTypeCatalog.info(state.accountType).isCard
                 MmTextField(
                     value = state.sourceAccountId,
                     onValueChange = viewModel::sourceAccountId,
-                    label = "Account ID",
-                    supportingText = "Must stay unique across your accounts."
+                    label = if (sensitiveCardId) "Card number / reference" else "Account ID",
+                    supportingText = if (sensitiveCardId) "Hidden while editing; wallet surfaces show only the last four digits."
+                        else "Must stay unique across your accounts.",
+                    visualTransformation = if (sensitiveCardId) PasswordVisualTransformation()
+                        else androidx.compose.ui.text.input.VisualTransformation.None
                 )
             }
 

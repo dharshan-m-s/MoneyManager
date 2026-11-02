@@ -11,19 +11,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.FloatingActionButton
-import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Remove
@@ -38,11 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
-import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmBalancePanel
 import com.moneymanager.app.ui.components.MmMetricCard
@@ -59,9 +51,49 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.cash.CashViewModel
+
+/**
+ * Cash search covers the visible transaction identity, category/account names, date text and
+ * a nearby amount. A plain number is interpreted as a rupee amount with a small ±5% tolerance,
+ * bounded from ₹25 to ₹500, so rounded amounts still find their ledger rows.
+ */
+private fun matchesCashSearch(
+    txn: com.moneymanager.app.data.local.entity.TransactionEntity,
+    rawQuery: String,
+    categoryNames: Map<Long, String>,
+    accountNames: Map<Long, String>
+): Boolean {
+    val query = rawQuery.trim().lowercase()
+    val date = Instant.ofEpochMilli(txn.occurredAtEpochMillis).atZone(ZoneId.of("Asia/Kolkata"))
+    val searchable = listOfNotNull(
+        txn.merchantReceiverSender,
+        txn.rawCategoryName,
+        txn.categoryId?.let { categoryNames[it] },
+        txn.notes,
+        txn.rawPaymentType,
+        txn.txnType,
+        txn.txnSubType.name,
+        txn.txnKind.toString(),
+        txn.rawDateString,
+        date.format(DateTimeFormatter.ofPattern("dd MMM yyyy")),
+        date.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
+        date.format(DateTimeFormatter.ISO_LOCAL_DATE),
+        accountNames[txn.accountId]
+    ).joinToString(" ").lowercase()
+    val tokens = query.split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (tokens.isNotEmpty() && tokens.all { searchable.contains(it) }) return true
+
+    val amountText = query.replace("₹", "").replace(",", "").replace(" ", "")
+    if (!amountText.matches(Regex("\\d+(\\.\\d{1,2})?"))) return false
+    val targetMinor = runCatching {
+        (amountText.toBigDecimal() * java.math.BigDecimal(100)).longValueExact()
+    }.getOrNull() ?: return false
+    val tolerance = (targetMinor / 20L).coerceAtLeast(2_500L).coerceAtMost(50_000L)
+    val actualMinor = kotlin.math.abs(txn.creditMinorUnits - txn.debitMinorUnits)
+    return kotlin.math.abs(actualMinor - targetMinor) <= tolerance
+}
 
 /**
  * Cash in hand. The balance is shown on the brand header because that is the number the user
@@ -73,22 +105,16 @@ fun CashScreen(
     onBack: () -> Unit,
     onEditCash: (Long) -> Unit = {},
     onTransactionClick: (Long) -> Unit = {},
-    onAddCashIncome: (Long?) -> Unit,
-    onAddCashSpend: (Long?) -> Unit,
     viewModel: CashViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
     var query by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
-    var addExpanded by remember { mutableStateOf(false) }
 
     val zone = ZoneId.of("Asia/Kolkata")
-    val filtered = remember(state.transactions, query) {
-        val q = query.trim().lowercase()
-        if (q.isBlank()) state.transactions else state.transactions.filter {
-            listOfNotNull(
-                it.merchantReceiverSender, it.rawCategoryName, it.notes, it.rawPaymentType, it.rawDateString
-            ).joinToString(" ").lowercase().contains(q)
+    val filtered = remember(state.transactions, query, state.categoryNames, state.accountNames) {
+        if (query.isBlank()) state.transactions else state.transactions.filter { txn ->
+            matchesCashSearch(txn, query, state.categoryNames, state.accountNames)
         }
     }
     val currentMonth = LocalDate.now(zone).withDayOfMonth(1)
@@ -123,7 +149,14 @@ fun CashScreen(
             MmBalancePanel(
                 label = "Available now",
                 value = MoneyFormat.rupeesNoDecimals(state.cashInHand),
-                caption = "Updated automatically as you record cash transactions",
+                animatedValueMinorUnits = state.cashInHand.minorUnits,
+                visualValues = state.monthTotals.toList()
+                    .sortedBy { it.first }
+                    .takeLast(6)
+                    .map { (_, totals) -> kotlin.math.abs(totals.incomeMinor) + kotlin.math.abs(totals.spendMinor) },
+                visualLabel = "Monthly movement",
+                caption = "Live ledger balance · updated when you record cash transactions",
+                artworkKind = "cash",
                 modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
             )
 
@@ -157,9 +190,11 @@ fun CashScreen(
                 )
                 CashMetric(
                     icon = Icons.Filled.Wallet,
-                    amount = MoneyFormat.rupeesNoDecimals(state.cashInHand),
-                    label = "Balance",
-                    tint = MmColors.accent,
+                    amount = MoneyFormat.rupeesNoDecimals(
+                        Money(state.monthIncome.minorUnits - state.monthSpend.minorUnits)
+                    ),
+                    label = "Net this month",
+                    tint = if (state.monthIncome.minorUnits >= state.monthSpend.minorUnits) MmColors.income else MmColors.expense,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -208,62 +243,16 @@ fun CashScreen(
                         }
                     }
                     items(realRows, key = { it.id }) { txn ->
-                        MmTransactionRow(txn = txn, onClick = { onTransactionClick(txn.id) })
+                        MmTransactionRow(
+                            txn = txn,
+                            onClick = { onTransactionClick(txn.id) },
+                            showDivider = false
+                        )
                     }
                 }
             }
         }
 
-        // Cash has two directions, so the add control offers both instead of guessing.
-        Column(
-            horizontalAlignment = Alignment.End,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(MmSpacing.lg)
-        ) {
-            if (addExpanded) {
-                AddOption("Cash spend", Icons.Filled.Remove, MmColors.expense) {
-                    addExpanded = false
-                    onAddCashSpend(state.primaryCashAccountId)
-                }
-                AddOption("Cash income", Icons.Filled.Add, MmColors.income) {
-                    addExpanded = false
-                    onAddCashIncome(state.primaryCashAccountId)
-                }
-                Spacer(Modifier.height(MmSpacing.sm))
-            }
-            FloatingActionButton(
-                onClick = { addExpanded = !addExpanded },
-                backgroundColor = MmColors.accentFill,
-                shape = RoundedCornerShape(22.dp)
-            ) {
-                Icon(
-                    if (addExpanded) Icons.Filled.Close else Icons.Filled.Add,
-                    contentDescription = if (addExpanded) "Close add menu" else "Add cash transaction",
-                    tint = MmColors.onAccent
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AddOption(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    tint: Color,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .padding(bottom = MmSpacing.sm)
-            .clip(RoundedCornerShape(MmSpacing.touchTarget / 2))
-            .background(MmColors.surface)
-            .pressableClick(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-    ) {
-        Text(label, style = MmType.label, color = MmColors.textPrimary)
-        MmIconBadge(icon = icon, tint = tint, size = 36.dp)
     }
 }
 

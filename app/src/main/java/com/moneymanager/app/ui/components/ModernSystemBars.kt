@@ -22,6 +22,9 @@ fun StatusBarGlyphToneAndSystemBarTint(lightBackground: Boolean, accentEdge: Boo
         val controller = WindowCompat.getInsetsController(activity.window, view)
         controller.isAppearanceLightStatusBars = lightBackground
         controller.isAppearanceLightNavigationBars = lightBackground
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            activity.window.isNavigationBarContrastEnforced = false
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             activity.window.setNavigationBarColor(Color.TRANSPARENT)
             activity.window.setStatusBarColor(Color.TRANSPARENT)

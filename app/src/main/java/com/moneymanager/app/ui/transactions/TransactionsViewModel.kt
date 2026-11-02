@@ -20,12 +20,20 @@ class TransactionsViewModel @Inject constructor(
     categoryDao: CategoryDao,
     accountDao: AccountDao
 ) : ViewModel() {
-    val transactions: StateFlow<List<TransactionEntity>> = transactionDao.observeRecent(20000)
+    val transactions: StateFlow<List<TransactionEntity>> = transactionDao.observeAllTransactions()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val categories: StateFlow<List<CategoryEntity>> = categoryDao.observeActive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Complete category directory for searching historical rows with inactive categories. */
+    val searchableCategories: StateFlow<List<CategoryEntity>> = categoryDao.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val accounts: StateFlow<List<AccountEntity>> = accountDao.observeActive()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Full account directory for search/reporting, including inactive and hidden account names. */
+    val searchableAccounts: StateFlow<List<AccountEntity>> = accountDao.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 }

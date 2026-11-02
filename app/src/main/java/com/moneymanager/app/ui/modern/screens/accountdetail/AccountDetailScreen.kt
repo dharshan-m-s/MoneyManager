@@ -2,7 +2,10 @@ package com.moneymanager.app.ui.modern.screens.accountdetail
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,10 +14,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.FloatingActionButton
@@ -54,6 +59,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.model.Money
+import com.moneymanager.app.domain.model.AccountType
+import com.moneymanager.app.domain.model.AccountTypeCatalog
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmEmptyState
@@ -62,11 +69,15 @@ import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmProgressBar
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MmTopBarAction
+import com.moneymanager.app.ui.components.MmWalletCard
+import com.moneymanager.app.ui.components.MmBankAccountCard
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.MmTransactionRow
+import com.moneymanager.app.ui.components.MmGroupPosition
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.formatFullDate
 import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -284,60 +295,44 @@ private fun AccountHeader(
     onEdit: () -> Unit,
     onToggleSearch: () -> Unit
 ) {
-    val isCard = state.isCreditCard
+    val isCreditCard = state.isCreditCard
     val account = state.account
+    val isPaymentCard = account?.let { AccountTypeCatalog.info(it.accountType).isCard } == true
 
     Column(Modifier.fillMaxWidth()) {
         MoneyManagerTopBar(
-            title = if (isCard) "Credit card" else (account?.nickname ?: "Account"),
-            subtitle = if (isCard) account?.nickname?.ifBlank { account.institutionName } else account?.institutionName,
+            title = if (isCreditCard) "Credit card" else (account?.nickname ?: "Account"),
+            subtitle = if (isCreditCard) account?.nickname?.ifBlank { account.institutionName } else account?.institutionName,
             onBack = onBack,
             actions = {
-                MmTopBarAction(
-                    icon = Icons.Filled.Search,
-                    contentDescription = "Search this account",
-                    onClick = onToggleSearch
-                )
-                MmTopBarAction(
-                    icon = Icons.Filled.Edit,
-                    contentDescription = if (isCard) "Edit credit card" else "Edit account",
-                    onClick = onEdit
-                )
+                MmTopBarAction(Icons.Filled.Search, "Search this account", onToggleSearch)
+                MmTopBarAction(Icons.Filled.Edit, if (isCreditCard) "Edit credit card" else "Edit account", onEdit)
             }
         )
 
         if (account == null) return@Column
 
-        MmCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.lg),
+        if (isPaymentCard) {
+            MmWalletCard(
+                account = account,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.lg),
+                maskedNumberOverride = state.maskedCardNumber
+            )
+        } else if (account.accountType == AccountType.BANK) {
+            MmBankAccountCard(
+                account = account,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.lg)
+            )
+        }
+
+        if (isCreditCard || account.accountType != AccountType.BANK) MmCard(
+            modifier = Modifier.fillMaxWidth().padding(
+                horizontal = MmSpacing.screen,
+                vertical = if (isPaymentCard) MmSpacing.xs else MmSpacing.lg
+            ),
             contentPadding = PaddingValues(MmSpacing.xl)
         ) {
-            if (isCard) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    MmIconBadge(icon = Icons.Filled.CreditCard, tint = MmColors.accent, size = 42.dp)
-                    Spacer(Modifier.width(MmSpacing.md))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            account.nickname.ifBlank { account.institutionName },
-                            style = MmType.sectionTitle,
-                            color = MmColors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            account.sourceAccountId
-                                .takeIf { state.maskedCardNumber.isBlank() }
-                                ?: "•••• ${state.maskedCardNumber.filter { it.isDigit() }.takeLast(4)}",
-                            style = MmType.caption,
-                            color = MmColors.textSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                Spacer(Modifier.height(MmSpacing.lg))
+            if (isCreditCard) {
                 Text("Outstanding", style = MmType.caption, color = MmColors.textSecondary)
                 MmAnimatedAmount(
                     value = account.outstandingMinorUnits ?: 0L,
@@ -348,8 +343,7 @@ private fun AccountHeader(
                 if (state.statementDueDateEpochMillis != null) {
                     Spacer(Modifier.height(MmSpacing.xs))
                     Text(
-                        "Statement ${state.currentCycle?.label.orEmpty()} • " +
-                            "Due ${formatFullDate(state.statementDueDateEpochMillis)}",
+                        "Statement ${state.currentCycle?.label.orEmpty()} • Due ${formatFullDate(state.statementDueDateEpochMillis)}",
                         style = MmType.caption,
                         color = MmColors.textSecondary
                     )
@@ -359,11 +353,7 @@ private fun AccountHeader(
                 if (limit != null && limit > 0L) {
                     Spacer(Modifier.height(MmSpacing.sm))
                     val fraction = (outstanding.toFloat() / limit.toFloat()).coerceIn(0f, 1f)
-                    MmProgressBar(
-                        fraction = fraction,
-                        color = if (fraction > 0.9f) MmColors.expense else MmColors.accent,
-                        height = 6.dp
-                    )
+                    MmProgressBar(fraction = fraction, color = if (fraction > 0.9f) MmColors.expense else MmColors.accent, height = 6.dp)
                     Spacer(Modifier.height(MmSpacing.xs))
                     Text(
                         "${(fraction * 100).toInt()}% of ${MoneyFormat.rupeesNoDecimals(Money(limit))} limit used",
@@ -391,15 +381,8 @@ private fun AccountHeader(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
                     if (!account.active) MmPill("Inactive", tint = MmColors.textSecondary, filled = true)
-                    if (account.manualBalanceOverrideMinorUnits != null) {
-                        MmPill("Manual balance", tint = MmColors.textSecondary, filled = true)
-                    }
                     if (account.lastReportedAtEpochMillis != null) {
-                        MmPill(
-                            "Reported ${formatFullDate(account.lastReportedAtEpochMillis)}",
-                            tint = MmColors.textSecondary,
-                            filled = true
-                        )
+                        MmPill("Reported ${formatFullDate(account.lastReportedAtEpochMillis)}", tint = MmColors.textSecondary, filled = true)
                     }
                 }
             }
@@ -410,36 +393,50 @@ private fun AccountHeader(
 @Composable
 private fun CreditCardTabs(selected: Int, onSelect: (Int) -> Unit) {
     val labels = listOf("View", "Monthly", "Billing cycle")
-    Row(
+    BoxWithConstraints(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.lg)
     ) {
-        labels.forEachIndexed { index, label ->
-            val active = selected == index
-            Column(
-                Modifier
-                    .weight(1f)
-                    .pressableClick { onSelect(index) }
-                    .padding(vertical = MmSpacing.sm),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    label,
-                    color = if (active) MmColors.textPrimary else MmColors.textSecondary,
-                    style = MmType.label,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(6.dp))
-                Box(
+        val segmentWidth = maxWidth / labels.size
+        val indicatorWidth = 30.dp
+        val targetOffset = segmentWidth * selected.coerceIn(labels.indices) +
+            (segmentWidth - indicatorWidth) / 2
+        val indicatorOffset by animateDpAsState(
+            targetValue = targetOffset,
+            animationSpec = spring(dampingRatio = 0.78f, stiffness = 520f),
+            label = "creditCardTabIndicator"
+        )
+
+        Row(Modifier.fillMaxWidth()) {
+            labels.forEachIndexed { index, label ->
+                val active = selected == index
+                Column(
                     Modifier
-                        .width(28.dp)
-                        .height(3.dp)
-                        .background(if (active) MmColors.accent else Color.Transparent, CircleShape)
-                )
+                        .weight(1f)
+                        .pressableClick { onSelect(index) }
+                        .padding(top = MmSpacing.sm, bottom = MmSpacing.md),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        label,
+                        color = if (active) MmColors.textPrimary else MmColors.textSecondary,
+                        style = MmType.label,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
+
+        Box(
+            Modifier
+                .align(Alignment.BottomStart)
+                .offset(x = indicatorOffset)
+                .width(indicatorWidth)
+                .height(3.dp)
+                .background(MmColors.accent, CircleShape)
+        )
     }
 }
 
@@ -468,8 +465,20 @@ private fun CurrentCycleList(
                 expense = Money(cycle.expense)
             )
         }
-        items(visible, key = { it.id }) { txn ->
-            MmTransactionRow(txn = txn, onClick = { onTransactionClick(txn.id) })
+        itemsIndexed(visible, key = { _, txn -> txn.id }) { index, txn ->
+            val position = when {
+                visible.size == 1 -> MmGroupPosition.SINGLE
+                index == 0 -> MmGroupPosition.TOP
+                index == visible.lastIndex -> MmGroupPosition.BOTTOM
+                else -> MmGroupPosition.MIDDLE
+            }
+            MmTransactionRow(
+                txn = txn,
+                onClick = { onTransactionClick(txn.id) },
+                showDivider = false,
+                groupPosition = position,
+                modifier = Modifier.revealOnAppear(index = index)
+            )
         }
     }
 }
@@ -505,8 +514,20 @@ private fun GroupedList(
                     expenseLabel = expenseLabel
                 )
             }
-            items(group.transactions, key = { it.id }) { txn ->
-                MmTransactionRow(txn = txn, onClick = { onTransactionClick(txn.id) })
+            itemsIndexed(group.transactions, key = { _, txn -> txn.id }) { transactionIndex, txn ->
+                val position = when {
+                    group.transactions.size == 1 -> MmGroupPosition.SINGLE
+                    transactionIndex == 0 -> MmGroupPosition.TOP
+                    transactionIndex == group.transactions.lastIndex -> MmGroupPosition.BOTTOM
+                    else -> MmGroupPosition.MIDDLE
+                }
+                MmTransactionRow(
+                    txn = txn,
+                    onClick = { onTransactionClick(txn.id) },
+                    showDivider = false,
+                    groupPosition = position,
+                    modifier = Modifier.revealOnAppear(index = transactionIndex)
+                )
             }
         }
         if (canLoadMore) {

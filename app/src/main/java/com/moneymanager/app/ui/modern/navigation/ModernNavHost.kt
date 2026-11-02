@@ -8,7 +8,9 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import com.moneymanager.app.ui.components.LocalDockContentPadding
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -111,7 +113,7 @@ fun ModernNavHost(
     NavHost(
         navController = navController,
         startDestination = Destination.Dashboard.route,
-        modifier = modifier,
+        modifier = modifier.padding(bottom = LocalDockContentPadding.current),
         enterTransition = {
             val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
                 targetState.destination.route in SECTION_ROUTES
@@ -313,13 +315,7 @@ fun ModernNavHost(
             CashScreen(
                 onBack = { safeBack() },
                 onEditCash = { id -> go(Destination.AccountEdit.route(id)) },
-                onTransactionClick = { id -> go(Destination.TransactionDetail.route(id)) },
-                onAddCashIncome = { acctId ->
-                    go(Destination.AddTransaction.route("CASH_INCOME", acctId))
-                },
-                onAddCashSpend = { acctId ->
-                    go(Destination.AddTransaction.route("CASH_SPEND", acctId))
-                }
+                onTransactionClick = { id -> go(Destination.TransactionDetail.route(id)) }
             )
         }
         composable(Destination.SpendSummary.route) {

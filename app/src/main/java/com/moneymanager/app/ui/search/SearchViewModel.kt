@@ -18,8 +18,8 @@ import javax.inject.Inject
  * Searches via a real SQL query (TransactionDao.searchTransactions) rather than loading a
  * capped recent-transactions window and filtering client-side. The dataset can hold 13,000+
  * historical transactions - a client-side cap would silently miss older matches, which is a
- * correctness bug, not just a performance one. SQL LIKE does the filtering; only the (capped)
- * result set reaches the UI.
+ * correctness bug, not just a performance one. SQL LIKE and the parsed amount predicate filter
+ * the complete ledger; Compose only receives matching rows.
  */
 @HiltViewModel
 class SearchViewModel @Inject constructor(
@@ -31,8 +31,30 @@ class SearchViewModel @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val results: StateFlow<List<TransactionEntity>> = _query.flatMapLatest { q ->
-        if (q.isBlank()) flowOf(emptyList()) else transactionDao.searchTransactions(q)
+        if (q.isBlank()) {
+            flowOf(emptyList())
+        } else {
+            val amountMinorUnits = parseAmountMinorUnits(q)
+            // Match the Activity page policy: ±5%, clamped to ₹25–₹500.
+            val tolerance = amountMinorUnits?.let {
+                (it / 20L).coerceAtLeast(2_500L).coerceAtMost(50_000L)
+            } ?: 0L
+            transactionDao.searchTransactions(
+                query = q,
+                amountMinorUnits = amountMinorUnits,
+                amountToleranceMinorUnits = tolerance
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun onQueryChange(q: String) { _query.value = q }
+
+    /** Plain rupees, comma grouping and ₹ are accepted; mixed text is not treated as a number. */
+    private fun parseAmountMinorUnits(raw: String): Long? {
+        val cleaned = raw.trim().replace("₹", "").replace(",", "").replace(" ", "")
+        if (!cleaned.matches(Regex("\\d+(\\.\\d{1,2})?"))) return null
+        return runCatching {
+            (cleaned.toBigDecimal() * java.math.BigDecimal(100)).longValueExact()
+        }.getOrNull()
+    }
 }

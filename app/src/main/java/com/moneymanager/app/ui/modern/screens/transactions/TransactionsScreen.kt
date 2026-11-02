@@ -1,5 +1,6 @@
 package com.moneymanager.app.ui.modern.screens.transactions
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -32,7 +33,10 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +47,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -130,6 +138,8 @@ fun TransactionsScreen(
     val rows by viewModel.transactions.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
+    val searchableCategories by viewModel.searchableCategories.collectAsState()
+    val searchableAccounts by viewModel.searchableAccounts.collectAsState()
 
     var query by rememberSaveable { mutableStateOf("") }
     var sort by rememberSaveable { mutableStateOf(TxnSort.NEWEST.name) }
@@ -139,18 +149,32 @@ fun TransactionsScreen(
 
     val activeSort = TxnSort.valueOf(sort)
     val categoryNames = remember(categories) { categories.associate { it.id to it.name } }
+    val searchableCategoryNames = remember(searchableCategories) {
+        searchableCategories.associate { it.id to it.name }
+    }
     val accountNames = remember(accounts) {
         accounts.associate { it.id to it.nickname.ifBlank { it.institutionName } }
     }
-    val accountById = remember(accounts) { FinancialSummary.accountMap(accounts) }
+    val accountSearchNames = remember(searchableAccounts) {
+        searchableAccounts.associate { account ->
+            account.id to listOf(account.nickname, account.institutionName)
+                .filter { it.isNotBlank() }
+                .distinct()
+                .joinToString(" ")
+        }
+    }
+    val accountById = remember(searchableAccounts) {
+        FinancialSummary.accountMap(searchableAccounts)
+    }
 
-    val visibleRows = remember(rows, sort, filters, query, categoryNames, accountNames) {
+    val visibleRows = remember(rows, sort, filters, query, categoryNames, searchableCategoryNames, accountNames, accountSearchNames) {
         val searched = if (query.isBlank()) rows else rows.filter { txn ->
             val haystack = listOfNotNull(
-                txn.merchantReceiverSender, txn.rawCategoryName, txn.notes, txn.rawPaymentType,
-                accountNames[txn.accountId]
+                txn.merchantReceiverSender, txn.rawCategoryName,
+                txn.categoryId?.let { searchableCategoryNames[it] },
+                txn.notes, txn.rawPaymentType, accountSearchNames[txn.accountId]
             ).joinToString(" ")
-            haystack.contains(query.trim(), ignoreCase = true)
+            haystack.contains(query.trim(), ignoreCase = true) || matchesAmountQuery(txn, query)
         }
         val filtered = searched.filter { matchesFilters(it, filters) }
         when (activeSort) {
@@ -200,7 +224,7 @@ fun TransactionsScreen(
             MmSearchField(
                 value = query,
                 onValueChange = { query = it },
-                hint = "Search merchant, category, notes or account"
+                hint = "Merchant, bank, category, notes, account or amount"
             )
         }
 
@@ -378,29 +402,82 @@ private fun DayHeader(date: LocalDate, dayNet: Long) {
 /** Compact summary of what is currently visible, with no inferred trend. */
 @Composable
 private fun InViewSummary(income: Long, expense: Long) {
+    val reveal = androidx.compose.runtime.remember(income, expense) { Animatable(0f) }
+    LaunchedEffect(income, expense) {
+        reveal.snapTo(0f)
+        reveal.animateTo(1f, animationSpec = tween(620))
+    }
     Row(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
-            .clip(MmShape.row)
-            .background(MmColors.surface)
-            .border(1.dp, MmColors.hairline, MmShape.row)
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF222A45), Color(0xFF39476C), Color(0xFF20283F))
+                )
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(24.dp))
             .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
-        horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)
+        horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        SummaryColumn("In view", income - expense, Modifier.weight(1f))
-        SummaryColumn("Income", income, Modifier.weight(1f), MmColors.income)
-        SummaryColumn("Spent", expense, Modifier.weight(1f), MmColors.expense)
+        SummaryColumn(
+            "Net", income - expense, Modifier.weight(1f),
+            tint = Color.White, labelColor = Color.White.copy(alpha = 0.68f),
+            showSign = true
+        )
+        SummaryColumn(
+            "Income", income, Modifier.weight(1f),
+            tint = Color(0xFFB8F1D8), labelColor = Color.White.copy(alpha = 0.68f)
+        )
+        SummaryColumn(
+            "Spent", expense, Modifier.weight(1f),
+            tint = Color(0xFFFFC1B8), labelColor = Color.White.copy(alpha = 0.68f),
+            showSign = true
+        )
+        Canvas(Modifier.width(35.dp).height(42.dp)) {
+            val maximum = maxOf(income.coerceAtLeast(0L), expense.coerceAtLeast(0L), 1L).toFloat()
+            val values = listOf(
+                income.coerceAtLeast(0L).toFloat() / maximum,
+                expense.coerceAtLeast(0L).toFloat() / maximum
+            )
+            val colors = listOf(Color(0xFF9BE6C5), Color(0xFFFFAFA5))
+            val gap = 6.dp.toPx()
+            val barWidth = 10.dp.toPx()
+            val groupWidth = barWidth * 2f + gap
+            val startX = (size.width - groupWidth) / 2f
+            values.forEachIndexed { index, value ->
+                val h = (size.height * value * reveal.value).coerceAtLeast(2.dp.toPx())
+                val tint = colors[index]
+                drawRoundRect(
+                    brush = Brush.verticalGradient(
+                        listOf(tint.copy(alpha = 0.98f), tint.copy(alpha = 0.30f))
+                    ),
+                    topLeft = Offset(startX + index * (barWidth + gap), size.height - h),
+                    size = Size(barWidth, h),
+                    cornerRadius = CornerRadius(barWidth / 2f)
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun SummaryColumn(label: String, amount: Long, modifier: Modifier = Modifier, tint: Color? = null) {
+private fun SummaryColumn(
+    label: String,
+    amount: Long,
+    modifier: Modifier = Modifier,
+    tint: Color? = null,
+    labelColor: Color = MmColors.textSecondary,
+    showSign: Boolean = false
+) {
     Column(modifier) {
-        Text(label, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1)
+        Text(label, style = MmType.caption, color = labelColor, maxLines = 1)
         Spacer(Modifier.height(2.dp))
+        val sign = if (showSign && amount < 0L) "−" else ""
         Text(
-            MoneyFormat.rupeesNoDecimals(Money(kotlin.math.abs(amount))),
+            sign + MoneyFormat.rupeesNoDecimals(Money(kotlin.math.abs(amount))),
             style = MmType.amountTile,
             color = tint ?: if (amount < 0) MmColors.expense else MmColors.textPrimary,
             maxLines = 1,
@@ -530,7 +607,10 @@ private fun TransactionFilterSheet(
     MmBottomSheet(title = "Filter transactions", onDismiss = onDismiss) {
         Text("Type", style = MmType.label, color = MmColors.textSecondary)
         Spacer(Modifier.height(MmSpacing.sm))
-        Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+        ) {
             TxnTypeFilter.entries.forEach { option ->
                 MmChip(
                     label = option.label,
@@ -699,5 +779,20 @@ private fun matchesFilters(txn: TransactionEntity, f: TxnFilters): Boolean {
 }
 
 private fun parseMinorAmount(value: String): Long? = value.trim().takeIf { it.isNotEmpty() }?.let {
-    runCatching { (it.toBigDecimal() * java.math.BigDecimal(100)).longValueExact() }.getOrNull()
+    runCatching {
+        (it.replace("₹", "").replace(",", "").replace(" ", "").toBigDecimal() *
+            java.math.BigDecimal(100)).longValueExact()
+    }.getOrNull()
+}
+
+/** Amount queries use a bounded ±5% window (minimum ₹25, maximum ₹500) in both search surfaces. */
+private fun matchesAmountQuery(txn: TransactionEntity, query: String): Boolean {
+    val cleaned = query.trim().replace("₹", "").replace(",", "").replace(" ", "")
+    if (!cleaned.matches(Regex("\\d+(\\.\\d{1,2})?"))) return false
+    val target = runCatching {
+        (cleaned.toBigDecimal() * java.math.BigDecimal(100)).longValueExact()
+    }.getOrNull() ?: return false
+    val tolerance = (target / 20L).coerceAtLeast(2_500L).coerceAtMost(50_000L)
+    val actual = kotlin.math.abs(txn.debitMinorUnits - txn.creditMinorUnits)
+    return kotlin.math.abs(actual - target) <= tolerance
 }

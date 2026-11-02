@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -94,7 +95,8 @@ fun MmTextField(
     keyboardType: KeyboardType = KeyboardType.Text,
     leadingIcon: (@Composable () -> Unit)? = null,
     enabled: Boolean = true,
-    trailing: (@Composable () -> Unit)? = null
+    trailing: (@Composable () -> Unit)? = null,
+    visualTransformation: VisualTransformation = VisualTransformation.None
 ) {
     Column(modifier.fillMaxWidth()) {
         Text(
@@ -116,6 +118,7 @@ fun MmTextField(
             enabled = enabled,
             shape = mmFieldShape,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            visualTransformation = visualTransformation,
             leadingIcon = leadingIcon,
             trailingIcon = trailing,
             colors = mmFieldColors()

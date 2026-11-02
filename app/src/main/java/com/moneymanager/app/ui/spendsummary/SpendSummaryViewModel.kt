@@ -17,13 +17,18 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.YearMonth
+import java.time.Instant
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 data class SpendCategoryRow(val categoryId: Long?, val name: String, val total: Long, val colorHex: String)
 
-/** One selectable month window, newest last in the list. */
+/** One selectable time window. */
 data class MonthWindow(val startInclusive: Long, val endExclusive: Long, val label: String)
+
+/** All chart buckets, newest first and aligned with [totals]. */
+data class DashboardSpendHistory(val months: List<MonthWindow>, val totals: List<Long>)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -35,9 +40,10 @@ class SpendSummaryViewModel @Inject constructor(
 
     private val zone = ZoneId.of("Asia/Kolkata")
 
-    /** Current month index (0 = current month, 1 = last month, …). */
+    /** Current month index retained for the compact month-navigation API. */
     private val _selectedMonthIndex = MutableStateFlow(0)
     val selectedMonthIndex: StateFlow<Int> = _selectedMonthIndex
+
 
     /** Month windows are newest first and share one clock snapshot for stable boundaries. */
     private val monthWindows: List<MonthWindow> = run {
@@ -51,6 +57,10 @@ class SpendSummaryViewModel @Inject constructor(
         }
     }
 
+    /** The exact visible period selected in the full Spend Summary chart. */
+    private val _selectedWindow = MutableStateFlow(monthWindows.first())
+    private val _previousWindow = MutableStateFlow<MonthWindow?>(monthWindows.getOrNull(1))
+
     /** Six-month window used by the full Spend Summary screen. */
     val availableMonths: List<MonthWindow> = monthWindows.take(6)
 
@@ -59,8 +69,7 @@ class SpendSummaryViewModel @Inject constructor(
 
     /** Category totals for the selected month ONLY — never cumulative all-time data. */
     val categoryRows: StateFlow<List<SpendCategoryRow>> = combine(
-        _selectedMonthIndex.flatMapLatest { index ->
-            val window = availableMonths[index]
+        _selectedWindow.flatMapLatest { window ->
             transactionDao.observeCategoryTotalsInRange(window.startInclusive, window.endExclusive)
         },
         categoryDao.observeAll()
@@ -77,32 +86,26 @@ class SpendSummaryViewModel @Inject constructor(
 
     /** Canonical total spend for the selected month (same query definition the graph and the
      *  dashboard use), in minor units. */
-    val selectedMonthTotal: StateFlow<Long> = _selectedMonthIndex
-        .flatMapLatest { index ->
-            val window = availableMonths[index]
+    val selectedMonthTotal: StateFlow<Long> = _selectedWindow
+        .flatMapLatest { window ->
             transactionDao.observeTotalSpendInRange(window.startInclusive, window.endExclusive)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     /** Total spend for the immediately previous calendar month (0 when the screen is on the oldest month). */
-    val previousMonthTotal: StateFlow<Long> = _selectedMonthIndex
-        .map { idx -> if (idx + 1 < availableMonths.size) idx + 1 else -1 }
-        .flatMapLatest { prevIdx ->
-            if (prevIdx >= 0) {
-                val window = availableMonths[prevIdx]
-                transactionDao.observeTotalSpendInRange(window.startInclusive, window.endExclusive)
-            } else {
-                flowOf(0L)
-            }
+    val previousMonthTotal: StateFlow<Long> = _previousWindow
+        .flatMapLatest { window ->
+            if (window == null) flowOf(0L)
+            else transactionDao.observeTotalSpendInRange(window.startInclusive, window.endExclusive)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     /** True only when the previous month actually has spending — used to avoid misleading ₹0 comparisons. */
     val hasPreviousMonthData: StateFlow<Boolean> = combine(
         previousMonthTotal,
-        _selectedMonthIndex
-    ) { total, idx ->
-        total > 0L && idx + 1 < availableMonths.size
+        _previousWindow
+    ) { total, previous ->
+        total > 0L && previous != null
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /**
@@ -116,21 +119,123 @@ class SpendSummaryViewModel @Inject constructor(
     ) { values: Array<Long> -> values.toList() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), List(availableMonths.size) { 0L })
 
-    /** Dashboard-only history stream; does not change the six-month Spend Summary queries. */
-    val dashboardMonthlyTotals: StateFlow<List<Long>> = combine(
-        dashboardMonths.map { window ->
-            transactionDao.observeTotalSpendInRange(window.startInclusive, window.endExclusive)
+    /** Full month history, filled with zero months between the oldest transaction and now. */
+    val dashboardSpendHistory: StateFlow<DashboardSpendHistory> = transactionDao
+        .observeMonthlySpendTotals()
+        .map { rows ->
+            val totalsByMonth = rows.mapNotNull { row ->
+                runCatching { YearMonth.parse(row.yearMonth) }.getOrNull()?.let { it to row.total }
+            }.toMap()
+            val currentMonth = YearMonth.now(zone)
+            val firstMonth = totalsByMonth.keys.minOrNull() ?: currentMonth
+            val count = java.time.temporal.ChronoUnit.MONTHS.between(firstMonth, currentMonth)
+                .toInt().coerceAtLeast(0)
+            val labelFormat = DateTimeFormatter.ofPattern("MMM ''yy")
+            val windows = (0..count).map { offset ->
+                val month = currentMonth.minusMonths(offset.toLong())
+                val start = month.atDay(1).atStartOfDay(zone)
+                val end = month.plusMonths(1).atDay(1).atStartOfDay(zone)
+                MonthWindow(
+                    start.toInstant().toEpochMilli(),
+                    end.toInstant().toEpochMilli(),
+                    labelFormat.format(start)
+                )
+            }
+            DashboardSpendHistory(
+                months = windows,
+                totals = windows.map { window ->
+                    val month = YearMonth.from(Instant.ofEpochMilli(window.startInclusive).atZone(zone))
+                    totalsByMonth[month] ?: 0L
+                }
+            )
         }
-    ) { values: Array<Long> -> values.toList() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), List(dashboardMonths.size) { 0L })
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            DashboardSpendHistory(emptyList(), emptyList())
+        )
+
+    private val customRange = MutableStateFlow<Pair<Long, Long>?>(null)
+
+    /** Exact date range; each displayed month bucket is clipped to its selected dates. */
+    val customSpendHistory: StateFlow<DashboardSpendHistory> = customRange
+        .flatMapLatest { range ->
+            if (range == null) {
+                flowOf(DashboardSpendHistory(emptyList(), emptyList()))
+            } else {
+                val startDate = Instant.ofEpochMilli(range.first).atZone(zone).toLocalDate()
+                val endDate = Instant.ofEpochMilli(range.second).atZone(zone).toLocalDate()
+                if (endDate.isBefore(startDate)) {
+                    flowOf(DashboardSpendHistory(emptyList(), emptyList()))
+                } else {
+                    val windowsAscending = mutableListOf<MonthWindow>()
+                    var month = YearMonth.from(startDate)
+                    val lastMonth = YearMonth.from(endDate)
+                    while (!month.isAfter(lastMonth)) {
+                        val bucketStart = maxOf(month.atDay(1), startDate)
+                        val bucketEndExclusive = minOf(month.plusMonths(1).atDay(1), endDate.plusDays(1))
+                        windowsAscending += MonthWindow(
+                            bucketStart.atStartOfDay(zone).toInstant().toEpochMilli(),
+                            bucketEndExclusive.atStartOfDay(zone).toInstant().toEpochMilli(),
+                            DateTimeFormatter.ofPattern("MMM ''yy").format(month.atDay(1))
+                        )
+                        month = month.plusMonths(1)
+                    }
+                    val windows = windowsAscending.asReversed()
+                    val rangeStart = startDate.atStartOfDay(zone).toInstant().toEpochMilli()
+                    val rangeEnd = endDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+                    transactionDao.observeMonthlySpendTotalsInRange(rangeStart, rangeEnd).map { rows ->
+                        val totalsByMonth = rows.mapNotNull { row ->
+                            runCatching { YearMonth.parse(row.yearMonth) }.getOrNull()?.let { it to row.total }
+                        }.toMap()
+                        DashboardSpendHistory(
+                            months = windows,
+                            totals = windows.map { window ->
+                                val monthKey = YearMonth.from(
+                                    Instant.ofEpochMilli(window.startInclusive).atZone(zone)
+                                )
+                                totalsByMonth[monthKey] ?: 0L
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            DashboardSpendHistory(emptyList(), emptyList())
+        )
+
+    fun selectCustomRange(startEpochMillis: Long?, endEpochMillis: Long?) {
+        customRange.value = if (startEpochMillis != null && endEpochMillis != null) {
+            val start = Instant.ofEpochMilli(startEpochMillis).atZone(zone).toLocalDate()
+            val end = Instant.ofEpochMilli(endEpochMillis).atZone(zone).toLocalDate()
+            if (end.isBefore(start)) null else startEpochMillis to endEpochMillis
+        } else {
+            null
+        }
+    }
 
     fun selectMonth(index: Int) {
         if (index in availableMonths.indices) {
+            val previous = availableMonths.getOrNull(index + 1)
+            selectPeriod(availableMonths[index], previous)
             _selectedMonthIndex.value = index
-            // Keep the category drill-down on the same month the user is looking at.
-            val w = availableMonths[index]
-            spendAreasSelection.set(w.startInclusive, w.endExclusive)
         }
+    }
+
+    /**
+     * Select a bucket from the full chart. The previous bucket is supplied by the same
+     * aggregation so comparisons stay aligned for monthly, bimonthly, quarterly and yearly views.
+     */
+    fun selectPeriod(window: MonthWindow, previous: MonthWindow?) {
+        _selectedWindow.value = window
+        _previousWindow.value = previous
+        _selectedMonthIndex.value = availableMonths.indexOfFirst {
+            it.startInclusive == window.startInclusive && it.endExclusive == window.endExclusive
+        }.coerceAtLeast(-1)
+        spendAreasSelection.set(window.startInclusive, window.endExclusive)
     }
 
     /** Label of the month immediately before the given index, for comparison captions. */
