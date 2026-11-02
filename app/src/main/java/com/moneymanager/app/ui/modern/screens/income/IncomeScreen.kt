@@ -35,6 +35,7 @@ import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmBalancePanel
+import com.moneymanager.app.ui.components.MmSpotlightPanel
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
@@ -78,6 +79,15 @@ fun IncomeScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
             ) {
+                item(key = "income-intro") {
+                    MmSpotlightPanel(
+                        eyebrow = "CASH FLOW",
+                        title = "Money coming in",
+                        description = "Every recorded credit, collected in one place and ordered newest first.",
+                        icon = Icons.AutoMirrored.Filled.TrendingUp,
+                        tint = MmColors.income
+                    )
+                }
                 item(key = "income-summary") {
                     IncomeSummaryCard(
                         total = total,

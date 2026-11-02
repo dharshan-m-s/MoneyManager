@@ -332,14 +332,15 @@ private fun SpendOverviewCard(
     previousLabel: String?
 ) {
     val difference = total - previousTotal
-    val comparisonColor = if (difference > 0L) Color(0xFFFFD2D2) else Color(0xFFBDF4DA)
+    val comparisonColor = if (difference > 0L) MmColors.expense else MmColors.income
+    val shape = RoundedCornerShape(28.dp)
 
-    Box(
+    Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(Brush.linearGradient(MmColors.heroGradient))
-            .padding(horizontal = MmSpacing.xl, vertical = MmSpacing.xl)
+            .clip(shape)
+            .background(MmColors.surfaceContainer)
+            .padding(MmSpacing.xl)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -349,15 +350,15 @@ private fun SpendOverviewCard(
             Column(Modifier.weight(1f)) {
                 Text(
                     "TOTAL SPENT",
-                    style = MmType.caption.copy(fontSize = 11.sp, letterSpacing = 1.1.sp),
-                    color = Color.White.copy(alpha = 0.72f),
+                    style = MmType.caption.copy(fontSize = 10.sp, letterSpacing = 1.05.sp),
+                    color = MmColors.textSecondary,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(Modifier.height(MmSpacing.sm))
                 Text(
                     MoneyFormat.rupeesNoDecimals(Money(total)),
                     style = MmType.amountLarge,
-                    color = Color.White,
+                    color = MmColors.textPrimary,
                     maxLines = 1,
                     softWrap = false,
                     overflow = TextOverflow.Ellipsis
@@ -366,7 +367,7 @@ private fun SpendOverviewCard(
                 if (hasPrevData && previousLabel != null) {
                     val direction = if (difference > 0L) "↑" else if (difference < 0L) "↓" else "•"
                     Text(
-                        "${direction} ${MoneyFormat.rupeesNoDecimals(Money(kotlin.math.abs(difference)))} vs ${previousLabel}",
+                        "$direction ${MoneyFormat.rupeesNoDecimals(Money(kotlin.math.abs(difference)))} vs $previousLabel",
                         style = MmType.caption,
                         color = comparisonColor,
                         maxLines = 2,
@@ -376,23 +377,27 @@ private fun SpendOverviewCard(
                     Text(
                         previousLabel?.let { "No spending in $it" } ?: "${rows.size} categories",
                         style = MmType.caption,
-                        color = Color.White.copy(alpha = 0.72f),
+                        color = MmColors.textSecondary,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Spacer(Modifier.height(MmSpacing.md))
-                Text(
-                    "${rows.size} ${if (rows.size == 1) "category" else "categories"}",
-                    style = MmType.label,
-                    color = Color.White.copy(alpha = 0.86f)
-                )
             }
             if (rows.isNotEmpty()) {
                 SpendDonutChart(rows = rows, total = total, modifier = Modifier.size(112.dp))
             } else {
                 SpendEmptyGraphic(Modifier.size(112.dp))
             }
+        }
+        Spacer(Modifier.height(MmSpacing.lg))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "${rows.size} ${if (rows.size == 1) "category" else "categories"}",
+                style = MmType.label,
+                color = MmColors.textPrimary
+            )
+            Spacer(Modifier.weight(1f))
+            Text("Tap a category to inspect", style = MmType.caption, color = MmColors.textTertiary)
         }
     }
 }

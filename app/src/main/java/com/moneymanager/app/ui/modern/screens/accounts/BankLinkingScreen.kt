@@ -105,13 +105,14 @@ fun BankLinkingScreen(
                 .padding(bottom = MmSpacing.xxl),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
         ) {
-            MmCard {
+            MmCard(backgroundColor = MmColors.surfaceContainer) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    MmBankLogo(bankName, Modifier.size(48.dp))
+                    MmBankLogo(bankName, Modifier.size(54.dp))
                     Spacer(Modifier.width(MmSpacing.md))
-                    Column(Modifier.weight(1f)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("ACCOUNT IDENTITY", style = MmType.caption.copy(letterSpacing = 0.9.sp), color = MmColors.accent)
                         Text(bankName, style = MmType.sectionTitle, color = MmColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("Linked bank account", style = MmType.caption, color = MmColors.textSecondary)
+                        Text("Ready to be added to your accounts", style = MmType.caption, color = MmColors.textSecondary)
                     }
                 }
             }

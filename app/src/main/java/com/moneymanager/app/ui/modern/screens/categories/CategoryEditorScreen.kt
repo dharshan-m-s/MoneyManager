@@ -216,13 +216,25 @@ fun CategoryEditorScreen(
                 }
             }
 
-            MmCard {
+            MmCard(backgroundColor = categorySwatch(colorHex).copy(alpha = 0.075f)) {
+                Text("LIVE PREVIEW", style = MmType.caption.copy(letterSpacing = 1.sp), color = MmColors.textSecondary)
+                Spacer(Modifier.height(MmSpacing.md))
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CategoryVisual(category = preview, size = 104.dp)
+                    CategoryVisual(category = preview, size = 112.dp)
                 }
                 Spacer(Modifier.height(MmSpacing.md))
                 Text(
-                    "This is how your category will appear across the app",
+                    name.ifBlank { "Your category" },
+                    style = MmType.sectionTitle,
+                    color = MmColors.textPrimary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(MmSpacing.xs))
+                Text(
+                    "${kind.name.lowercase().replaceFirstChar { it.uppercase() }} category · ${if (active) "Visible" else "Hidden"}",
                     style = MmType.caption,
                     color = MmColors.textSecondary,
                     textAlign = TextAlign.Center,

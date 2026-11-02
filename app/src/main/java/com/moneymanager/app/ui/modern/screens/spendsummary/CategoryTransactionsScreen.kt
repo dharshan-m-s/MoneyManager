@@ -40,6 +40,7 @@ import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmTransactionRow
+import com.moneymanager.app.ui.components.MmBalancePanel
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
@@ -115,35 +116,15 @@ fun CategoryTransactionsScreen(
             verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)
         ) {
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(Color(0xFF5969DD).copy(alpha = 0.96f), Color(0xFF17213B))
-                            )
-                        )
-                        .mmGlassHighlight(cornerRadius = 22.dp, intensity = 0.72f)
-                        .padding(MmSpacing.lg)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Net spend this month", style = MmType.caption, color = Color.White.copy(alpha = 0.8f))
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                MoneyFormat.rupeesNoDecimals(Money(spent)),
-                                style = MmType.amountLarge,
-                                color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text("Showing only $monthLabel", style = MmType.caption, color = Color.White.copy(alpha = 0.7f))
-                        }
-                        MmPill(monthLabel, tint = Color.White, filled = false)
-                    }
-                }
+                MmBalancePanel(
+                    label = "NET SPEND · $monthLabel",
+                    value = MoneyFormat.rupeesNoDecimals(Money(spent)),
+                    caption = "Transactions included in this selected month",
+                    tint = MmColors.expense,
+                    animatedValueMinorUnits = spent,
+                    visualValues = monthlyTotals,
+                    visualLabel = "MONTHLY TREND"
+                )
                 Spacer(Modifier.height(MmSpacing.sm))
             }
 

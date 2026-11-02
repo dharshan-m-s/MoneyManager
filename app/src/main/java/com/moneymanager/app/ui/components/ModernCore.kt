@@ -104,6 +104,58 @@ fun MmCard(
 
 
 /**
+ * Editorial spotlight used at the start of focused workflows. It adds a clear visual anchor
+ * without turning every page into a loud gradient banner.
+ */
+@Composable
+fun MmSpotlightPanel(
+    eyebrow: String,
+    title: String,
+    description: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    tint: Color = MmColors.accent
+) {
+    val shape = RoundedCornerShape(24.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                Brush.linearGradient(
+                    listOf(tint.copy(alpha = 0.11f), MmColors.surfaceContainer, MmColors.surface)
+                )
+            )
+            .border(BorderStroke(0.9.dp, tint.copy(alpha = 0.19f)), shape)
+            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(48.dp).clip(RoundedCornerShape(16.dp))
+                .background(tint.copy(alpha = 0.13f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.width(MmSpacing.md))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(
+                eyebrow.uppercase(),
+                style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.05.sp),
+                color = tint,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(title, style = MmType.sectionTitle, color = MmColors.textPrimary,
+                maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(description, style = MmType.caption, color = MmColors.textSecondary,
+                maxLines = 3, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/**
  * Compact financial metric tile shared by overview screens. The icon is a quiet category cue;
  * the amount remains the strongest element and uses tabular numerals from the theme.
  */

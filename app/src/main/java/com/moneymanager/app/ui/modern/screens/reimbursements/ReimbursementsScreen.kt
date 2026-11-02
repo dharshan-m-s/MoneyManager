@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.MmCard
+import com.moneymanager.app.ui.components.MmBalancePanel
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
@@ -82,23 +83,13 @@ fun ReimbursementsScreen(
             verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
         ) {
             item {
-                MmCard {
-                    Text("Outstanding", style = MmType.caption, color = MmColors.textSecondary)
-                    Text(
-                        MoneyFormat.rupeesNoDecimals(Money(owedTotal)),
-                        style = MmType.amountLarge,
-                        color = MmColors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(MmSpacing.xs))
-                    Text(
-                        "Tap any item to open its transaction, or mark it reimbursed once the " +
-                            "money comes back.",
-                        style = MmType.caption,
-                        color = MmColors.textSecondary
-                    )
-                }
+                MmBalancePanel(
+                    label = "AMOUNT TO COLLECT",
+                    value = MoneyFormat.rupeesNoDecimals(Money(owedTotal)),
+                    caption = "Tap a transaction to review it, then mark it reimbursed when the money returns.",
+                    tint = MmColors.warning,
+                    artworkKind = "income"
+                )
             }
 
             itemsIndexed(pending, key = { _, txn -> txn.id }) { index, txn ->

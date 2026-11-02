@@ -17,13 +17,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.Button
-import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Card
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Icon
 import androidx.compose.material.LinearProgressIndicator
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Switch
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
@@ -59,7 +55,8 @@ import com.moneymanager.app.updater.model.UpdateState
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmSwitchRow
-import com.moneymanager.app.ui.modern.screens.settings.SimpleTopBar
+import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.MoneyManagerTopBar
 
 @Composable
 fun AppUpdatesScreen(onBack: () -> Unit) {
@@ -83,8 +80,8 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
         viewModel.checkForUpdates()
     }
 
-    Column(Modifier.fillMaxSize()) {
-        SimpleTopBar("App Updates", onBack)
+    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+        MoneyManagerTopBar(title = "App updates", subtitle = "Release channel & install status", onBack = onBack)
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -115,7 +112,7 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                             Text("You're up to date", style = MmType.sectionTitle)
                             Text("Money Manager ${current.currentVersionName}", color = MmColors.textSecondary, modifier = Modifier.padding(top = 4.dp))
                             Spacer(Modifier.height(14.dp))
-                            Button(onClick = viewModel::checkForUpdates, colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accentFill)) { Text("Check again", color = MmColors.onAccent) }
+                            MmPrimaryButton(text = "Check again", onClick = viewModel::checkForUpdates)
                         }
                         is UpdateState.UpdateAvailable -> {
                             Text("Update available", style = MmType.sectionTitle)
@@ -128,7 +125,7 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
-                            Button(onClick = { viewModel.download(current.update) }, colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accentFill)) { Text("Download update", color = MmColors.onAccent) }
+                            MmPrimaryButton(text = "Download update", onClick = { viewModel.download(current.update) })
                         }
                         is UpdateState.Downloading -> {
                             Text("Downloading update", style = MmType.sectionTitle)
@@ -150,7 +147,8 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                                 modifier = Modifier.padding(top = 6.dp)
                             )
                             Spacer(Modifier.height(14.dp))
-                            Button(
+                            MmPrimaryButton(
+                                text = "Install update",
                                 onClick = {
                                     if (!installer.canInstallPackages()) {
                                         installer.openInstallPermissionSettings()
@@ -168,8 +166,8 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                                         }
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accentFill)
-                            ) { Text("Install update", color = MmColors.onAccent) }
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                         UpdateState.Installing -> {
                             Text("Installing update", style = MmType.sectionTitle)
@@ -181,7 +179,7 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                             Text("No internet connection", style = MmType.sectionTitle)
                             Text("Connect to the internet to check for updates.", color = MmColors.textSecondary, modifier = Modifier.padding(top = 4.dp))
                             Spacer(Modifier.height(14.dp))
-                            Button(onClick = viewModel::checkForUpdates, colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accentFill)) { Text("Try again", color = MmColors.onAccent) }
+                            MmPrimaryButton(text = "Try again", onClick = viewModel::checkForUpdates)
                         }
                         is UpdateState.Error -> {
                             Text(errorTitle(current.error), style = MmType.sectionTitle)

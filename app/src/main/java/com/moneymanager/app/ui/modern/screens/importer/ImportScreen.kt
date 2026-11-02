@@ -48,6 +48,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.MmSpotlightPanel
 import com.moneymanager.app.ui.components.revealOnAppear
 import androidx.compose.foundation.lazy.itemsIndexed
 import com.moneymanager.app.ui.importer.ImportUiState
@@ -117,32 +118,30 @@ private fun IdleContent(onPick: () -> Unit) {
             .revealOnAppear(),
         verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
     ) {
+        MmSpotlightPanel(
+            eyebrow = "MONEYVIEW CSV",
+            title = "Your history, in one place",
+            description = "Bring accounts, categories and transactions into your ledger with a review step before anything is saved.",
+            icon = Icons.Filled.Description,
+            tint = MmColors.accent
+        )
         MmCard {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                MmIconBadge(icon = Icons.Filled.Description, tint = MmColors.accent, size = 46.dp)
-                Spacer(Modifier.width(MmSpacing.md))
-                Column(Modifier.weight(1f)) {
-                    Text("Bring in your history", style = MmType.sectionTitle, color = MmColors.textPrimary)
-                    Text(
-                        "Reconstructs accounts, categories and transactions from a Moneyview " +
-                            "consolidated statement.",
-                        style = MmType.caption,
-                        color = MmColors.textSecondary
-                    )
-                }
-            }
+            Text("Import with confidence", style = MmType.sectionTitle, color = MmColors.textPrimary)
             Spacer(Modifier.height(MmSpacing.md))
-            Text("What happens next", style = MmType.label, color = MmColors.textSecondary)
-            Spacer(Modifier.height(MmSpacing.xs))
             listOf(
-                "The file is parsed and every row is validated.",
-                "You review a preview before a single row is written.",
-                "Rows already in your ledger are detected and skipped."
-            ).forEach { line ->
-                Row(Modifier.padding(vertical = 3.dp)) {
-                    Text("•", style = MmType.body, color = MmColors.accent)
-                    Spacer(Modifier.width(MmSpacing.sm))
-                    Text(line, style = MmType.caption, color = MmColors.textSecondary)
+                "Every row is parsed and validated.",
+                "You review the preview before data is written.",
+                "Existing transactions are detected and skipped."
+            ).forEachIndexed { index, line ->
+                Row(Modifier.padding(vertical = MmSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(25.dp).background(MmColors.accent.copy(alpha = 0.12f), RoundedCornerShape(9.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("${index + 1}", style = MmType.caption, color = MmColors.accent)
+                    }
+                    Spacer(Modifier.width(MmSpacing.md))
+                    Text(line, style = MmType.body, color = MmColors.textSecondary)
                 }
             }
         }

@@ -18,6 +18,7 @@ import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,6 +34,7 @@ import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmBankLogo
 import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.MmSpotlightPanel
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -112,6 +114,14 @@ fun BankSelectionScreen(
             title = "Select bank",
             subtitle = "Choose the bank this account belongs to",
             onBack = onBack
+        )
+
+        MmSpotlightPanel(
+            eyebrow = "ACCOUNT SETUP",
+            title = "Choose your bank",
+            description = "Pick a popular institution or search the complete bank directory.",
+            icon = Icons.Filled.AccountBalance,
+            modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)
         )
 
         Column(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md)) {
