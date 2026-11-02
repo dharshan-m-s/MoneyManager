@@ -62,7 +62,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-val mmFieldShape = RoundedCornerShape(20.dp)
+val mmFieldShape = RoundedCornerShape(16.dp)
 internal val mmZone: ZoneId = ZoneId.of("Asia/Kolkata")
 
 private val shortDate = DateTimeFormatter.ofPattern("dd MMM yyyy")
@@ -234,9 +234,8 @@ fun MmPickerField(
             Modifier
                 .fillMaxWidth()
                 .clip(mmFieldShape)
-                .background(MmColors.surface)
-                .border(0.8.dp, MmColors.outline.copy(alpha = 0.48f), mmFieldShape)
-                .mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.34f)
+                .background(MmColors.surfaceContainer)
+                .border(0.7.dp, MmColors.outline.copy(alpha = 0.34f), mmFieldShape)
                 .pressableClick(onClick = onClick)
                 .padding(horizontal = MmSpacing.md, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -532,10 +531,10 @@ fun MmSearchField(
 @Composable
 internal fun mmFieldColors() = TextFieldDefaults.outlinedTextFieldColors(
     textColor = MmColors.textPrimary,
-    backgroundColor = MmColors.surface,
+    backgroundColor = MmColors.surfaceContainer,
     cursorColor = MmColors.accent,
-    focusedBorderColor = MmColors.accent.copy(alpha = 0.82f),
-    unfocusedBorderColor = MmColors.outline.copy(alpha = 0.52f),
+    focusedBorderColor = MmColors.accent.copy(alpha = 0.72f),
+    unfocusedBorderColor = MmColors.outline.copy(alpha = 0.36f),
     focusedLabelColor = MmColors.accent,
     unfocusedLabelColor = MmColors.textSecondary,
     placeholderColor = MmColors.textTertiary,

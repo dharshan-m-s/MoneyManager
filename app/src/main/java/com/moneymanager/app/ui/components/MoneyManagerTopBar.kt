@@ -59,10 +59,10 @@ fun MoneyManagerTopBar(
         ) {
             if (onNavigationClick != null) {
                 Surface(
-                    modifier = Modifier.size(44.dp).mmLiquidGlass(cornerRadius = 999.dp, intensity = 0.42f).clip(CircleShape).mmGlassHighlight(cornerRadius = 999.dp, intensity = 0.38f),
+                    modifier = Modifier.size(44.dp).clip(CircleShape),
                     shape = CircleShape,
-                    color = Color.Transparent,
-                    border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.58f)),
+                    color = MmColors.surfaceContainer,
+                    border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.34f)),
                     elevation = 0.dp
                 ) {
                     IconButton(onClick = onNavigationClick) {
@@ -118,10 +118,10 @@ fun MmTopBarAction(
 ) {
     Box {
         Surface(
-            modifier = Modifier.size(44.dp).mmLiquidGlass(cornerRadius = 999.dp, intensity = 0.38f).clip(CircleShape),
+            modifier = Modifier.size(44.dp).clip(CircleShape),
             shape = CircleShape,
-            color = Color.Transparent,
-            border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.58f)),
+            color = MmColors.surfaceContainer,
+            border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.34f)),
             elevation = 0.dp
         ) {
             IconButton(onClick = onClick, modifier = Modifier.size(42.dp)) {

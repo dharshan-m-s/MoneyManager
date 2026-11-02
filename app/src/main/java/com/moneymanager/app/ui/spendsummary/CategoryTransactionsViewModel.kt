@@ -11,9 +11,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.flowOf
 import javax.inject.Inject
 
 /**
@@ -47,14 +46,74 @@ class CategoryTransactionsViewModel @Inject constructor(
         return flow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     }
 
-    /** Reactive month-by-month net totals for the category chart (newest first). */
-    fun monthlyTotals(categoryId: Long): StateFlow<List<Long>> {
-        val streams = availableMonths.map { window ->
+    /**
+     * Complete category history, zero-filled from the oldest recorded month through the current
+     * month. This intentionally avoids the former fixed 18-month category-only window.
+     */
+    fun categoryHistory(categoryId: Long): StateFlow<DashboardSpendHistory> {
+        val flow = transactionDao.observeMonthlySpendTotals().flatMapLatest { rows ->
+            val oldest = rows.mapNotNull { row ->
+                runCatching { java.time.YearMonth.parse(row.yearMonth) }.getOrNull()
+            }.minOrNull() ?: java.time.YearMonth.now(zone)
+            val current = java.time.YearMonth.now(zone)
+            val windows = mutableListOf<MonthWindow>()
+            var month = current
+            while (!month.isBefore(oldest)) {
+                val start = month.atDay(1).atStartOfDay(zone)
+                val end = month.plusMonths(1).atDay(1).atStartOfDay(zone)
+                windows += MonthWindow(
+                    start.toInstant().toEpochMilli(),
+                    end.toInstant().toEpochMilli(),
+                    java.time.format.DateTimeFormatter.ofPattern("MMM ''yy").format(start)
+                )
+                month = month.minusMonths(1)
+            }
+            val streams = windows.map { window ->
+                transactionDao.observeByCategoryInRange(categoryId.takeIf { it >= 0L }, window.startInclusive, window.endExclusive)
+            }
+            if (streams.isEmpty()) flowOf(DashboardSpendHistory(emptyList(), emptyList()))
+            else combine(streams) { monthRows ->
+                DashboardSpendHistory(
+                    months = windows,
+                    totals = monthRows.map { monthTransactions ->
+                        monthTransactions.sumOf { it.debitMinorUnits - it.creditMinorUnits }
+                    }
+                )
+            }
+        }
+        return flow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardSpendHistory(emptyList(), emptyList()))
+    }
+
+    /** Category history clipped to an exact custom date range, grouped by calendar month. */
+    fun customCategoryHistory(categoryId: Long, startInclusive: Long, endExclusive: Long): StateFlow<DashboardSpendHistory> {
+        val startDate = java.time.Instant.ofEpochMilli(startInclusive).atZone(zone).toLocalDate()
+        val endDate = java.time.Instant.ofEpochMilli(endExclusive - 1L).atZone(zone).toLocalDate()
+        val windows = mutableListOf<MonthWindow>()
+        var month = java.time.YearMonth.from(startDate)
+        val lastMonth = java.time.YearMonth.from(endDate)
+        while (!month.isAfter(lastMonth)) {
+            val bucketStart = maxOf(month.atDay(1), startDate)
+            val bucketEnd = minOf(month.plusMonths(1).atDay(1), endDate.plusDays(1))
+            windows += MonthWindow(
+                bucketStart.atStartOfDay(zone).toInstant().toEpochMilli(),
+                bucketEnd.atStartOfDay(zone).toInstant().toEpochMilli(),
+                java.time.format.DateTimeFormatter.ofPattern("MMM ''yy").format(month.atDay(1))
+            )
+            month = month.plusMonths(1)
+        }
+        val streams = windows.map { window ->
             transactionDao.observeByCategoryInRange(categoryId.takeIf { it >= 0L }, window.startInclusive, window.endExclusive)
         }
-        return combine(streams) { monthRows ->
-            monthRows.map { rows -> rows.sumOf { it.debitMinorUnits - it.creditMinorUnits } }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), List(availableMonths.size) { 0L })
+        val flow = if (streams.isEmpty()) flowOf(DashboardSpendHistory(emptyList(), emptyList()))
+        else combine(streams) { monthRows ->
+            DashboardSpendHistory(
+                months = windows.asReversed(),
+                totals = monthRows.map { monthTransactions ->
+                    monthTransactions.sumOf { it.debitMinorUnits - it.creditMinorUnits }
+                }.asReversed()
+            )
+        }
+        return flow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardSpendHistory(emptyList(), emptyList()))
     }
 
     suspend fun categoryName(categoryId: Long): String =
@@ -73,44 +132,6 @@ class CategoryTransactionsViewModel @Inject constructor(
     }
 
     private val zone = java.time.ZoneId.of("Asia/Kolkata")
-    val availableMonths: List<MonthWindow> = run {
-        val now = java.time.ZonedDateTime.now(zone)
-        (0..17).map { index ->
-            val start = now.toLocalDate().withDayOfMonth(1).minusMonths(index.toLong()).atStartOfDay(zone)
-            val startInclusive = start.toInstant().toEpochMilli()
-            val endExclusive = start.plusMonths(1).toInstant().toEpochMilli()
-            val label = java.time.format.DateTimeFormatter.ofPattern("MMM ''yy").format(start)
-            MonthWindow(startInclusive, endExclusive, label)
-        }
-    }
-
-    private val _selectedMonthIndex = kotlinx.coroutines.flow.MutableStateFlow(
-        spendAreasSelection.window.value?.let { w ->
-            availableMonths.indexOfFirst { it.startInclusive == w.first && it.endExclusive == w.second }.takeIf { it >= 0 }
-        } ?: 0
-    )
-    val selectedMonthIndex: kotlinx.coroutines.flow.StateFlow<Int> = _selectedMonthIndex
-
-    init {
-        viewModelScope.launch {
-            spendAreasSelection.window.collect { w ->
-                if (w != null) {
-                    val idx = availableMonths.indexOfFirst { it.startInclusive == w.first && it.endExclusive == w.second }
-                    if (idx >= 0 && idx != _selectedMonthIndex.value) {
-                        _selectedMonthIndex.value = idx
-                    }
-                }
-            }
-        }
-    }
-
-    fun selectMonth(index: Int) {
-        if (index in availableMonths.indices) {
-            _selectedMonthIndex.value = index
-            val w = availableMonths[index]
-            spendAreasSelection.set(w.startInclusive, w.endExclusive)
-        }
-    }
 
     fun selectMonth(startInclusive: Long, endExclusive: Long) {
         spendAreasSelection.set(startInclusive, endExclusive)

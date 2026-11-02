@@ -74,10 +74,10 @@ fun MmCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val cardShape = RoundedCornerShape(24.dp)
     Surface(
         modifier = modifier
-            .shadow(3.dp, RoundedCornerShape(26.dp), clip = false)
-            .animateContentSize(animationSpec = spring(dampingRatio = 0.88f, stiffness = 420f))
+            .animateContentSize(animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f))
             .fillMaxWidth()
             .then(
                 if (onClick != null) Modifier
@@ -88,9 +88,9 @@ fun MmCard(
                         onClick = onClick
                     ) else Modifier
             ),
-        shape = RoundedCornerShape(26.dp),
+        shape = cardShape,
         color = backgroundColor,
-        border = BorderStroke(0.85.dp, MmColors.outline.copy(alpha = 0.52f)),
+        border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.34f)),
         elevation = 0.dp
     ) {
         Column(
@@ -121,12 +121,8 @@ fun MmSpotlightPanel(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(
-                Brush.linearGradient(
-                    listOf(tint.copy(alpha = 0.11f), MmColors.surfaceContainer, MmColors.surface)
-                )
-            )
-            .border(BorderStroke(0.9.dp, tint.copy(alpha = 0.19f)), shape)
+            .background(MmColors.surfaceContainer)
+            .border(BorderStroke(0.75.dp, tint.copy(alpha = 0.14f)), shape)
             .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -173,8 +169,8 @@ fun MmMetricCard(
     Column(
         modifier = modifier
             .clip(shape)
-            .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.105f), MmColors.surfaceElevated, MmColors.surface)))
-            .border(BorderStroke(0.9.dp, tint.copy(alpha = 0.24f)), shape)
+            .background(MmColors.surfaceContainer)
+            .border(BorderStroke(0.75.dp, tint.copy(alpha = 0.15f)), shape)
             .then(
                 if (onClick != null) Modifier
                     .pressScale(interactionSource, pressedScale = 0.975f)
@@ -237,7 +233,7 @@ fun MmBalancePanel(
             .fillMaxWidth()
             .clip(shape)
             .background(MmColors.surfaceContainer)
-            .border(BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.44f)), shape)
+            .border(BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.32f)), shape)
             .padding(MmSpacing.xl)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -359,9 +355,9 @@ fun MmPlainCard(
                         onClick = onClick
                     ) else Modifier
             ),
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(24.dp),
         color = MmColors.surfaceContainer,
-        border = BorderStroke(0.7.dp, MmColors.outline.copy(alpha = 0.36f)),
+        border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.30f)),
         elevation = 0.dp
     ) {
         Column(
@@ -426,9 +422,9 @@ fun MmIconBadge(
 ) {
     Surface(
         modifier = modifier.size(size),
-        shape = RoundedCornerShape(17.dp),
+        shape = RoundedCornerShape(15.dp),
         color = backgroundColor,
-        border = BorderStroke(1.dp, tint.copy(alpha = 0.16f))
+        border = BorderStroke(0.6.dp, tint.copy(alpha = 0.12f))
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.5f))
@@ -445,8 +441,8 @@ fun MmPill(
     onClick: (() -> Unit)? = null,
     text: String = label
 ) {
-    val bg = if (filled) tint.copy(alpha = 0.14f) else Color.Transparent
-    val borderColor = if (filled) tint.copy(alpha = 0.3f) else MmColors.outline
+    val bg = if (filled) tint.copy(alpha = 0.12f) else Color.Transparent
+    val borderColor = if (filled) tint.copy(alpha = 0.22f) else MmColors.outline.copy(alpha = 0.45f)
     Surface(
         modifier = modifier.then(
             if (onClick != null) Modifier.pressableClick(haptic = true, onClick = onClick) else Modifier
@@ -476,8 +472,8 @@ fun MmChip(
                 onClick = onClick
             ),
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) MmColors.accent.copy(alpha = 0.14f) else MmColors.surface,
-        border = BorderStroke(0.8.dp, if (selected) MmColors.accent.copy(alpha = 0.34f) else MmColors.outline.copy(alpha = 0.62f))
+        color = if (selected) MmColors.accent.copy(alpha = 0.12f) else MmColors.surfaceContainer,
+        border = BorderStroke(0.7.dp, if (selected) MmColors.accent.copy(alpha = 0.26f) else MmColors.outline.copy(alpha = 0.34f))
     ) {
         Text(label, style = MmType.label, color = if (selected) MmColors.accent else MmColors.textSecondary, modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp))
     }
@@ -515,7 +511,7 @@ fun MmSegmentedControl(
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(999.dp))
                     .background(MmColors.surface)
-                    .mmGlassHighlight(cornerRadius = 999.dp, intensity = 0.52f)
+                    .border(0.6.dp, MmColors.accent.copy(alpha = 0.16f), RoundedCornerShape(999.dp))
             )
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                 options.forEachIndexed { index, option ->
@@ -712,7 +708,7 @@ fun MmBottomSheet(
                     .shadow(24.dp, RoundedCornerShape(topStart = MmSpacing.radiusSheet, topEnd = MmSpacing.radiusSheet))
                     .clip(RoundedCornerShape(topStart = MmSpacing.radiusSheet, topEnd = MmSpacing.radiusSheet))
                     .background(MmColors.surface)
-                    .border(BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.72f)))
+                    .border(BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.40f)))
                     .navigationBarsPadding()
             ) {
                 Box(

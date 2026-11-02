@@ -1,5 +1,8 @@
 package com.moneymanager.app.ui.modern.screens.transactions
 
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -404,38 +407,86 @@ private fun DayHeader(date: LocalDate, dayNet: Long) {
 private fun InViewSummary(income: Long, expense: Long) {
     val net = income - expense
     val netTint = if (net >= 0L) MmColors.income else MmColors.expense
+    val safeIncome = income.coerceAtLeast(0L)
+    val safeExpense = expense.coerceAtLeast(0L)
+    val total = (safeIncome + safeExpense).coerceAtLeast(1L)
+    val incomeFraction by animateFloatAsState(
+        targetValue = safeIncome.toFloat() / total.toFloat(),
+        animationSpec = tween(650),
+        label = "transactionIncomeShare"
+    )
+    val expenseFraction = 1f - incomeFraction
+    val incomeTint = MmColors.income
+    val expenseTint = MmColors.expense
+    val trackTint = MmColors.outline.copy(alpha = 0.26f)
+
     Column(
         Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
             .clip(RoundedCornerShape(26.dp))
-            .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.18f), MmColors.surfaceElevated, MmColors.surface)))
-            .border(1.dp, MmColors.outline.copy(alpha = 0.62f), RoundedCornerShape(26.dp))
+            .background(MmColors.surfaceContainer)
+            .border(0.7.dp, MmColors.outline.copy(alpha = 0.30f), RoundedCornerShape(26.dp))
             .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("NET FLOW", style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.1.sp), color = MmColors.textTertiary, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Text((if (net < 0L) "−" else "+") + MoneyFormat.rupeesNoDecimals(Money(kotlin.math.abs(net))), style = MmType.amountLarge.copy(fontSize = 25.sp), color = netTint, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("NET FLOW", style = MmType.caption.copy(fontSize = 10.sp, letterSpacing = 1.1.sp), color = MmColors.textTertiary, fontWeight = FontWeight.Bold)
+                Text(
+                    (if (net < 0L) "−" else "+") + MoneyFormat.rupeesNoDecimals(Money(kotlin.math.abs(net))),
+                    style = MmType.amountLarge.copy(fontSize = 29.sp),
+                    color = netTint,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text("Across the visible transactions", style = MmType.caption, color = MmColors.textSecondary)
             }
-            Box(Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(netTint.copy(alpha = 0.13f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.NorthEast, contentDescription = null, tint = netTint, modifier = Modifier.size(21.dp))
+            Box(Modifier.size(82.dp), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val stroke = 9.dp.toPx()
+                    val inset = stroke / 2f
+                    val ringSize = Size(size.width - stroke, size.height - stroke)
+                    val origin = Offset(inset, inset)
+                    drawArc(trackTint, -90f, 360f, false, origin, ringSize, style = Stroke(stroke, cap = StrokeCap.Round))
+                    if (expenseFraction > 0.001f) {
+                        drawArc(expenseTint, -90f + incomeFraction * 360f, expenseFraction * 360f, false, origin, ringSize, style = Stroke(stroke, cap = StrokeCap.Round))
+                    }
+                    if (incomeFraction > 0.001f) {
+                        drawArc(
+                            Brush.sweepGradient(listOf(incomeTint.copy(alpha = 0.72f), incomeTint, incomeTint.copy(alpha = 0.72f))),
+                            -90f, incomeFraction * 360f, false, origin, ringSize,
+                            style = Stroke(stroke, cap = StrokeCap.Round)
+                        )
+                    }
+                }
+                Icon(Icons.Filled.NorthEast, contentDescription = "Net flow", tint = netTint, modifier = Modifier.size(22.dp))
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             SummaryColumn("Income", income, Modifier.weight(1f), tint = MmColors.income, labelColor = MmColors.textSecondary)
             SummaryColumn("Spent", expense, Modifier.weight(1f), tint = MmColors.expense, labelColor = MmColors.textSecondary, showSign = true)
         }
-        val expenseTint = MmColors.expense
-        val incomeTint = MmColors.income
-        Canvas(Modifier.fillMaxWidth().height(5.dp)) {
-            val total = (income.coerceAtLeast(0L) + expense.coerceAtLeast(0L)).coerceAtLeast(1L).toFloat()
-            val incomeWidth = size.width * (income.coerceAtLeast(0L).toFloat() / total)
-            drawRoundRect(expenseTint.copy(alpha = 0.20f), cornerRadius = CornerRadius(size.height / 2f))
-            drawRoundRect(Brush.horizontalGradient(listOf(incomeTint, incomeTint.copy(alpha = 0.68f))), size = Size(incomeWidth, size.height), cornerRadius = CornerRadius(size.height / 2f))
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("FLOW COMPOSITION", style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 0.9.sp), color = MmColors.textTertiary, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text("${(incomeFraction * 100).toInt()}% income", style = MmType.caption, color = MmColors.income)
+            }
+            Canvas(Modifier.fillMaxWidth().height(7.dp)) {
+                val radius = CornerRadius(size.height / 2f)
+                drawRoundRect(trackTint, cornerRadius = radius)
+                if (incomeFraction > 0f) {
+                    drawRoundRect(
+                        brush = Brush.horizontalGradient(listOf(incomeTint, incomeTint.copy(alpha = 0.72f))),
+                        size = Size(size.width * incomeFraction, size.height),
+                        cornerRadius = radius
+                    )
+                }
+            }
         }
     }
 }
+
 @Composable
 private fun SummaryColumn(
     label: String,

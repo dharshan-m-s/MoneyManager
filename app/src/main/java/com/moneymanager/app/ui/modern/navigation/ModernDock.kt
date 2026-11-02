@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -146,7 +147,9 @@ internal fun ModernDock(
                         }
                         // A second, smaller lens lets the selected item refract the page
                         // independently of the dock's broader frosted surface.
-                        .mmLiquidGlass(cornerRadius = 27.dp, intensity = 0.34f)
+                        .clip(RoundedCornerShape(27.dp))
+                        .background(MmColors.accent.copy(alpha = 0.10f))
+                        .border(0.6.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(27.dp))
                 )
 
                 Row(
@@ -206,7 +209,7 @@ private fun AddOrb(
                     )
                 )
             )
-            .mmGlassHighlight(cornerRadius = 27.dp, intensity = 1.15f)
+            .mmGlassHighlight(cornerRadius = 27.dp, intensity = 0.62f)
             .pressableClick(haptic = true, onClick = onClick)
             .semantics {
                 contentDescription = if (expanded) "Close add menu" else "Add transaction"

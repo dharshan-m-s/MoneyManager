@@ -52,4 +52,6 @@ locally for Robolectric). The verified commands are:
 `.github/workflows/release.yml` workflow. See `RELEASE_CHECKLIST.md` and
 `docs/GITHUB_RELEASE_GUIDE.md`.
 
-No changes were pushed from this local deliverable.
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for the full text.

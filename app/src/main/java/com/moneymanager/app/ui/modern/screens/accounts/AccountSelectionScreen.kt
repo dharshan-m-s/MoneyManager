@@ -233,56 +233,33 @@ private fun AccountChoiceRow(
     val isCreditCard = account.accountType == AccountType.CREDIT_CARD
     val balance = if (isCreditCard) account.outstandingMinorUnits ?: 0L else account.currentBalanceMinorUnits
 
-    if (isCard) {
-        Column(modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
-            MmWalletCard(account = account, modifier = Modifier.fillMaxWidth(), onClick = onClick)
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = MmSpacing.xs, vertical = MmSpacing.sm)
-                    .clickable(onClick = onClick),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(title, style = MmType.body, fontWeight = FontWeight.SemiBold, color = MmColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(subtitle.ifBlank { accountTypeLabel(account.accountType) }, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    MmAnimatedAmount(
-                        value = balance,
-                        formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
-                        style = MmType.amountRow,
-                        color = if (isCreditCard) MmColors.expense else MmColors.textPrimary
-                    )
-                    Text(if (isCreditCard) "Outstanding" else "Balance", style = MmType.caption, color = MmColors.textTertiary, maxLines = 1)
-                }
-                Icon(Icons.Filled.ChevronRight, contentDescription = "Choose account", tint = MmColors.textTertiary, modifier = Modifier.padding(start = MmSpacing.sm))
+    MmCard(
+        modifier = modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+        onClick = onClick,
+        contentPadding = PaddingValues(MmSpacing.md)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (account.accountType == AccountType.BANK || isCard) {
+                MmBankLogo(account.institutionName, Modifier.size(42.dp))
+            } else {
+                MmIconBadge(icon = accountIcon(account.accountType), tint = MmColors.accent, size = 42.dp)
             }
-        }
-    } else {
-        MmCard(
-            modifier = modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
-            onClick = onClick,
-            contentPadding = PaddingValues(MmSpacing.md)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (account.accountType == AccountType.BANK) {
-                    MmBankLogo(account.institutionName, Modifier.size(42.dp))
-                } else {
-                    MmIconBadge(icon = accountIcon(account.accountType), tint = MmColors.accent, size = 42.dp)
-                }
-                Spacer(Modifier.width(MmSpacing.md))
-                Column(Modifier.weight(1f)) {
-                    Text(title, style = MmType.body, fontWeight = FontWeight.SemiBold, color = MmColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(subtitle.ifBlank { accountTypeLabel(account.accountType) }, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Spacer(Modifier.width(MmSpacing.sm))
-                Column(horizontalAlignment = Alignment.End) {
-                    MmAnimatedAmount(value = balance, formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) }, style = MmType.amountRow, color = MmColors.textPrimary)
-                    Text("Balance", style = MmType.caption, color = MmColors.textTertiary, maxLines = 1)
-                }
-                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MmColors.textTertiary, modifier = Modifier.padding(start = MmSpacing.xs))
+            Spacer(Modifier.width(MmSpacing.md))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MmType.body, fontWeight = FontWeight.SemiBold, color = MmColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(subtitle.ifBlank { accountTypeLabel(account.accountType) }, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            Spacer(Modifier.width(MmSpacing.sm))
+            Column(horizontalAlignment = Alignment.End) {
+                MmAnimatedAmount(
+                    value = balance,
+                    formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
+                    style = MmType.amountRow,
+                    color = if (isCreditCard) MmColors.expense else MmColors.textPrimary
+                )
+                Text(if (isCreditCard) "Outstanding" else "Balance", style = MmType.caption, color = MmColors.textTertiary, maxLines = 1)
+            }
+            Icon(Icons.Filled.ChevronRight, contentDescription = "Choose account", tint = MmColors.textTertiary, modifier = Modifier.padding(start = MmSpacing.sm))
         }
     }
 }

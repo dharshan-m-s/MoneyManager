@@ -2,6 +2,7 @@ package com.moneymanager.app.ui.modern.screens.bills
 
 import com.moneymanager.app.ui.theme.MmColors
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +41,7 @@ import androidx.compose.material.AlertDialog
 import androidx.compose.material.RadioButton
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
@@ -77,8 +79,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.billing.BillPaymentWindow
 import com.moneymanager.app.domain.model.Money
-import com.moneymanager.app.ui.components.AddBillerFab
-import com.moneymanager.app.ui.components.MmAmountField
+ import com.moneymanager.app.ui.components.MmAmountField
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmDateField
 import com.moneymanager.app.ui.components.MmOption
@@ -90,6 +91,7 @@ import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -128,16 +130,20 @@ fun BillsScreen(
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarState) },
-        floatingActionButton = {
-            AddBillerFab(onAddBiller = onAddBiller, modifier = Modifier.padding(bottom = 8.dp))
-        }
+        snackbarHost = { SnackbarHost(snackbarState) }
     ) { padding ->
         Column(Modifier.fillMaxSize().background(MmColors.background).padding(padding)) {
             MoneyManagerTopBar(
                 title = "Bills & EMIs",
                 subtitle = "Track upcoming payments without duplicate transactions",
                 onBack = onBack,
+                actions = {
+                    MmTopBarAction(
+                        icon = Icons.Filled.Add,
+                        contentDescription = "Add bill",
+                        onClick = onAddBiller
+                    )
+                }
             )
 
             if (bills.isEmpty()) {
@@ -722,6 +728,10 @@ private fun BillCard(
     MmCard(
         modifier = modifier
             .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { showDeleteConfirmation = true }
+            )
             .then(
                 if (overdue) Modifier.border(
                     width = 1.5.dp,
@@ -729,7 +739,6 @@ private fun BillCard(
                     shape = RoundedCornerShape(MmSpacing.radiusCard)
                 ) else Modifier
             ),
-        onClick = onClick,
         contentPadding = PaddingValues(MmSpacing.card)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -782,9 +791,7 @@ private fun BillCard(
                     modifier = Modifier.size(18.dp)
                 )
             }
-            IconButton(onClick = { showDeleteConfirmation = true }) {
-                Icon(Icons.Filled.Delete, contentDescription = "Delete bill", tint = MmColors.textTertiary)
-            }
+            Text("Hold to delete", fontSize = 9.sp, color = MmColors.textTertiary, maxLines = 1)
         }
 
         Spacer(Modifier.height(MmSpacing.sm))

@@ -42,7 +42,7 @@ fun isMmLiquidGlassSupported(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
 /**
  * Full Liquid Glass material: samples the real app content, applies downsampled RenderEffect
  * blur and (on Android 13+) rounded-lens refraction, then layers theme tint, edge highlight
- * and a restrained shadow. API 30 and unavailable-layer fallbacks remain opaque/readable.
+ * and a restrained shadow. Unsupported devices receive a low-opacity material fallback.
  */
 @Composable
 fun Modifier.mmLiquidGlass(
@@ -54,25 +54,28 @@ fun Modifier.mmLiquidGlass(
     val backdrop = LocalMmGlassBackdrop.current
     val light = MaterialTheme.colors.isLight
     val tint = if (light) Color(0xFFFDFEFF) else Color(0xFF111722)
-    val edge = if (light) Color.White.copy(alpha = 0.68f) else Color.White.copy(alpha = 0.18f)
+    val edge = if (light) Color.White.copy(alpha = 0.32f) else Color.White.copy(alpha = 0.065f)
     val safeIntensity = intensity.coerceIn(0.25f, 1.25f)
 
     if (!enabled || !isMmLiquidGlassSupported() || backdrop == null) {
+        // Keep the dock readable without falling back to a solid, opaque sheet.
         return clip(shape)
-            .background(if (light) Color(0xFFF8FAFF) else Color(0xFF171E29), shape)
-            .border(0.65.dp, edge, shape)
+            .background(tint.copy(alpha = if (light) 0.14f else 0.09f), shape)
+            .border(0.55.dp, edge.copy(alpha = 0.72f), shape)
     }
 
     val density = LocalDensity.current
-    val blurRadius = with(density) { 12.dp.toPx() * BACKDROP_SCALE * safeIntensity }
-    val lensHeight = with(density) { 30.dp.toPx() * BACKDROP_SCALE * safeIntensity }
-    val lensAmount = with(density) { 22.dp.toPx() * BACKDROP_SCALE * safeIntensity }
+    val blurRadius = with(density) { 9.dp.toPx() * BACKDROP_SCALE * safeIntensity }
+    val lensHeight = with(density) { 20.dp.toPx() * BACKDROP_SCALE * safeIntensity }
+    val lensAmount = with(density) { 12.dp.toPx() * BACKDROP_SCALE * safeIntensity }
 
-    return drawBackdrop(
+    // Clip before the backdrop draw as well as after it. Without the leading clip the
+    // sampled RenderNode can bleed into the dock's rectangular parent and look like a sheet.
+    return clip(shape).drawBackdrop(
         backdrop = backdrop,
         shape = { shape },
         effects = {
-            colorControls(saturation = 1.0f + (0.5f * safeIntensity))
+            colorControls(saturation = 1.0f + (0.18f * safeIntensity))
             blur(blurRadius)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 lens(
@@ -83,7 +86,7 @@ fun Modifier.mmLiquidGlass(
                 )
             }
         },
-        highlight = { Highlight.Default },
+        highlight = { Highlight(width = 0.35.dp, blurRadius = 0.35.dp, alpha = 0.28f) },
         shadow = {
             Shadow(
                 radius = 22.dp,
@@ -92,7 +95,7 @@ fun Modifier.mmLiquidGlass(
             )
         },
         onDrawSurface = {
-            drawRect(tint.copy(alpha = if (light) 0.22f else 0.30f))
+            drawRect(tint.copy(alpha = if (light) 0.08f else 0.07f))
         },
         backdropScale = BACKDROP_SCALE
     ).clip(shape)
@@ -110,8 +113,8 @@ fun Modifier.mmGlassHighlight(
 ): Modifier {
     val shape = RoundedCornerShape(cornerRadius)
     val light = MaterialTheme.colors.isLight
-    val alpha = (0.16f * intensity.coerceIn(0.25f, 1.25f)).coerceIn(0.04f, 0.22f)
-    val rim = if (light) Color.White.copy(alpha = 0.92f) else Color.White.copy(alpha = 0.25f)
+    val alpha = (0.075f * intensity.coerceIn(0.25f, 1.25f)).coerceIn(0.018f, 0.10f)
+    val rim = if (light) Color.White.copy(alpha = 0.54f) else Color.White.copy(alpha = 0.11f)
     return clip(shape).drawWithCache {
         val radius = CornerRadius(cornerRadius.toPx())
         val sheen = Brush.linearGradient(
@@ -132,7 +135,7 @@ fun Modifier.mmGlassHighlight(
                 style = Stroke(width = 0.8.dp.toPx())
             )
             drawRoundRect(
-                color = if (light) Color.White.copy(alpha = 0.42f) else Color.White.copy(alpha = 0.08f),
+                color = if (light) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.025f),
                 topLeft = Offset(1.dp.toPx(), 1.dp.toPx()),
                 size = androidx.compose.ui.geometry.Size(
                     (size.width - 2.dp.toPx()).coerceAtLeast(0f),

@@ -370,6 +370,7 @@ fun DashboardScreen(
                     subtitle = if (anyFilterActive) "${filteredRecent.size} match your filter" else null,
                     actionLabel = "See all",
                     onAction = onSeeAllTransactions,
+                    contentContainer = false,
                     // Search and filter live where they act: on the recent-activity header.
                     headerTrailing = {
                         CircleAction(Icons.Filled.Search, "Search", onClick = onOpenSearch)
@@ -467,26 +468,43 @@ fun DashboardScreen(
                             message = "Add a biller to get reminded before the due date."
                         )
                     } else {
-                        Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
-                                .background(Brush.linearGradient(listOf(MmColors.warning.copy(alpha = 0.15f), MmColors.surface, MmColors.surfaceElevated)))
-                                .border(1.dp, MmColors.warning.copy(alpha = 0.24f), RoundedCornerShape(23.dp))
-                                .pressableClick { onOpenBreakdown(DashboardBreakdownKind.BILLS) }
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        MmCard(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm),
+                            onClick = { onOpenBreakdown(DashboardBreakdownKind.BILLS) },
+                            contentPadding = PaddingValues(18.dp),
+                            backgroundColor = MmColors.surfaceContainer
                         ) {
-                            Box(Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(MmColors.warning.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-                                Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, tint = MmColors.warning, modifier = Modifier.size(23.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Text(
+                                        "${state.upcomingBillsCount} UPCOMING PAYMENT${if (state.upcomingBillsCount == 1) "" else "S"}",
+                                        style = MmType.caption.copy(letterSpacing = 1.sp),
+                                        color = MmColors.warning,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        MoneyFormat.rupeesNoDecimals(state.upcomingBillsTotal),
+                                        style = MmType.amountLarge,
+                                        color = MmColors.textPrimary,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text("Scheduled bills and EMIs", style = MmType.caption, color = MmColors.textSecondary)
+                                }
+                                Box(
+                                    Modifier.size(72.dp).clip(RoundedCornerShape(22.dp))
+                                        .background(MmColors.warning.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, tint = MmColors.warning, modifier = Modifier.size(34.dp))
+                                }
                             }
-                            Spacer(Modifier.width(MmSpacing.md))
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("${state.upcomingBillsCount} upcoming payment${if (state.upcomingBillsCount == 1) "" else "s"}", style = MmType.label, color = MmColors.textPrimary, fontWeight = FontWeight.SemiBold)
-                                Text("Scheduled bills and EMIs", style = MmType.caption, color = MmColors.textSecondary)
-                                Text("Review payment schedule", style = MmType.caption, color = MmColors.accent, fontWeight = FontWeight.SemiBold)
-                            }
-                            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text(MoneyFormat.rupeesNoDecimals(state.upcomingBillsTotal), style = MmType.amountTile, color = MmColors.warning, maxLines = 1, softWrap = false)
-                                Icon(Icons.Filled.ChevronRight, contentDescription = "Open bills", tint = MmColors.warning)
+                            Spacer(Modifier.height(MmSpacing.md))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Review payment schedule", style = MmType.label, color = MmColors.accent, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.weight(1f))
+                                Icon(Icons.Filled.ChevronRight, contentDescription = "Open bills", tint = MmColors.accent)
                             }
                         }
                     }
@@ -1242,6 +1260,7 @@ private fun SectionBlock(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
     headerTrailing: (@Composable () -> Unit)? = null,
+    contentContainer: Boolean = true,
     content: @Composable () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
@@ -1259,7 +1278,11 @@ private fun SectionBlock(
             }
         }
         Spacer(Modifier.height(MmSpacing.sm))
-        MmCard(contentPadding = PaddingValues(vertical = 6.dp, horizontal = 0.dp)) {
+        if (contentContainer) {
+            MmCard(contentPadding = PaddingValues(vertical = 6.dp, horizontal = 0.dp)) {
+                content()
+            }
+        } else {
             content()
         }
     }

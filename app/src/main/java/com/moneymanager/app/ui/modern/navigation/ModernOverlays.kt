@@ -250,7 +250,6 @@ private fun OverlayCard(
             .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.82f),
         shape = RoundedCornerShape(24.dp),
         color = Color.Transparent,
-        border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.56f)),
         elevation = 0.dp
     ) {
         content()

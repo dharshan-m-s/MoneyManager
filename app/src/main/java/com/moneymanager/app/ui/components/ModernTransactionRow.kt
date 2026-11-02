@@ -197,6 +197,7 @@ private fun MmTransactionRowContent(
         modifier
             .fillMaxWidth()
             .then(if (grouped) Modifier.padding(horizontal = MmSpacing.lg) else Modifier)
+            .then(if (!grouped) Modifier.padding(bottom = 8.dp) else Modifier)
     ) {
         Row(
             Modifier
@@ -204,12 +205,12 @@ private fun MmTransactionRowContent(
                 .then(
                     if (grouped) Modifier
                         .clip(shape)
-                        .background(Brush.linearGradient(listOf(MmColors.surfaceElevated, MmColors.surface)))
-                        .border(0.75.dp, MmColors.outline.copy(alpha = 0.48f), shape)
+                        .background(MmColors.surfaceContainer)
+                        .border(0.65.dp, MmColors.outline.copy(alpha = 0.32f), shape)
                     else Modifier
                         .clip(RoundedCornerShape(22.dp))
-                        .background(Brush.linearGradient(listOf(MmColors.surfaceElevated.copy(alpha = 0.78f), MmColors.surface)))
-                        .border(0.65.dp, MmColors.outline.copy(alpha = 0.38f), RoundedCornerShape(22.dp))
+                        .background(MmColors.surfaceContainer)
+                        .border(0.6.dp, MmColors.outline.copy(alpha = 0.28f), RoundedCornerShape(22.dp))
                 )
                 .pressableClick(onClick = onClick)
                 .padding(
@@ -264,12 +265,8 @@ private fun MmTransactionRowContent(
                 }
             }
         }
-        if (showDivider && !grouped) {
-            Divider(
-                color = MmColors.hairline.copy(alpha = 0.62f),
-                modifier = Modifier.padding(start = 82.dp)
-            )
-        }
+        // Standalone rows are separate rounded cards; no trailing hairline should
+        // extend through the empty space to the right of the content.
     }
 }
 

@@ -77,7 +77,7 @@ import java.util.Locale
 import java.time.LocalDate
 import java.time.ZoneId
 
-private enum class SpendSummaryRange(val label: String) {
+internal enum class SpendSummaryRange(val label: String) {
     MONTHLY("Monthly"),
     BIMONTHLY("Bimonthly"),
     QUARTERLY("Quarterly"),
@@ -86,7 +86,7 @@ private enum class SpendSummaryRange(val label: String) {
 }
 
 /** Aggregate all historical monthly buckets into calendar-aligned periods. */
-private fun aggregateSummaryHistory(
+internal fun aggregateSummaryHistory(
     history: com.moneymanager.app.ui.spendsummary.DashboardSpendHistory,
     range: SpendSummaryRange
 ): com.moneymanager.app.ui.spendsummary.DashboardSpendHistory {
@@ -596,7 +596,7 @@ private fun MonthBarGraph(
 }
 
 @Composable
-private fun SummaryMonthBar(
+internal fun SummaryMonthBar(
     month: MonthWindow,
     amount: Long,
     maxTotal: Long,
