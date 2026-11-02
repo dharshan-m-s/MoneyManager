@@ -88,20 +88,6 @@ fun Modifier.mmPageBackdrop(): Modifier {
             radius = size.maxDimension * 0.62f,
             center = secondCenter
         )
-        // Give the lower navigation area a gentle colour field as well. The dock still
-        // samples live page pixels; this only prevents an otherwise pure-black backdrop
-        // when a short screen has no content underneath the floating controls.
-        val dockGlowCenter = Offset(size.width * 0.52f, size.height * 0.96f)
-        val dockGlowAlpha = if (light) 0.075f else 0.19f
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(accent.copy(alpha = dockGlowAlpha), Color.Transparent),
-                center = dockGlowCenter,
-                radius = size.maxDimension * 0.42f
-            ),
-            radius = size.maxDimension * 0.42f,
-            center = dockGlowCenter
-        )
     }
 }
 
@@ -131,7 +117,7 @@ fun Modifier.mmLiquidGlass(
     if (!enabled || !isMmLiquidGlassSupported() || backdrop == null) {
         // Keep the dock readable without falling back to a solid, opaque sheet.
         return clip(shape)
-            .background(tint.copy(alpha = if (light) 0.14f else 0.09f), shape)
+            .background(tint.copy(alpha = if (light) 0.10f else 0.045f), shape)
             .border(0.55.dp, edge.copy(alpha = 0.72f), shape)
     }
 
@@ -162,11 +148,11 @@ fun Modifier.mmLiquidGlass(
             Shadow(
                 radius = 22.dp,
                 offset = androidx.compose.ui.unit.DpOffset(0.dp, 7.dp),
-                color = Color.Black.copy(alpha = if (light) 0.13f else 0.30f)
+                color = Color.Black.copy(alpha = if (light) 0.10f else 0.16f)
             )
         },
         onDrawSurface = {
-            drawRect(tint.copy(alpha = if (light) 0.08f else 0.07f))
+            drawRect(tint.copy(alpha = if (light) 0.06f else 0.035f))
         },
         backdropScale = BACKDROP_SCALE
     ).clip(shape)
