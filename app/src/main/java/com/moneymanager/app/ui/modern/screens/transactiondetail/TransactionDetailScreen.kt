@@ -387,6 +387,9 @@ private fun DeleteTransactionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+            shape = RoundedCornerShape(28.dp),
+            backgroundColor = MmColors.surface,
+            contentColor = MmColors.textPrimary,
         title = { Text("Delete this transaction?") },
         text = {
             Column {
