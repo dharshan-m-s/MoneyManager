@@ -3,7 +3,6 @@ package com.moneymanager.app.ui.modern.screens.accounts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -88,7 +87,6 @@ import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.formatDayMonth
 import com.moneymanager.app.ui.components.modernTopInsets
 import com.moneymanager.app.ui.components.LocalDockContentPadding
-import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.mmSharedElement
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.pressableClick
@@ -127,7 +125,6 @@ fun AccountsScreen(
     val inactiveAccounts = visible.filter { !it.active }
     val inactiveView = showInactive && inactiveAccounts.isNotEmpty()
     val shown = if (inactiveView) inactiveAccounts else activeAccounts
-    val scrollChrome = rememberScrollChromeState()
     val total = if (inactiveView) {
         inactiveAccounts.sumOf { account ->
             if (account.accountType == AccountType.CREDIT_CARD) {
@@ -149,11 +146,6 @@ fun AccountsScreen(
     }
 
     Column(Modifier.fillMaxSize().modernTopInsets().mmPageBackdrop()) {
-        AnimatedVisibility(
-            visible = !scrollChrome.collapsed,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
         AccountsHeader(
             tabLabel = tab.label,
             isCreditCard = tab == AccountsTab.CREDIT_CARDS,
@@ -173,12 +165,11 @@ fun AccountsScreen(
             onToggleEdit = { editMode = !editMode },
             showBack = false
         )
-        }
 
         Box(
             Modifier.fillMaxWidth()
                 .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                .then(if (scrollChrome.collapsed) Modifier.mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.34f) else Modifier)
+                .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.34f)
         ) {
             AccountsTabs(selected = selectedTab, onSelect = {
                 selectedTab = it
@@ -186,33 +177,26 @@ fun AccountsScreen(
             })
         }
 
-        AnimatedVisibility(
-            visible = !scrollChrome.collapsed && inactiveAccounts.isNotEmpty(),
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
         ) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
-                horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-            ) {
-                MmChip(
-                    label = "Active (${activeAccounts.size})",
-                    selected = !inactiveView,
-                    onClick = { showInactive = false }
-                )
-                MmChip(
-                    label = "Inactive (${inactiveAccounts.size})",
-                    selected = inactiveView,
-                    onClick = { showInactive = true }
-                )
-            }
+            MmChip(
+                label = "Active (${activeAccounts.size})",
+                selected = !inactiveView,
+                onClick = { showInactive = false }
+            )
+            MmChip(
+                label = "Inactive (${inactiveAccounts.size})",
+                selected = inactiveView,
+                onClick = { showInactive = true }
+            )
         }
 
         if (tab == AccountsTab.ALL && !inactiveView) {
             ModernAllAccountTypesBrowser(
                 modifier = Modifier.weight(1f),
                 accounts = accounts,
-                scrollConnection = scrollChrome.connection,
                 onSelectType = { type ->
                     selectedTab = AccountsTab.entries.indexOf(AccountsTab.forType(type))
                     showInactive = false
@@ -273,7 +257,7 @@ fun AccountsScreen(
             )
         } else {
             LazyColumn(
-                modifier = Modifier.weight(1f).nestedScroll(scrollChrome.connection),
+                modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
                     end = MmSpacing.screen,
@@ -765,12 +749,11 @@ private fun AddAccountRow(
 private fun ModernAllAccountTypesBrowser(
     modifier: Modifier = Modifier,
     accounts: List<AccountEntity>,
-    scrollConnection: androidx.compose.ui.input.nestedscroll.NestedScrollConnection,
     onSelectType: (AccountType) -> Unit,
     onAddType: (AccountType) -> Unit
 ) {
     LazyColumn(
-        modifier = modifier.nestedScroll(scrollConnection),
+        modifier = modifier,
         contentPadding = PaddingValues(
             start = MmSpacing.screen,
             top = MmSpacing.sm,
