@@ -340,6 +340,9 @@ fun CreditCardFormScreen(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
+            shape = RoundedCornerShape(28.dp),
+            backgroundColor = MmColors.surface,
+            contentColor = MmColors.textPrimary,
             title = { Text("Delete this credit card?") },
             text = {
                 Text(
