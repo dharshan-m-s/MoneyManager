@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.RequestQuote
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -106,7 +107,6 @@ import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import androidx.compose.material.TextButton
-import androidx.compose.material.icons.filled.MoreHoriz
 
 @Composable
 fun AccountsScreen(
@@ -209,14 +209,15 @@ fun AccountsScreen(
                         glassField = true,
                         modifier = Modifier.graphicsLayer {
                             val p = scrollChrome.progress.value
+                            scaleX = 1f - 0.025f * p
                             scaleY = 1f - 0.10f * p
                         }
                     )
                 }
                 Spacer(Modifier.width(MmSpacing.xs))
                 AccountsCircleAction(
-                    icon = Icons.Filled.MoreHoriz,
-                    contentDescription = if (sortByBalance) "Sort accounts by name" else "Sort accounts by balance",
+                    icon = Icons.Filled.SwapVert,
+                    contentDescription = if (sortByBalance) "Restore original account order" else "Sort accounts by balance",
                     onClick = { sortByBalance = !sortByBalance },
                     active = sortByBalance
                 )
