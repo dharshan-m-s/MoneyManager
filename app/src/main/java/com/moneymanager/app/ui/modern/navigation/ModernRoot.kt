@@ -266,23 +266,22 @@ fun ModernRoot() {
         }
     }
 
-    // Record the page once at reduced resolution. Glass nodes are omitted from this capture,
-    // then sample the completed page during the normal window draw. This prevents recursive
-    // RenderNode references while preserving the actual pixels beneath each glass surface.
-    val glassBackdrop = rememberLayerBackdrop()
-
+    // The previous page-capture backdrop created a cyclic HWUI RenderNode graph
+    // when glass descendants sampled a layer recording their own NavHost subtree.
+    // Keep the shared transition container, but deliberately provide no captured layer.
+    // mmLiquidGlass() then uses its lightweight translucent material fallback, which
+    // keeps the floating dock visually distinct without introducing RenderNode cycles.
     SharedTransitionLayout {
         CompositionLocalProvider(
             LocalMmSharedTransitionScope provides this,
-            LocalMmGlassBackdrop provides glassBackdrop
+            LocalMmGlassBackdrop provides null,
+            LocalMmGlassEnabled provides false
         ) {
             Box(Modifier.fillMaxSize()) {
-                Box(Modifier.fillMaxSize().background(MmColors.background))
-                Box(Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+                Box(Modifier.fillMaxSize().mmBrandWash())
+                Box(Modifier.fillMaxSize()) {
                     CompositionLocalProvider(
-                        LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp,
-                        LocalMmGlassBackdrop provides glassBackdrop,
-                        LocalMmGlassEnabled provides true
+                        LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
                     ) {
                         Box(
                             Modifier.fillMaxSize()
