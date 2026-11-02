@@ -526,9 +526,9 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(19.dp))
-                    .mmLiquidGlass(cornerRadius = 19.dp, intensity = 0.78f)
                     .background(tint.copy(alpha = if (MaterialTheme.colors.isLight) 0.105f else 0.14f))
                     .border(0.85.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(19.dp))
+                    .mmLiquidGlass(cornerRadius = 19.dp, intensity = 0.78f)
                     .mmSharedElement("account-${account.id}")
                     .clickable(onClick = if (editMode) onEdit else onClick)
                     .padding(horizontal = MmSpacing.md, vertical = 13.dp),
@@ -612,9 +612,9 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(19.dp))
-                    .mmLiquidGlass(cornerRadius = 19.dp, intensity = 0.68f)
                     .background(MmColors.surface.copy(alpha = if (MaterialTheme.colors.isLight) 0.16f else 0.12f))
                     .border(0.75.dp, MmColors.outline.copy(alpha = 0.48f), RoundedCornerShape(19.dp))
+                    .mmLiquidGlass(cornerRadius = 19.dp, intensity = 0.68f)
                     .mmSharedElement("account-${account.id}")
                     .clickable(onClick = if (editMode) onEdit else onClick)
                     .padding(horizontal = MmSpacing.md, vertical = 14.dp),
@@ -675,9 +675,9 @@ private fun AccountRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.78f)
                     .background(tint.copy(alpha = if (MaterialTheme.colors.isLight) 0.095f else 0.13f))
                     .border(0.85.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(20.dp))
+                    .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.78f)
                     .mmSharedElement("account-${account.id}")
                     .clickable(onClick = if (editMode) onEdit else onClick)
                     .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),

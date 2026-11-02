@@ -120,8 +120,8 @@ fun MmWalletCard(
             .aspectRatio(1.64f)
             .shadow(22.dp, shape, clip = false)
             .clip(shape)
-            .mmLiquidGlass(cornerRadius = 27.dp, intensity = 1.08f)
             .background(Brush.linearGradient(palette.map { it.copy(alpha = if (MaterialTheme.colors.isLight) 0.52f else 0.36f) }))
+            .mmLiquidGlass(cornerRadius = 27.dp, intensity = 1.08f)
             .then(interaction)
             .border(
                 width = 1.dp,
@@ -395,8 +395,8 @@ fun MmBankAccountCard(
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .shadow(16.dp, shape, clip = false)
             .clip(shape)
-            .mmLiquidGlass(cornerRadius = 26.dp, intensity = 1.08f)
             .background(Brush.linearGradient(palette.map { it.copy(alpha = if (MaterialTheme.colors.isLight) 0.48f else 0.34f) }))
+            .mmLiquidGlass(cornerRadius = 26.dp, intensity = 1.08f)
             .border(
                 1.dp,
                 Brush.linearGradient(
