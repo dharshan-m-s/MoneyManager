@@ -186,7 +186,7 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                             Text(errorTitle(current.error), style = MmType.sectionTitle)
                             Text(errorMessage(current.error), color = MmColors.textSecondary, modifier = Modifier.padding(top = 4.dp))
                             Spacer(Modifier.height(14.dp))
-                            Button(onClick = viewModel::checkForUpdates, colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accentFill)) { Text("Try again", color = MmColors.onAccent) }
+                            MmPrimaryButton(text = "Try again", onClick = viewModel::checkForUpdates)
                         }
                     }
                     installNote?.let { Text(it, color = MmColors.warning, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp)) }
