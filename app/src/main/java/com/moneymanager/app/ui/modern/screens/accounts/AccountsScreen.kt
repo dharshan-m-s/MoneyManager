@@ -48,14 +48,18 @@ import androidx.compose.material.icons.filled.RequestQuote
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -73,6 +77,10 @@ import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.reporting.FinancialSummary
 import com.moneymanager.app.ui.accounts.AccountsTab
 import com.moneymanager.app.ui.accounts.AccountsViewModel
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.components.MmWalletCard
 import com.moneymanager.app.ui.components.MmBankLogo
 import com.moneymanager.app.ui.components.MmAnimatedAmount
@@ -115,16 +123,33 @@ fun AccountsScreen(
     viewModel: AccountsViewModel = hiltViewModel()
 ) {
     val accounts by viewModel.accounts.collectAsState()
-    var selectedTab by remember { mutableIntStateOf(AccountsTab.entries.indexOf(initialTab).coerceAtLeast(0)) }
-    var editMode by remember { mutableStateOf(false) }
-    var showInactive by remember { mutableStateOf(false) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(AccountsTab.entries.indexOf(initialTab).coerceAtLeast(0)) }
+    var editMode by rememberSaveable { mutableStateOf(false) }
+    var showInactive by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var sortByBalance by rememberSaveable { mutableStateOf(false) }
+    val scrollChrome = rememberScrollChromeState(collapseDistance = 132.dp)
     val tab = AccountsTab.entries[selectedTab]
     val filtered = accounts.filter { it.accountType in tab.types && !it.deleted }
-    val visible = filtered.filter { !it.hide }
+    val visible = filtered.filter { account ->
+        !account.hide && (
+            query.isBlank() ||
+                account.nickname.contains(query.trim(), ignoreCase = true) ||
+                account.institutionName.contains(query.trim(), ignoreCase = true) ||
+                account.sourceAccountId.contains(query.trim(), ignoreCase = true)
+            )
+    }
     val activeAccounts = visible.filter { it.active }
     val inactiveAccounts = visible.filter { !it.active }
     val inactiveView = showInactive && inactiveAccounts.isNotEmpty()
-    val shown = if (inactiveView) inactiveAccounts else activeAccounts
+    val unsortedShown = if (inactiveView) inactiveAccounts else activeAccounts
+    val shown = if (sortByBalance) {
+        unsortedShown.sortedByDescending { account ->
+            if (account.accountType == AccountType.CREDIT_CARD) {
+                account.outstandingMinorUnits ?: 0L
+            } else account.currentBalanceMinorUnits
+        }
+    } else unsortedShown
     val total = if (inactiveView) {
         inactiveAccounts.sumOf { account ->
             if (account.accountType == AccountType.CREDIT_CARD) {
@@ -160,21 +185,54 @@ fun AccountsScreen(
             }.sorted(),
             showingInactive = inactiveView,
             editMode = editMode,
+            collapseProgress = scrollChrome.progress,
             onBack = onBack,
             onSettings = onAccountSettings,
             onToggleEdit = { editMode = !editMode },
             showBack = false
         )
 
-        Box(
-            Modifier.fillMaxWidth()
-                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.34f)
-        ) {
-            AccountsTabs(selected = selectedTab, onSelect = {
-                selectedTab = it
-                showInactive = false
-            })
+        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
+                    .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.42f)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.weight(1f)) {
+                    MmSearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        hint = "Search accounts",
+                        glassField = true,
+                        modifier = Modifier.graphicsLayer {
+                            val p = scrollChrome.progress.value
+                            scaleY = 1f - 0.10f * p
+                        }
+                    )
+                }
+                Spacer(Modifier.width(MmSpacing.xs))
+                AccountsCircleAction(
+                    icon = Icons.Filled.MoreHoriz,
+                    contentDescription = if (sortByBalance) "Sort accounts by name" else "Sort accounts by balance",
+                    onClick = { sortByBalance = !sortByBalance },
+                    active = sortByBalance
+                )
+            }
+        }
+
+        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+            Box(
+                Modifier.fillMaxWidth()
+                    .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
+                    .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.34f)
+            ) {
+                AccountsTabs(selected = selectedTab, onSelect = {
+                    selectedTab = it
+                    showInactive = false
+                })
+            }
         }
 
         if (inactiveAccounts.isNotEmpty()) {
@@ -197,7 +255,7 @@ fun AccountsScreen(
 
         if (tab == AccountsTab.ALL && !inactiveView) {
             ModernAllAccountTypesBrowser(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 accounts = accounts,
                 onSelectType = { type ->
                     selectedTab = AccountsTab.entries.indexOf(AccountsTab.forType(type))
@@ -259,7 +317,7 @@ fun AccountsScreen(
             )
         } else {
             LazyColumn(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
                     end = MmSpacing.screen,
@@ -319,27 +377,19 @@ private fun AccountsHeader(
     visualValues: List<Long>,
     showingInactive: Boolean,
     editMode: Boolean,
+    collapseProgress: State<Float>,
     onBack: () -> Unit,
     onSettings: () -> Unit,
     onToggleEdit: () -> Unit,
     showBack: Boolean = true
 ) {
     Column(Modifier.fillMaxWidth()) {
+        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
         Row(
             Modifier.fillMaxWidth()
                 .padding(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            MmColors.accent.copy(alpha = 0.13f),
-                            MmColors.surface.copy(alpha = 0.10f),
-                            Color.White.copy(alpha = 0.025f)
-                        )
-                    ),
-                    RoundedCornerShape(24.dp)
-                )
-                .clip(RoundedCornerShape(24.dp))
-                .mmGlassHighlight(cornerRadius = 24.dp, intensity = 0.82f)
+                .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.62f)
+                .scrollCollapse(collapseProgress)
                 .padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = MmSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -369,6 +419,7 @@ private fun AccountsHeader(
                 active = editMode
             )
         }
+        }
 
         MmBalancePanel(
             label = when {
@@ -384,7 +435,9 @@ private fun AccountsHeader(
             caption = "$count ${if (count == 1) "account" else "accounts"} · $tabLabel" +
                 if (showingInactive) " · switched off" else "",
             artworkKind = "account_${tabLabel.lowercase()}",
-            modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+            modifier = Modifier
+                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+                .scrollCollapse(collapseProgress)
         )
     }
 }
