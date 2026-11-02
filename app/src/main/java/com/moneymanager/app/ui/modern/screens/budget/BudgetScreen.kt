@@ -87,8 +87,8 @@ fun BudgetScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                 .verticalScroll(rememberScrollState())
-                .nestedScroll(scrollChrome.connection)
+                 .nestedScroll(scrollChrome.connection)
+                .verticalScroll(rememberScrollState())
                 .imePadding()
                 .padding(horizontal = MmSpacing.screen)
                 .padding(bottom = MmSpacing.xxl + LocalDockContentPadding.current),

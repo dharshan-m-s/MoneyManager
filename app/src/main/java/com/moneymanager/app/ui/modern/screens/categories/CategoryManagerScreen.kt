@@ -110,12 +110,13 @@ fun CategoryManagerScreen(
 
             CompositionLocalProvider(LocalMmGlassEnabled provides true) {
             Column(Modifier.padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed.value) MmSpacing.xs else MmSpacing.sm), verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)) {
-                AnimatedVisibility(visible = !scrollChrome.collapsed.value && !selectionMode) {
+                if (!selectionMode) {
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
                             .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.15f), MmColors.surfaceElevated, MmColors.surface)))
                             .border(1.dp, MmColors.accent.copy(alpha = 0.20f), RoundedCornerShape(23.dp))
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                            .scrollCollapse(scrollChrome.progress),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -140,6 +141,7 @@ fun CategoryManagerScreen(
                             value = query,
                             onValueChange = { query = it },
                             hint = "Search categories",
+                            glassField = true,
                             glassField = true
                         )
                     }

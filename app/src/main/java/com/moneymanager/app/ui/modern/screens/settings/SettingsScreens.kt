@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
@@ -91,6 +92,7 @@ import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.home.HomePreferences
 import com.moneymanager.app.ui.modern.screens.security.PinSetupDialog
 import com.moneymanager.app.ui.modern.screens.security.SystemLockPrompt
@@ -346,6 +348,7 @@ fun SettingsScreen(
     }
 
     val scope = rememberCoroutineScope()
+    val scrollChrome = rememberScrollChromeState(collapseDistance = 144.dp)
     val snackbarState = remember { SnackbarHostState() }
 
     var backupFolder by remember { mutableStateOf(backupManager.configuredTreeUri()) }
@@ -473,11 +476,12 @@ fun SettingsScreen(
 
     Box(Modifier.fillMaxSize().background(MmColors.background)) {
         Column(Modifier.fillMaxSize()) {
-            MoneyManagerTopBar(title = "Settings", onBack = onBack, glassChrome = true)
+            MoneyManagerTopBar(title = "Settings", onBack = onBack, glassChrome = true, collapseProgress = scrollChrome.progress)
 
             Column(
                 Modifier
                     .fillMaxSize()
+                    .nestedScroll(scrollChrome.connection)
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = MmSpacing.xxl + LocalDockContentPadding.current)
             ) {
