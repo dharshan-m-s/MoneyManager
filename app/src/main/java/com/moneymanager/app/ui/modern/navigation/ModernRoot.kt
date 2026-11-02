@@ -236,9 +236,10 @@ fun ModernRoot() {
     } else {
         68.dp + navigationInset + 16.dp
     }
-    // Keep only a small trailing scroll allowance. The dock is a translucent overlay, not a
-    // reserved opaque bottom bar; page content must continue moving visibly beneath it.
-    val dockContentReservation = 36.dp
+    // Reserve space only in scrollable content, never in the page viewport itself. The page
+    // must render edge-to-edge behind the dock; each LazyColumn uses this value as trailing
+    // scroll clearance so its final row can still be brought above the floating controls.
+    val dockContentReservation = measuredDockHeight + 8.dp
 
     StatusBarGlyphToneAndSystemBarTint(lightBackground = MaterialTheme.colors.isLight)
 
@@ -274,18 +275,20 @@ fun ModernRoot() {
     // Floating controls are siblings of this capture and may safely sample its finished frame.
     val glassBackdrop = rememberLayerBackdrop()
 
-    SharedTransitionLayout {
-        CompositionLocalProvider(
-            LocalMmSharedTransitionScope provides this
-        ) {
-            Box(Modifier.fillMaxSize()) {
-                Box(Modifier.fillMaxSize()) {
-                    Box(Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+    // Keep the floating controls outside both the page capture and the shared-transition
+    // RenderNode. A full-screen shared-transition parent around the dock caused a visible
+    // rectangular compositing region on some HWUI renderers. Shared elements are scoped to the
+    // NavHost below; the dock remains a true sibling and samples the finished page frame.
+    Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
                         // Record a subtle, living colour wash beneath the page so the floating dock
                         // samples something richer than a flat black window background.
                         Box(Modifier.fillMaxSize().mmPageBackdrop())
                         CompositionLocalProvider(
-                            LocalMmGlassBackdrop provides null,
+                            // The backdrop is available to selected chrome surfaces. The
+                            // default remains disabled so ordinary content cards do not each
+                            // allocate a sampled blur/lens pass.
+                            LocalMmGlassBackdrop provides glassBackdrop,
                             LocalMmGlassEnabled provides false,
                             LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
                         ) {
@@ -298,15 +301,21 @@ fun ModernRoot() {
                                         alpha = 1f - (sheetDragOffset / travel).coerceIn(0f, 0.18f)
                                     }
                             ) {
-                                ModernNavHost(
-                                    navController = navController,
-                                    onOpenMore = {
-                                        overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .then(if (dockVisible) Modifier else Modifier.navigationBarsPadding())
-                                )
+                                SharedTransitionLayout {
+                                    CompositionLocalProvider(
+                                        LocalMmSharedTransitionScope provides this
+                                    ) {
+                                        ModernNavHost(
+                                            navController = navController,
+                                            onOpenMore = {
+                                                overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .then(if (dockVisible) Modifier else Modifier.navigationBarsPadding())
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -524,10 +533,7 @@ fun ModernRoot() {
             )
         }
         }
-        }
-        }
     }
-}
 }
 
 @Composable

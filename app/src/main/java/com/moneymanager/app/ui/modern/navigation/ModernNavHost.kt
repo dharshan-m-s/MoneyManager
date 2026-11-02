@@ -13,7 +13,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.LocalMmAnimatedVisibilityScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -134,7 +133,8 @@ fun ModernNavHost(
     NavHost(
         navController = navController,
         startDestination = Destination.Dashboard.route,
-        modifier = modifier.padding(bottom = LocalDockContentPadding.current),
+        // Do not shrink the destination viewport for the floating dock. Its visual material
+        // overlays live page pixels; only scrollable content receives bottom clearance.
         enterTransition = {
             val targetRoute = targetState.destination.route.orEmpty()
             val sheetFlow = SHEET_ROUTES.any { targetRoute.startsWith(it.substringBefore("?").substringBefore("/{")) }

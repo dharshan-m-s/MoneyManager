@@ -152,7 +152,12 @@ fun Modifier.mmLiquidGlass(
             )
         },
         onDrawSurface = {
-            drawRect(tint.copy(alpha = if (light) 0.06f else 0.035f))
+            // Draw the tint in the lens geometry itself. A full rectangular wash here can
+            // leak outside the pill on renderers that do not preserve the backdrop layer clip.
+            drawRoundRect(
+                color = tint.copy(alpha = if (light) 0.06f else 0.035f),
+                cornerRadius = CornerRadius(cornerRadius.toPx())
+            )
         },
         backdropScale = BACKDROP_SCALE
     ).clip(shape)
