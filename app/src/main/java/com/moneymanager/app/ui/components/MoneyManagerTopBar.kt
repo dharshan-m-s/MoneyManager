@@ -54,7 +54,7 @@ fun MoneyManagerTopBar(
     onNavigationClick: (() -> Unit)? = onBack,
     actions: @Composable RowScope.() -> Unit = {},
     compact: Boolean = false,
-    glassChrome: Boolean = false
+    glassChrome: Boolean = true
 ) {
     Column(
         Modifier.fillMaxWidth().then(
