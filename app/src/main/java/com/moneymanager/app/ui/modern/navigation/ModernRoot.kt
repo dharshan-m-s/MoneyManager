@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ExtendedFloatingActionButton
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
@@ -55,6 +53,7 @@ import com.moneymanager.app.ui.navigation.Destination
 import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.security.LockMethod
 import com.moneymanager.app.ui.components.MmIconBadge
+import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
@@ -449,13 +448,11 @@ private fun SystemLockRetry(
         Spacer(Modifier.height(MmSpacing.xs))
         Text(message, style = MmType.caption, color = MmColors.textSecondary, textAlign = TextAlign.Center)
         Spacer(Modifier.height(MmSpacing.xl))
-        ExtendedFloatingActionButton(
+        MmPrimaryButton(
+            text = actionLabel,
             onClick = onRetry,
-            backgroundColor = MmColors.accentFill,
-            contentColor = MmColors.onAccent,
-            shape = RoundedCornerShape(999.dp),
-            text = { Text(actionLabel, style = MmType.label, color = MmColors.onAccent) },
-            icon = { Icon(Icons.Filled.Fingerprint, contentDescription = null, tint = MmColors.onAccent) }
+            icon = Icons.Filled.Fingerprint,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
