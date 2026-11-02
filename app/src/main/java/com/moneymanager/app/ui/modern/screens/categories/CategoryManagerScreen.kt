@@ -141,7 +141,6 @@ fun CategoryManagerScreen(
                             value = query,
                             onValueChange = { query = it },
                             hint = "Search categories",
-                            glassField = true,
                             glassField = true
                         )
                     }
