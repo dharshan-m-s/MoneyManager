@@ -64,8 +64,18 @@ fun MoneyManagerTopBar(
                 if (glassChrome) {
                     Modifier
                         .padding(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
-                        .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.52f)
-                        .mmGlassHighlight(cornerRadius = 24.dp, intensity = 0.62f)
+                        .background(
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                listOf(
+                                    MmColors.accent.copy(alpha = 0.14f),
+                                    MmColors.surface.copy(alpha = 0.12f),
+                                    Color.White.copy(alpha = 0.035f)
+                                )
+                            ),
+                            RoundedCornerShape(24.dp)
+                        )
+                        .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.58f)
+                        .mmGlassHighlight(cornerRadius = 24.dp, intensity = 0.72f)
                 } else Modifier
             )
         ) {
