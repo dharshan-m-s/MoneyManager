@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -99,7 +100,7 @@ fun BillTypeSelectionScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(MmColors.warning.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.ReceiptLong, contentDescription = null, tint = MmColors.warning, modifier = Modifier.size(22.dp))
+                    Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, tint = MmColors.warning, modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(MmSpacing.md))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
