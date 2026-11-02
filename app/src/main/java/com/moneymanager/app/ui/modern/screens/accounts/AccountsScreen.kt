@@ -177,20 +177,22 @@ fun AccountsScreen(
             })
         }
 
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-        ) {
-            MmChip(
-                label = "Active (${activeAccounts.size})",
-                selected = !inactiveView,
-                onClick = { showInactive = false }
-            )
-            MmChip(
-                label = "Inactive (${inactiveAccounts.size})",
-                selected = inactiveView,
-                onClick = { showInactive = true }
-            )
+        if (inactiveAccounts.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+            ) {
+                MmChip(
+                    label = "Active (${activeAccounts.size})",
+                    selected = !inactiveView,
+                    onClick = { showInactive = false }
+                )
+                MmChip(
+                    label = "Inactive (${inactiveAccounts.size})",
+                    selected = inactiveView,
+                    onClick = { showInactive = true }
+                )
+            }
         }
 
         if (tab == AccountsTab.ALL && !inactiveView) {
