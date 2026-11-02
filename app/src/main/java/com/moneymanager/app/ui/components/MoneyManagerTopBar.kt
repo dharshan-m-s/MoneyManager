@@ -74,8 +74,11 @@ fun MoneyManagerTopBar(
                             ),
                             RoundedCornerShape(24.dp)
                         )
-                        .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.58f)
-                        .mmGlassHighlight(cornerRadius = 24.dp, intensity = 0.72f)
+                        // This header lives inside the page capture, so it must not
+                        // sample that same capture (which caused a RenderNode cycle). Use a
+                        // genuinely translucent, layered glass treatment here instead.
+                        .clip(RoundedCornerShape(24.dp))
+                        .mmGlassHighlight(cornerRadius = 24.dp, intensity = 0.82f)
                 } else Modifier
             )
         ) {
