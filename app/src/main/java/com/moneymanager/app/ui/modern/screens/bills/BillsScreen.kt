@@ -97,7 +97,6 @@ import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
-import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.LocalDockContentPadding

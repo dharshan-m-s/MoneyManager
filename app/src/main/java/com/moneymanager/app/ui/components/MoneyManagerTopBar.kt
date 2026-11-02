@@ -30,8 +30,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.State
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,8 +41,6 @@ import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.moneymanager.app.ui.components.LocalMmGlassEnabled
-import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.scrollCompactHeight
 import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.theme.MmColors
