@@ -93,8 +93,16 @@ fun Modifier.scrollCompactHeight(
 ): Modifier =
     this
         .layout { measurable, constraints ->
-            val expandedPx = expandedHeight.roundToPx()
-            val compactPx = compactHeight.roundToPx()
+            // Respect short/landscape/IME-constrained viewports instead of asking Compose
+            // to measure a 72dp chrome row inside a smaller parent constraint.
+            val expandedPx = maxOf(
+                constraints.minHeight,
+                minOf(expandedHeight.roundToPx(), constraints.maxHeight)
+            )
+            val compactPx = maxOf(
+                constraints.minHeight,
+                minOf(compactHeight.roundToPx(), expandedPx)
+            )
             val placeable = measurable.measure(
                 constraints.copy(minHeight = expandedPx, maxHeight = expandedPx)
             )

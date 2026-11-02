@@ -270,9 +270,11 @@ fun ModernRoot() {
         }
     }
 
-    // Capture only the page. The NavHost subtree receives no backdrop reference, so
-    // glass descendants cannot sample the layer that is currently recording them.
-    // Floating controls are siblings of this capture and may safely sample its finished frame.
+    // Capture the page once. The same layer is exposed to page chrome, but sampled glass is
+    // disabled by default: only selected toolbars opt in. The vendored backdrop modifier omits
+    // glass nodes while this page copy is recording, so they sample the completed frame without
+    // recording themselves and creating a cyclic RenderNode graph. The floating dock remains a
+    // sibling of the capture and samples the finished page independently.
     val glassBackdrop = rememberLayerBackdrop()
 
     // Keep the floating controls outside both the page capture and the shared-transition
