@@ -6,7 +6,7 @@ Money Manager is a personal finance app for tracking accounts, cards, income, ex
 
 ## Brand identity
 
-The Android app icon uses a layered payment-card mark with an Indian rupee symbol and chip detail. Its indigo, violet and blue glass finish is designed to match the app's modern visual language. The artwork is shared by the adaptive launcher icon and legacy launcher icon resources.
+The launcher uses the approved high-resolution Money Manager artwork: layered payment cards with a luminous blue-violet glass finish, a rupee symbol and a card chip on a deep indigo background. The exact same WebP artwork is used by the Android launcher and this README preview.
 
 ## What was changed
 
