@@ -157,8 +157,6 @@ fun CashScreen(
                 title = "Cash in hand",
                 subtitle = "Live balance from your ledger",
                 onBack = onBack,
-                collapseProgress = scrollChrome.progress,
-                compact = scrollChrome.collapsed.value,
                 keepTitleOnCollapse = true,
                 modifier = Modifier
                     .overlayWithoutLayoutSpace()
