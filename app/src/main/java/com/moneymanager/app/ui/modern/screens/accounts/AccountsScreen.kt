@@ -246,9 +246,10 @@ fun AccountsScreen(
             }
         }
 
-        if (tab == AccountsTab.ALL && !inactiveView) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            if (tab == AccountsTab.ALL && !inactiveView) {
             ModernAllAccountTypesBrowser(
-                modifier = Modifier.weight(1f).nestedScroll(scrollChrome.connection),
+                modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
                 accounts = accounts,
                 topInset = accountsHeaderInset + accountsOverviewInset + MmSpacing.md,
                 onSelectType = { type ->
@@ -267,15 +268,12 @@ fun AccountsScreen(
                 modifier = Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
-                    top = accountsHeaderInset + MmSpacing.sm,
+                    top = accountsHeaderInset + MmSpacing.sm + accountsOverviewInset + MmSpacing.md,
                     end = MmSpacing.screen,
                     bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.xl
                 ),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                stickyHeader(key = "accounts-overview") {
-                    accountsStickyHeader()
-                }
                 if (shown.isEmpty() && tab != AccountsTab.ALL) {
                     item(key = "accounts-empty") {
                         val hasInactive = inactiveAccounts.isNotEmpty()
@@ -345,6 +343,14 @@ fun AccountsScreen(
                         }
                     }
                 }
+            }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = accountsHeaderInset + MmSpacing.sm)
+                    .onSizeChanged { accountsOverviewHeightPx = it.height }
+            ) {
+                accountsStickyHeader()
             }
         }
     }
