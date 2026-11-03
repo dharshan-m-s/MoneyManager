@@ -92,7 +92,7 @@ fun Modifier.mmPageBackdrop(): Modifier {
 }
 
 internal const val MM_GLASS_BACKDROP_SCALE = 0.5f
-internal const val MM_GLASS_BLUR_RADIUS_DP = 3.5f
+internal const val MM_GLASS_BLUR_RADIUS_DP = 6f
 internal const val MM_GLASS_REFRACTION_AMOUNT_DP = 26f
 
 internal fun mmGlassBackdropScale(): Float = MM_GLASS_BACKDROP_SCALE
@@ -155,7 +155,7 @@ fun Modifier.mmLiquidGlass(
                 )
             }
         },
-        highlight = { Highlight(width = 0.35.dp, blurRadius = 0.35.dp, alpha = 0.28f) },
+        highlight = { Highlight(width = 0.55.dp, blurRadius = 0.45.dp, alpha = 0.34f) },
         shadow = {
             Shadow(
                 radius = 22.dp,
@@ -167,7 +167,7 @@ fun Modifier.mmLiquidGlass(
             // Draw the tint in the lens geometry itself. A full rectangular wash here can
             // leak outside the pill on renderers that do not preserve the backdrop layer clip.
             drawRoundRect(
-                color = tint.copy(alpha = if (light) 0.035f else 0.022f),
+                color = tint.copy(alpha = if (light) 0.065f else 0.052f),
                 cornerRadius = CornerRadius(cornerRadius.toPx())
             )
         },

@@ -197,7 +197,7 @@ internal fun ModernMorePopover(
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(
                                     if (selected) MmColors.accent.copy(alpha = 0.14f)
-                                    else MmColors.surfaceMuted
+                                    else MmColors.surfaceMuted.copy(alpha = 0.76f)
                                 )
                                 .clickable { onSelect(destination) }
                                 .semantics { contentDescription = destination.label }
