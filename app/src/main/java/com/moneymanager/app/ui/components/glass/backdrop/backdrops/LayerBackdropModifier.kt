@@ -62,18 +62,18 @@ private class LayerBackdropNode(
 ) : DrawModifierNode, GlobalPositionAwareModifierNode, Modifier.Node() {
 
     override fun ContentDrawScope.draw() {
-        // Draw the page directly in the normal window RenderNode tree, then record a
-        // separate copy for glass surfaces to sample. Do not composite the captured page
-        // back into this node: that can form a recursive RenderNode dependency on some
-        // HWUI/GPU combinations, especially while NavHost transitions are running.
-        drawContent()
+        if (size.width < 1f || size.height < 1f ||
+            backdrop.isRecording || backdrop.captureUnavailable
+        ) {
+            // Always keep normal page content visible when capture is unavailable or nested.
+            drawContent()
+            return
+        }
 
-        if (size.width < 1f || size.height < 1f) return
-
-        // Never start a nested capture for the same source. This protects the page -> glass
-        // -> page dependency even if HWUI/Compose re-enters this modifier while recording.
-        if (backdrop.isRecording || backdrop.captureUnavailable) return
-
+        // Refresh the source BEFORE drawing the visible page. Glass surfaces inside the
+        // capture omit themselves in DrawBackdropNode while isRecording is true; the normal
+        // draw below then samples this exact frame instead of the previous scroll frame.
+        // The captured layer is never composited here, so the RenderNode graph stays acyclic.
         backdrop.beginRecording()
         try {
             recordLayer(this@LayerBackdropNode, backdrop.graphicsLayer) {
@@ -81,11 +81,14 @@ private class LayerBackdropNode(
             }
         } catch (_: RuntimeException) {
             // GPU/renderer-specific capture failures should disable the effect, not take down
-            // navigation or selection. The page itself was already drawn above.
+            // navigation or selection. The regular page draw below remains available.
             backdrop.markCaptureUnavailable()
         } finally {
             backdrop.endRecording()
         }
+
+        // Draw once to the window after the current page layer has been refreshed.
+        drawContent()
     }
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
