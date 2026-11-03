@@ -128,11 +128,18 @@ class SpendSummaryViewModel @Inject constructor(
                 runCatching { YearMonth.parse(row.yearMonth) }.getOrNull()?.let { it to row.total }
             }.toMap()
             val currentMonth = YearMonth.now(zone)
-            // Keep a stable 18-month calendar window, even when earlier months have no spend.
-            val count = 17
+            // Show the complete recorded timeline, not an arbitrary 18-month slice.
+            // Fill calendar gaps with zeroes so the horizontal graph remains continuous.
+            val oldestMonth = totalsByMonth.keys
+                .filterNot { it.isAfter(currentMonth) }
+                .minOrNull()
+                ?: return@map DashboardSpendHistory(emptyList(), emptyList())
+            val monthsBack = java.time.temporal.ChronoUnit.MONTHS
+                .between(oldestMonth, currentMonth)
+                .coerceAtLeast(0L)
             val labelFormat = DateTimeFormatter.ofPattern("MMM ''yy")
-            val windows = (0..count).map { offset ->
-                val month = currentMonth.minusMonths(offset.toLong())
+            val windows = (0L..monthsBack).map { offset ->
+                val month = currentMonth.minusMonths(offset)
                 val start = month.atDay(1).atStartOfDay(zone)
                 val end = month.plusMonths(1).atDay(1).atStartOfDay(zone)
                 MonthWindow(
