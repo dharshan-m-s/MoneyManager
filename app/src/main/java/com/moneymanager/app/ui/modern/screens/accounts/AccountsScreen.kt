@@ -388,11 +388,8 @@ private fun AccountsHeader(
     showBack: Boolean = true
 ) {
     Column(Modifier.fillMaxWidth()) {
-        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
         Row(
             Modifier.fillMaxWidth()
-                .padding(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
-                .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.62f)
                 .scrollCompactHeight(collapseProgress, expandedHeight = 58.dp, compactHeight = 48.dp)
                 .padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = MmSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
@@ -426,7 +423,6 @@ private fun AccountsHeader(
                 onClick = onToggleEdit,
                 active = editMode
             )
-        }
         }
 
         MmBalancePanel(

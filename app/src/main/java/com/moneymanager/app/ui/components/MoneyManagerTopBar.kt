@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Surface
@@ -29,16 +28,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import com.moneymanager.app.ui.components.LocalMmGlassEnabled
-import com.moneymanager.app.ui.components.mmLiquidGlass
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.moneymanager.app.ui.components.scrollCompactHeight
@@ -60,96 +55,80 @@ fun MoneyManagerTopBar(
     onNavigationClick: (() -> Unit)? = onBack,
     actions: @Composable RowScope.() -> Unit = {},
     compact: Boolean = false,
-    glassChrome: Boolean = true,
+    @Suppress("UNUSED_PARAMETER") glassChrome: Boolean = true,
     collapseProgress: State<Float>? = null
 ) {
-    Column(Modifier.fillMaxWidth().modernTopInsets()) {
-        // Keep the safe drawing inset outside the material. Only this toolbar opts into
-        // sampled glass; ordinary financial cards retain their cheaper content material.
-        CompositionLocalProvider(LocalMmGlassEnabled provides glassChrome) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
-                    .then(
-                        if (glassChrome) Modifier.mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.62f)
-                        else Modifier.clip(RoundedCornerShape(24.dp))
-                    )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = if (compact) 54.dp else 72.dp)
-                        .then(
-                            collapseProgress?.let {
-                                Modifier.scrollCompactHeight(
-                                    progress = it,
-                                    expandedHeight = if (compact) 54.dp else 72.dp,
-                                    compactHeight = 54.dp
-                                )
-                            } ?: Modifier.animateContentSize()
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .modernTopInsets()
+                .heightIn(min = if (compact) 56.dp else 74.dp)
+                .then(
+                    collapseProgress?.let {
+                        Modifier.scrollCompactHeight(
+                            progress = it,
+                            expandedHeight = if (compact) 56.dp else 74.dp,
+                            compactHeight = 54.dp
                         )
-                        .padding(horizontal = MmSpacing.screen, vertical = if (compact) 2.dp else 5.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    } ?: Modifier.animateContentSize()
+                )
+                .padding(horizontal = MmSpacing.screen, vertical = if (compact) 2.dp else 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (onNavigationClick != null) {
+                Surface(
+                    modifier = Modifier.size(44.dp).clip(CircleShape),
+                    shape = CircleShape,
+                    color = MmColors.surfaceContainer,
+                    border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.34f)),
+                    elevation = 0.dp
                 ) {
-                    if (onNavigationClick != null) {
-                        Surface(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.34f)
-                                .clip(CircleShape),
-                            shape = CircleShape,
-                            color = Color.Transparent,
-                            border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.28f)),
-                            elevation = 0.dp
-                        ) {
-                            IconButton(onClick = onNavigationClick) {
-                                Icon(
-                                    navigationIcon,
-                                    contentDescription = "Back",
-                                    tint = MmColors.textPrimary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    } else {
-                        Spacer(Modifier.width(MmSpacing.xs))
+                    IconButton(onClick = onNavigationClick) {
+                        Icon(
+                            navigationIcon,
+                            contentDescription = "Back",
+                            tint = MmColors.textPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
+                }
+            } else {
+                Spacer(Modifier.width(MmSpacing.xs))
+            }
 
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .padding(horizontal = MmSpacing.md)
-                            .then(collapseProgress?.let { Modifier.scrollCollapse(it) } ?: Modifier)
-                    ) {
-                        if (!compact) {
-                            Text(
-                                title,
-                                style = MmType.screenTitle.copy(fontSize = 24.sp, lineHeight = 30.sp),
-                                color = MmColors.textPrimary,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (!subtitle.isNullOrBlank()) {
-                                Text(
-                                    subtitle,
-                                    style = MmType.caption,
-                                    color = MmColors.textSecondary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs),
-                        modifier = Modifier.padding(start = MmSpacing.xs),
-                        content = actions
+            Column(
+                Modifier
+                    .weight(1f)
+                    .padding(horizontal = MmSpacing.md)
+                    .then(collapseProgress?.let { Modifier.scrollCollapse(it) } ?: Modifier)
+            ) {
+                if (!compact) {
+                    Text(
+                        title,
+                        style = MmType.screenTitle.copy(fontSize = 25.sp, lineHeight = 31.sp),
+                        color = MmColors.textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    if (!subtitle.isNullOrBlank()) {
+                        Text(
+                            subtitle,
+                            style = MmType.caption,
+                            color = MmColors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs),
+                modifier = Modifier.padding(start = MmSpacing.xs),
+                content = actions
+            )
         }
     }
 }
@@ -163,9 +142,9 @@ fun MmTopBarAction(
 ) {
     Box {
         Surface(
-            modifier = Modifier.size(44.dp).mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.32f).clip(CircleShape),
+            modifier = Modifier.size(44.dp).clip(CircleShape),
             shape = CircleShape,
-            color = Color.Transparent,
+            color = MmColors.surfaceContainer,
             border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.34f)),
             elevation = 0.dp
         ) {
