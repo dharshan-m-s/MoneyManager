@@ -2,6 +2,7 @@ package com.moneymanager.app.ui.modern.navigation
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -51,6 +52,7 @@ import com.moneymanager.app.ui.modern.screens.transactiondetail.TransactionDetai
 import com.moneymanager.app.ui.modern.screens.transactionedit.TransactionEditScreen
 import com.moneymanager.app.ui.modern.screens.accountedit.AccountEditScreen
 import com.moneymanager.app.data.local.entity.BillerType
+import com.moneymanager.app.ui.theme.MmColors
 
 // Switching between primary sections should feel like changing workspaces, not
 // pushing another page onto a stack. Detail flows retain the directional motion.
@@ -113,7 +115,10 @@ fun ModernNavHost(
         // Preserve the parent sizing/inset policy, but do not shrink the destination viewport
         // for the floating dock. Its material overlays live page pixels; only scrollable content
         // receives bottom clearance.
-        modifier = modifier,
+        // Every destination starts on a real opaque page surface. This prevents an outgoing
+        // route or the ambient root wash from showing through transparent screen layouts,
+        // while glass chrome above the destination can still sample the live scrolling content.
+        modifier = modifier.background(MmColors.background),
         // Keep navigation changes intentionally shallow. The page is also recorded once
         // for Liquid Glass; stacked scale/shared-element RenderNodes during a destination
         // switch are unnecessary and have caused HWUI prepareTree recursion on some devices.
