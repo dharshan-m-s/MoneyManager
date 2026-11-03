@@ -354,6 +354,8 @@ fun AccountsScreen(
     }
 }
 
+}
+
 private val AccountsTab.icon: ImageVector
     get() = when (this) {
         AccountsTab.BANK -> Icons.Filled.AccountBalance
