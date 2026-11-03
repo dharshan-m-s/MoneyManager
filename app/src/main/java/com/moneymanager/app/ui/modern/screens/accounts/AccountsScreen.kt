@@ -250,8 +250,7 @@ fun AccountsScreen(
             ModernAllAccountTypesBrowser(
                 modifier = Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 accounts = accounts,
-                headerContent = accountsStickyHeader,
-                topInset = accountsHeaderInset,
+                topInset = accountsHeaderInset + accountsOverviewInset + MmSpacing.md,
                 onSelectType = { type ->
                     selectedTab = AccountsTab.entries.indexOf(AccountsTab.forType(type))
                     showInactive = false
