@@ -2,6 +2,7 @@ package com.moneymanager.app.ui.modern.screens.bills
 
 import com.moneymanager.app.ui.theme.MmColors
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.expandHorizontally
@@ -107,7 +108,6 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.rememberScrollChromeState
-import com.moneymanager.app.ui.components.scrollCompactField
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import java.math.BigDecimal
 import java.time.Instant
@@ -182,7 +182,7 @@ fun BillsScreen(
             Row(
                 Modifier.fillMaxWidth()
                     .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                    .scrollCompactField(scrollChrome.progress),
+                    .animateContentSize(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
             ) {
@@ -850,7 +850,6 @@ private fun BillCard(
                     modifier = Modifier.size(18.dp)
                 )
             }
-            Text("Hold to delete", fontSize = 9.sp, color = MmColors.textTertiary, maxLines = 1)
         }
 
         Spacer(Modifier.height(MmSpacing.sm))
