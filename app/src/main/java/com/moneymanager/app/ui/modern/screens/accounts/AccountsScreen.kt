@@ -213,7 +213,6 @@ fun AccountsScreen(
                 Box(
                     Modifier.fillMaxWidth()
                         .padding(vertical = MmSpacing.xs)
-                        .scrollCollapse(scrollChrome.progress)
                 ) {
                     AccountsTabs(
                         selected = selectedTab,
