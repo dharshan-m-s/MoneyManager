@@ -1,6 +1,12 @@
 # Money Manager – Credit Card & Transaction Management Rework
 
-This local project is a standalone reworked implementation based on the `dharshan-m-s/MoneyManager` project structure and the supplied reference screenshots.
+![Money Manager app icon](app/src/main/res/drawable-nodpi/money_manager_app_icon.webp)
+
+Money Manager is a personal finance app for tracking accounts, cards, income, expenses, bills and transactions.
+
+## Brand identity
+
+The Android app icon uses a layered payment-card mark with an Indian rupee symbol and chip detail. Its indigo, violet and blue glass finish is designed to match the app's modern visual language. The artwork is shared by the adaptive launcher icon and legacy launcher icon resources.
 
 ## What was changed
 
