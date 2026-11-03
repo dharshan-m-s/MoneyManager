@@ -60,6 +60,7 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmColors
@@ -144,7 +145,7 @@ fun CashScreen(
     }.toSortedMap(compareByDescending { it }).toMutableMap()
     if (!grouped.containsKey(currentMonth)) grouped[currentMonth] = emptyList()
 
-    Box(Modifier.fillMaxSize().background(MmColors.background)) {
+    Box(Modifier.fillMaxSize().mmPageBackdrop()) {
         Column(Modifier.fillMaxSize()) {
 
             MoneyManagerTopBar(

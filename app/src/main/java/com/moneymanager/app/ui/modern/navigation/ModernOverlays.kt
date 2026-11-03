@@ -247,7 +247,7 @@ private fun OverlayCard(
             .fillMaxWidth()
             // Menus are transient controls, so they use the same sampled lens material as
             // navigation instead of a flat opaque card. The normal page content stays solid.
-            .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.82f),
+            .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.68f),
         shape = RoundedCornerShape(24.dp),
         color = Color.Transparent,
         elevation = 0.dp

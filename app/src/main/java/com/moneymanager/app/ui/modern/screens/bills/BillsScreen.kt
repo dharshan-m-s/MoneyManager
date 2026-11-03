@@ -101,6 +101,7 @@ import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -160,7 +161,7 @@ fun BillsScreen(
     ) { padding ->
         Column(
             Modifier.fillMaxSize()
-                .background(MmColors.background)
+                .mmPageBackdrop()
                 .padding(padding)
         ) {
             MoneyManagerTopBar(
@@ -186,13 +187,19 @@ fun BillsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
             ) {
-                Box(Modifier.weight(1f)) {
-                    MmSearchField(
-                        value = query,
-                        onValueChange = { query = it },
-                        hint = "Search bills",
-                        glassField = false
-                    )
+                CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+                    Box(
+                        Modifier.weight(1f)
+                            .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.48f)
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        MmSearchField(
+                            value = query,
+                            onValueChange = { query = it },
+                            hint = "Search bills",
+                            glassField = true
+                        )
+                    }
                 }
                 AnimatedVisibility(
                     visible = scrollChrome.collapsed.value,

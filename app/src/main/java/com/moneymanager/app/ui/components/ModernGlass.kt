@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.MaterialTheme
@@ -115,12 +116,19 @@ fun Modifier.mmLiquidGlass(
     val shape: CornerBasedShape = RoundedCornerShape(cornerRadius)
     val enabled = LocalMmGlassEnabled.current
     val backdrop = LocalMmGlassBackdrop.current
+    val hardwareAccelerated = LocalView.current.isHardwareAccelerated
     val light = MaterialTheme.colors.isLight
     val tint = if (light) Color(0xFFFDFEFF) else Color(0xFF111722)
     val edge = if (light) Color.White.copy(alpha = 0.32f) else Color.White.copy(alpha = 0.09f)
     val safeIntensity = intensity.coerceIn(0.25f, 1.25f)
 
-    if (!enabled || !isMmLiquidGlassSupported() || backdrop == null) {
+    if (
+        !enabled ||
+        !isMmLiquidGlassSupported() ||
+        backdrop == null ||
+        backdrop.captureUnavailable ||
+        !hardwareAccelerated
+    ) {
         // Keep the dock readable without falling back to a solid, opaque sheet.
         return clip(shape)
             .background(tint.copy(alpha = if (light) 0.10f else 0.045f), shape)

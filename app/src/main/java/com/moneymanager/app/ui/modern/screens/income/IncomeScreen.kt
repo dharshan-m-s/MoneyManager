@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,6 +60,9 @@ import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.mmPageBackdrop
+import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.rememberScrollChromeState
@@ -103,7 +107,7 @@ fun IncomeScreen(
     val total = filteredRows.sumOf { it.creditMinorUnits - it.debitMinorUnits }
     val scrollChrome = rememberScrollChromeState()
 
-    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+    Column(Modifier.fillMaxSize().mmPageBackdrop()) {
         MoneyManagerTopBar(
             title = "Income",
             subtitle = "${filteredRows.size} transactions · ${periodLabels[periodFilter]}",
@@ -132,8 +136,14 @@ fun IncomeScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs)
             ) {
-                Box(Modifier.weight(1f)) {
-                    MmSearchField(value = query, onValueChange = { query = it }, hint = "Search income", glassField = false)
+                CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+                    Box(
+                        Modifier.weight(1f)
+                            .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.48f)
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        MmSearchField(value = query, onValueChange = { query = it }, hint = "Search income", glassField = true)
+                    }
                 }
                 IconButton(onClick = { searchOpen = false; query = "" }) {
                     Icon(Icons.Filled.Close, contentDescription = "Close income search", tint = MmColors.textSecondary)

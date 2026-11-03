@@ -27,6 +27,7 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,10 +63,12 @@ fun MoneyManagerTopBar(
     collapseToolbarCompletely: Boolean = false
 ) {
     Column(Modifier.fillMaxWidth()) {
+        CompositionLocalProvider(LocalMmGlassEnabled provides glassChrome) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .modernTopInsets()
+                .padding(horizontal = MmSpacing.sm)
                 .then(
                     collapseProgress?.let {
                         Modifier.scrollCompactHeight(
@@ -75,18 +78,18 @@ fun MoneyManagerTopBar(
                         )
                     } ?: Modifier.heightIn(min = if (compact) 56.dp else 74.dp).animateContentSize()
                 )
-                .then(if (glassChrome) Modifier.mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.38f) else Modifier)
-                .padding(horizontal = MmSpacing.screen, vertical = if (compact) 2.dp else 5.dp),
+                .then(if (glassChrome) Modifier.mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.42f) else Modifier)
+                .padding(horizontal = MmSpacing.md, vertical = if (compact) 2.dp else 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (onNavigationClick != null) {
                 Surface(
                     modifier = Modifier.size(44.dp)
-                        .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.34f)
+                        .mmGlassHighlight(cornerRadius = 22.dp, intensity = 0.34f)
                         .then(if (hideNavigationOnCollapse) collapseProgress?.let { Modifier.scrollCollapse(it) } ?: Modifier else Modifier),
                     shape = CircleShape,
-                    color = androidx.compose.ui.graphics.Color.Transparent,
-                    border = null,
+                    color = MmColors.surfaceContainer.copy(alpha = 0.48f),
+                    border = BorderStroke(0.55.dp, MmColors.outline.copy(alpha = 0.18f)),
                     elevation = 0.dp
                 ) {
                     IconButton(onClick = onNavigationClick) {
@@ -135,6 +138,7 @@ fun MoneyManagerTopBar(
                 content = actions
             )
         }
+        }
     }
 }
 
@@ -147,10 +151,10 @@ fun MmTopBarAction(
 ) {
     Box {
         Surface(
-            modifier = Modifier.size(44.dp).mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.34f),
+            modifier = Modifier.size(44.dp).mmGlassHighlight(cornerRadius = 22.dp, intensity = 0.34f),
             shape = CircleShape,
-            color = androidx.compose.ui.graphics.Color.Transparent,
-            border = null,
+            color = MmColors.surfaceContainer.copy(alpha = 0.48f),
+            border = BorderStroke(0.55.dp, MmColors.outline.copy(alpha = 0.18f)),
             elevation = 0.dp
         ) {
             IconButton(onClick = onClick, modifier = Modifier.size(42.dp)) {

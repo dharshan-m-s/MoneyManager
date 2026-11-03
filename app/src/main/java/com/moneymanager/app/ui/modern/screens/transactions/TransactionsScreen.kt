@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.domain.model.Money
@@ -228,7 +229,7 @@ fun TransactionsScreen(
         }.toSortedMap(compareByDescending { it })
     }
 
-    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+    Column(Modifier.fillMaxSize().mmPageBackdrop()) {
         MoneyManagerTopBar(
             title = "Transactions",
             subtitle = "${visibleRows.size} of ${rows.size} transactions",
@@ -270,7 +271,7 @@ fun TransactionsScreen(
                 // independent sibling controls outside the capsule in the compact toolbar.
                 Box(
                     Modifier.weight(1f)
-                        .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.56f)
+                        .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.50f)
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
                     MmSearchField(
@@ -673,8 +674,8 @@ private fun TransactionsHeaderAction(
         Box(
             Modifier
                 .size(MmSpacing.touchTarget)
-                .mmLiquidGlass(cornerRadius = 999.dp, intensity = 0.58f)
                 .clip(CircleShape)
+                .background(MmColors.surfaceContainer.copy(alpha = 0.48f))
                 .mmGlassHighlight(cornerRadius = 999.dp, intensity = 0.42f)
                 .pressableClick(onClick = onClick),
             contentAlignment = Alignment.Center

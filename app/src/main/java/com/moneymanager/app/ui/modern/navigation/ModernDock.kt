@@ -150,6 +150,7 @@ internal fun ModernDock(
                         .clip(RoundedCornerShape(27.dp))
                         .background(MmColors.accent.copy(alpha = 0.10f))
                         .border(0.6.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(27.dp))
+                        .mmGlassHighlight(cornerRadius = 27.dp, intensity = 0.62f)
                 )
 
                 Row(

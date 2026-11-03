@@ -273,12 +273,10 @@ fun ModernRoot() {
     // sibling of the capture and samples the finished page independently.
     val glassBackdrop = rememberLayerBackdrop()
 
-    // Page chrome (top bars, wallet/account cards) must not sample the very capture that
-    // contains it: the page layer would reference the glass layer, which samples the page
-    // layer again, and HWUI overflows its stack in RenderNode::prepareTreeImpl. Give page
-    // chrome a separate, glass-free capture of the ambient page wash instead. The dock and
-    // menus live outside the page capture and keep sampling the full page below.
-    val pageGlassBackdrop = rememberLayerBackdrop()
+    // Page chrome shares this live page capture. DrawBackdropModifier omits each sampled
+    // glass node while this layer is recording, leaving the pixels below it available to
+    // the normal window pass without creating a page -> glass -> page RenderNode cycle.
+    // Glass remains disabled by default; only deliberate chrome/control surfaces opt in.
 
     // Keep the floating controls outside both the page capture and the shared-transition
     // RenderNode. A full-screen shared-transition parent around the dock caused a visible
@@ -290,17 +288,11 @@ fun ModernRoot() {
                         // samples something richer than a flat black window background. Page chrome
                         // samples this glass-free layer, which keeps the live page capture free of
                         // a cyclic RenderNode dependency.
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .layerBackdrop(pageGlassBackdrop)
-                                .mmPageBackdrop()
-                        )
+                        Box(Modifier.fillMaxSize().mmPageBackdrop())
                         CompositionLocalProvider(
-                            // The backdrop is available to selected chrome surfaces. The
-                            // default remains disabled so ordinary content cards do not each
-                            // allocate a sampled blur/lens pass.
-                            LocalMmGlassBackdrop provides pageGlassBackdrop,
+                            // Selected chrome surfaces sample the same live page capture.
+                            // The default stays off so ordinary cards and artwork are untouched.
+                            LocalMmGlassBackdrop provides glassBackdrop,
                             LocalMmGlassEnabled provides false,
                             LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
                         ) {

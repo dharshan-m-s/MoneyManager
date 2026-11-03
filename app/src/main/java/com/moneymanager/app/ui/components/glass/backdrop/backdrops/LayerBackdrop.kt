@@ -67,7 +67,7 @@ class LayerBackdrop internal constructor(
 
     // A renderer exception while recording disables further sampling for this instance.
     // Glass can still draw its children and its lightweight surface treatment.
-    internal var captureUnavailable: Boolean = false
+    internal var captureUnavailable: Boolean by mutableStateOf(false)
         private set
 
     internal fun markCaptureUnavailable() {

@@ -64,6 +64,7 @@ import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.LocalDockContentPadding
@@ -110,7 +111,7 @@ fun CategoryManagerScreen(
     var dragStartY by remember { mutableFloatStateOf(0f) }
     var dragCurrentY by remember { mutableFloatStateOf(0f) }
 
-    Box(Modifier.fillMaxSize().background(MmColors.background)) {
+    Box(Modifier.fillMaxSize().mmPageBackdrop()) {
         Column(Modifier.fillMaxSize()) {
             MoneyManagerTopBar(
                 title = if (selectionMode) "Choose category" else "Categories",
@@ -131,14 +132,20 @@ fun CategoryManagerScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {
-                    Box(Modifier.weight(1f)) {
-                        MmSearchField(
-                            value = query,
-                            onValueChange = { query = it },
-                            hint = "Search categories",
-                            glassField = false,
-                            modifier = Modifier.scrollCompactField(scrollChrome.progress)
-                        )
+                    CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+                        Box(
+                            Modifier.weight(1f)
+                                .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.48f)
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            MmSearchField(
+                                value = query,
+                                onValueChange = { query = it },
+                                hint = "Search categories",
+                                glassField = true,
+                                modifier = Modifier.scrollCompactField(scrollChrome.progress)
+                            )
+                        }
                     }
                     if (!selectionMode) {
                         androidx.compose.material.IconButton(

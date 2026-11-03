@@ -188,22 +188,24 @@ fun AccountsScreen(
             showBack = false
         )
 
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier.fillMaxWidth()
-                    .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.42f)
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                MmSearchField(
-                    value = query,
-                    onValueChange = { query = it },
-                    hint = "Search accounts",
-                    glassField = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Box(
+                    Modifier.fillMaxWidth()
+                        .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.48f)
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    MmSearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        hint = "Search accounts",
+                        glassField = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
 
@@ -369,11 +371,13 @@ private fun AccountsHeader(
     showBack: Boolean = true
 ) {
     Column(Modifier.fillMaxWidth()) {
+        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
         Row(
             Modifier.fillMaxWidth()
                 .scrollCompactHeight(collapseProgress, expandedHeight = 58.dp, compactHeight = 48.dp)
-                .mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.36f)
-                .padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = MmSpacing.sm),
+                .padding(horizontal = MmSpacing.sm)
+                .mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.42f)
+                .padding(start = if (showBack) MmSpacing.sm else MmSpacing.md, end = MmSpacing.md, top = MmSpacing.sm, bottom = MmSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (showBack) {
@@ -404,6 +408,7 @@ private fun AccountsHeader(
                 onClick = onToggleEdit,
                 active = editMode
             )
+        }
         }
 
         MmBalancePanel(
@@ -436,10 +441,10 @@ private fun AccountsCircleAction(
 ) {
     Surface(
         modifier = Modifier.size(40.dp)
-            .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.30f)
+            .mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.34f)
             .clickable(onClick = onClick),
         shape = CircleShape,
-        color = if (active) MmColors.accentFill.copy(alpha = 0.72f) else Color.Transparent,
+        color = if (active) MmColors.accentFill.copy(alpha = 0.72f) else MmColors.surfaceContainer.copy(alpha = 0.48f),
         border = null,
         elevation = 0.dp
     ) {
