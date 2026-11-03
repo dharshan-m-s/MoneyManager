@@ -54,32 +54,33 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
-        MoneyManagerTopBar(title = "Search", onBack = onBack)
-
-        Column(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md)) {
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(25.dp))
-                    .background(MmColors.surfaceElevated)
-                    .border(1.dp, MmColors.outline.copy(alpha = 0.62f), RoundedCornerShape(25.dp))
-                    .padding(10.dp)
-            ) {
-                MmSearchField(
-                    value = query,
-                    onValueChange = viewModel::onQueryChange,
-                    hint = "Merchant, bank, category, note or amount",
-                    modifier = Modifier.focusRequester(focusRequester)
-                )
+        MoneyManagerTopBar(
+            title = "Search",
+            onBack = onBack,
+            bottomContent = {
+                Column(
+                    Modifier.fillMaxWidth()
+                        .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md)
+                ) {
+                    MmSearchField(
+                        value = query,
+                        onValueChange = viewModel::onQueryChange,
+                        hint = "Merchant, bank, category, note or amount",
+                        glassField = true,
+                        modifier = Modifier.focusRequester(focusRequester)
+                    )
+                    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+                    if (query.isNotBlank() && results.isNotEmpty()) {
+                        Text(
+                            "${results.size} ${if (results.size == 1) "match" else "matches"}",
+                            style = MmType.caption,
+                            color = MmColors.textSecondary,
+                            modifier = Modifier.padding(top = MmSpacing.sm)
+                        )
+                    }
+                }
             }
-            LaunchedEffect(Unit) { focusRequester.requestFocus() }
-            if (query.isNotBlank() && results.isNotEmpty()) {
-                Text(
-                    "${results.size} ${if (results.size == 1) "match" else "matches"}",
-                    style = MmType.caption,
-                    color = MmColors.textSecondary,
-                    modifier = Modifier.padding(top = MmSpacing.sm)
-                )
-            }
-        }
+        )
 
         when {
             query.isBlank() -> MmEmptyState(

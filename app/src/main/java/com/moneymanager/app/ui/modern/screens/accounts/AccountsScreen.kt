@@ -166,7 +166,7 @@ fun AccountsScreen(
             }
     }
 
-    Column(Modifier.fillMaxSize().modernTopInsets().mmPageBackdrop()) {
+    Column(Modifier.fillMaxSize().mmPageBackdrop()) {
         AccountsHeader(
             tabLabel = tab.label,
             isCreditCard = tab == AccountsTab.CREDIT_CARDS,
@@ -182,32 +182,14 @@ fun AccountsScreen(
             showingInactive = inactiveView,
             editMode = editMode,
             collapseProgress = scrollChrome.progress,
+            query = query,
+            onQueryChange = { query = it },
             onBack = onBack,
             onSettings = onAccountSettings,
             onToggleEdit = { editMode = !editMode },
             showBack = false
         )
 
-        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    Modifier.fillMaxWidth()
-                        .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.48f)
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                ) {
-                    MmSearchField(
-                        value = query,
-                        onValueChange = { query = it },
-                        hint = "Search accounts",
-                        glassField = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        }
 
         Box(
             Modifier.fillMaxWidth()
@@ -365,71 +347,102 @@ private fun AccountsHeader(
     showingInactive: Boolean,
     editMode: Boolean,
     collapseProgress: State<Float>,
+    query: String,
+    onQueryChange: (String) -> Unit,
     onBack: () -> Unit,
     onSettings: () -> Unit,
     onToggleEdit: () -> Unit,
     showBack: Boolean = true
 ) {
-    Column(Modifier.fillMaxWidth()) {
-        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-        Row(
-            Modifier.fillMaxWidth()
-                .scrollCompactHeight(collapseProgress, expandedHeight = 58.dp, compactHeight = 48.dp)
+    CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.54f)
+                .modernTopInsets()
                 .padding(horizontal = MmSpacing.sm)
-                .mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.42f)
-                .padding(start = if (showBack) MmSpacing.sm else MmSpacing.md, end = MmSpacing.md, top = MmSpacing.sm, bottom = MmSpacing.sm),
-            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (showBack) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MmColors.textPrimary)
-                }
-            }
-            Column(
-                Modifier.weight(1f)
-                    .padding(start = if (showBack) MmSpacing.xs else 0.dp)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .scrollCompactHeight(
+                        collapseProgress,
+                        expandedHeight = 58.dp,
+                        compactHeight = 48.dp
+                    )
+                    .padding(
+                        start = if (showBack) MmSpacing.sm else MmSpacing.md,
+                        end = MmSpacing.md,
+                        top = MmSpacing.sm,
+                        bottom = MmSpacing.xs
+                    ),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Accounts", style = MmType.screenTitle, color = MmColors.textPrimary)
-                Text(
-                    if (showingInactive) "Switched-off accounts" else "Manage all your accounts",
-                    style = MmType.caption,
-                    color = MmColors.textSecondary
+                if (showBack) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MmColors.textPrimary)
+                    }
+                }
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .padding(start = if (showBack) MmSpacing.xs else 0.dp)
+                ) {
+                    Text("Accounts", style = MmType.screenTitle, color = MmColors.textPrimary)
+                    Text(
+                        if (showingInactive) "Switched-off accounts" else "Manage all your accounts",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
+                    )
+                }
+                AccountsCircleAction(
+                    icon = Icons.Filled.Settings,
+                    contentDescription = "Account settings",
+                    onClick = onSettings
+                )
+                Spacer(Modifier.width(MmSpacing.xs))
+                AccountsCircleAction(
+                    icon = if (editMode) Icons.Filled.Done else Icons.Filled.Edit,
+                    contentDescription = if (editMode) "Done editing" else "Edit accounts",
+                    onClick = onToggleEdit,
+                    active = editMode
                 )
             }
-            AccountsCircleAction(
-                icon = Icons.Filled.Settings,
-                contentDescription = "Account settings",
-                onClick = onSettings
-            )
-            Spacer(Modifier.width(MmSpacing.sm))
-            AccountsCircleAction(
-                icon = if (editMode) Icons.Filled.Done else Icons.Filled.Edit,
-                contentDescription = if (editMode) "Done editing" else "Edit accounts",
-                onClick = onToggleEdit,
-                active = editMode
-            )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = MmSpacing.sm, vertical = MmSpacing.xs),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MmSearchField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    hint = "Search accounts",
+                    glassField = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
-        }
-
-        MmBalancePanel(
-            label = when {
-                showingInactive && isCreditCard -> "Inactive outstanding"
-                showingInactive -> "Inactive balance"
-                isCreditCard -> "Total outstanding"
-                else -> "Total balance"
-            },
-            value = MoneyFormat.rupeesNoDecimals(total),
-            animatedValueMinorUnits = total.minorUnits,
-            visualValues = visualValues,
-            visualLabel = "Account mix",
-            caption = "$count ${if (count == 1) "account" else "accounts"} · $tabLabel" +
-                if (showingInactive) " · switched off" else "",
-            artworkKind = "account_${tabLabel.lowercase()}",
-            glass = false,
-            compactProgress = collapseProgress,
-            modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
-        )
     }
+
+    MmBalancePanel(
+        label = when {
+            showingInactive && isCreditCard -> "Inactive outstanding"
+            showingInactive -> "Inactive balance"
+            isCreditCard -> "Total outstanding"
+            else -> "Total balance"
+        },
+        value = MoneyFormat.rupeesNoDecimals(total),
+        animatedValueMinorUnits = total.minorUnits,
+        visualValues = visualValues,
+        visualLabel = "Account mix",
+        caption = "$count ${if (count == 1) "account" else "accounts"} · $tabLabel" +
+            if (showingInactive) " · switched off" else "",
+        artworkKind = "account_${tabLabel.lowercase()}",
+        glass = true,
+        compactProgress = collapseProgress,
+        modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+    )
 }
 
 @Composable
@@ -439,23 +452,13 @@ private fun AccountsCircleAction(
     onClick: () -> Unit,
     active: Boolean = false
 ) {
-    Surface(
-        modifier = Modifier.size(40.dp)
-            .mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.34f)
-            .clickable(onClick = onClick),
-        shape = CircleShape,
-        color = if (active) MmColors.accentFill.copy(alpha = 0.72f) else MmColors.surfaceContainer.copy(alpha = 0.48f),
-        border = null,
-        elevation = 0.dp
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                icon,
-                contentDescription = contentDescription,
-                tint = if (active) MmColors.onAccent else MmColors.textPrimary,
-                modifier = Modifier.size(19.dp)
-            )
-        }
+    IconButton(onClick = onClick, modifier = Modifier.size(44.dp)) {
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            tint = if (active) MmColors.accent else MmColors.textPrimary,
+            modifier = Modifier.size(21.dp)
+        )
     }
 }
 

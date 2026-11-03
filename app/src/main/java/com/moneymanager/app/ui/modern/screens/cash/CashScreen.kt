@@ -58,8 +58,6 @@ import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.LocalDockContentPadding
-import com.moneymanager.app.ui.components.LocalMmGlassEnabled
-import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
@@ -72,7 +70,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.rememberScrollChromeState
-import com.moneymanager.app.ui.components.scrollCompactField
 import com.moneymanager.app.ui.cash.CashViewModel
 
 /**
@@ -152,6 +149,9 @@ fun CashScreen(
                 title = "Cash in hand",
                 subtitle = "Live balance from your ledger",
                 onBack = onBack,
+                collapseProgress = scrollChrome.progress,
+                compact = scrollChrome.collapsed.value,
+                keepTitleOnCollapse = true,
                 actions = {
                     state.primaryCashAccountId?.let { cashAccountId ->
                         MmTopBarAction(
@@ -165,6 +165,23 @@ fun CashScreen(
                         contentDescription = "Search cash",
                         onClick = { showSearch = !showSearch }
                     )
+                },
+                bottomContent = {
+                    if (showSearch) {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            MmSearchField(
+                                value = query,
+                                onValueChange = { query = it },
+                                hint = "Search cash transactions",
+                                glassField = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
                 }
             )
 
@@ -179,32 +196,14 @@ fun CashScreen(
                 visualLabel = "Monthly movement",
                 caption = "Live ledger balance · updated when you record cash transactions",
                 artworkKind = "cash",
-                glass = false,
+                glass = true,
                 compactProgress = scrollChrome.progress,
                 modifier = Modifier
                     .padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed.value) MmSpacing.xs else MmSpacing.md)
                     .animateContentSize()
             )
 
-            if (showSearch) {
-                CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-                    Row(
-                        Modifier.fillMaxWidth()
-                            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                            .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.46f)
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        MmSearchField(
-                            value = query,
-                            onValueChange = { query = it },
-                            hint = "Search cash transactions",
-                            glassField = true,
-                            modifier = Modifier.scrollCompactField(scrollChrome.progress)
-                        )
-                    }
-                }
-            }
+
 
             AnimatedVisibility(
                 visible = !scrollChrome.collapsed.value,

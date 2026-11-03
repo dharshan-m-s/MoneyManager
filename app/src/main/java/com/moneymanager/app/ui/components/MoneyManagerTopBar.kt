@@ -1,6 +1,5 @@
 package com.moneymanager.app.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
@@ -11,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
-import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -33,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,6 +47,17 @@ import com.moneymanager.app.ui.theme.MmType
  * Floating page chrome. Content owns the background; the header stays visually light so page
  * context remains visible instead of placing every screen under another opaque toolbar.
  */
+/**
+ * Lets a header draw above the scrolling viewport without consuming vertical layout space.
+ * The header is measured normally; scrollable content reserves the measured height separately.
+ */
+fun Modifier.overlayWithoutLayoutSpace(): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints.copy(minHeight = 0))
+    layout(placeable.width, 0) {
+        placeable.placeRelative(0, 0)
+    }
+}
+
 @Composable
 fun MoneyManagerTopBar(
     title: String,
@@ -60,84 +71,103 @@ fun MoneyManagerTopBar(
     collapseProgress: State<Float>? = null,
     keepTitleOnCollapse: Boolean = false,
     hideNavigationOnCollapse: Boolean = false,
-    collapseToolbarCompletely: Boolean = false
+    collapseToolbarCompletely: Boolean = false,
+    modifier: Modifier = Modifier,
+    bottomContent: @Composable ColumnScope.() -> Unit = {}
 ) {
-    Column(Modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth()) {
         CompositionLocalProvider(LocalMmGlassEnabled provides glassChrome) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .modernTopInsets()
-                .padding(horizontal = MmSpacing.sm)
-                .then(
-                    collapseProgress?.let {
-                        Modifier.scrollCompactHeight(
-                            progress = it,
-                            expandedHeight = if (compact) 56.dp else 74.dp,
-                            compactHeight = if (collapseToolbarCompletely) 0.dp else 54.dp
-                        )
-                    } ?: Modifier.heightIn(min = if (compact) 56.dp else 74.dp).animateContentSize()
-                )
-                .then(if (glassChrome) Modifier.mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.42f) else Modifier)
-                .padding(horizontal = MmSpacing.md, vertical = if (compact) 2.dp else 5.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (onNavigationClick != null) {
-                Surface(
-                    modifier = Modifier.size(44.dp)
-                        .mmGlassHighlight(cornerRadius = 22.dp, intensity = 0.34f)
-                        .then(if (hideNavigationOnCollapse) collapseProgress?.let { Modifier.scrollCollapse(it) } ?: Modifier else Modifier),
-                    shape = CircleShape,
-                    color = MmColors.surfaceContainer.copy(alpha = 0.48f),
-                    border = BorderStroke(0.55.dp, MmColors.outline.copy(alpha = 0.18f)),
-                    elevation = 0.dp
-                ) {
-                    IconButton(onClick = onNavigationClick) {
-                        Icon(
-                            navigationIcon,
-                            contentDescription = "Back",
-                            tint = MmColors.textPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            } else {
-                Spacer(Modifier.width(MmSpacing.xs))
-            }
-
+            // The material belongs to the whole toolbar, not to a small capsule around
+            // the title row. Optional search/filter content is placed inside this same rail.
             Column(
                 Modifier
-                    .weight(1f)
-                    .padding(horizontal = MmSpacing.md)
-                    .then(if (keepTitleOnCollapse) Modifier else collapseProgress?.let { Modifier.scrollCollapse(it) } ?: Modifier)
-            ) {
-                if (!compact || keepTitleOnCollapse) {
-                    Text(
-                        title,
-                        style = MmType.screenTitle.copy(fontSize = 25.sp, lineHeight = 31.sp),
-                        color = MmColors.textPrimary,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    .fillMaxWidth()
+                    .then(
+                        if (glassChrome) Modifier.mmLiquidGlass(
+                            cornerRadius = 24.dp,
+                            intensity = 0.54f
+                        ) else Modifier
                     )
-                    if (!subtitle.isNullOrBlank()) {
-                        Text(
-                            subtitle,
-                            style = MmType.caption,
-                            color = MmColors.textSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                    .modernTopInsets()
+                    .padding(horizontal = MmSpacing.sm)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            collapseProgress?.let {
+                                Modifier.scrollCompactHeight(
+                                    progress = it,
+                                    expandedHeight = if (compact) 56.dp else 74.dp,
+                                    compactHeight = if (collapseToolbarCompletely) 0.dp else 54.dp
+                                )
+                            } ?: Modifier.heightIn(min = if (compact) 56.dp else 74.dp).animateContentSize()
                         )
+                        .padding(
+                            horizontal = MmSpacing.md,
+                            vertical = if (compact) 2.dp else 5.dp
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (onNavigationClick != null) {
+                        IconButton(
+                            onClick = onNavigationClick,
+                            modifier = Modifier.size(44.dp)
+                                .then(
+                                    if (hideNavigationOnCollapse) {
+                                        collapseProgress?.let { Modifier.scrollCollapse(it) } ?: Modifier
+                                    } else Modifier
+                                )
+                        ) {
+                            Icon(
+                                navigationIcon,
+                                contentDescription = "Back",
+                                tint = MmColors.textPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    } else {
+                        Spacer(Modifier.width(MmSpacing.xs))
                     }
+
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .padding(horizontal = MmSpacing.md)
+                            .then(
+                                if (keepTitleOnCollapse) Modifier
+                                else collapseProgress?.let { Modifier.scrollCollapse(it) } ?: Modifier
+                            )
+                    ) {
+                        if (!compact || keepTitleOnCollapse) {
+                            Text(
+                                title,
+                                style = MmType.screenTitle.copy(fontSize = 25.sp, lineHeight = 31.sp),
+                                color = MmColors.textPrimary,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (!subtitle.isNullOrBlank()) {
+                                Text(
+                                    subtitle,
+                                    style = MmType.caption,
+                                    color = MmColors.textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs),
+                        modifier = Modifier.padding(start = MmSpacing.xs),
+                        content = actions
+                    )
                 }
+                bottomContent()
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs),
-                modifier = Modifier.padding(start = MmSpacing.xs),
-                content = actions
-            )
-        }
         }
     }
 }
@@ -150,21 +180,13 @@ fun MmTopBarAction(
     badge: Boolean = false
 ) {
     Box {
-        Surface(
-            modifier = Modifier.size(44.dp).mmGlassHighlight(cornerRadius = 22.dp, intensity = 0.34f),
-            shape = CircleShape,
-            color = MmColors.surfaceContainer.copy(alpha = 0.48f),
-            border = BorderStroke(0.55.dp, MmColors.outline.copy(alpha = 0.18f)),
-            elevation = 0.dp
-        ) {
-            IconButton(onClick = onClick, modifier = Modifier.size(42.dp)) {
-                Icon(
-                    icon,
-                    contentDescription = contentDescription,
-                    tint = MmColors.textPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+        IconButton(onClick = onClick, modifier = Modifier.size(44.dp)) {
+            Icon(
+                icon,
+                contentDescription = contentDescription,
+                tint = MmColors.textPrimary,
+                modifier = Modifier.size(22.dp)
+            )
         }
         if (badge) {
             Box(

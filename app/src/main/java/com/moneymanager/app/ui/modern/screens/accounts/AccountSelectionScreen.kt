@@ -124,7 +124,24 @@ fun AccountSelectionScreen(
         MoneyManagerTopBar(
             title = title,
             subtitle = "Choose the account used for this transaction",
-            onBack = onBack
+            onBack = onBack,
+            bottomContent = {
+                if (accounts.isNotEmpty()) {
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MmSearchField(
+                            value = query,
+                            onValueChange = { query = it },
+                            hint = "Search accounts, cards or wallets",
+                            glassField = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
         )
 
         if (accounts.isEmpty()) {
@@ -151,11 +168,6 @@ fun AccountSelectionScreen(
                 }
                 Icon(Icons.Filled.AccountBalance, contentDescription = null, tint = MmColors.accent, modifier = Modifier.size(23.dp))
             }
-            MmSearchField(
-                value = query,
-                onValueChange = { query = it },
-                hint = "Search accounts, cards or wallets"
-            )
         }
 
         if (filteredAccounts.isEmpty()) {

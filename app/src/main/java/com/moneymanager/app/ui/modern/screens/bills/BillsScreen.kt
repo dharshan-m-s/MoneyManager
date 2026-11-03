@@ -170,28 +170,13 @@ fun BillsScreen(
                 onBack = onBack,
                 collapseProgress = scrollChrome.progress,
                 hideNavigationOnCollapse = true,
-                collapseToolbarCompletely = true,
-                actions = {
-                    AnimatedVisibility(
-                        visible = !scrollChrome.collapsed.value,
-                        enter = fadeIn() + expandHorizontally(),
-                        exit = fadeOut() + shrinkHorizontally()
-                    ) { BillAddAction(onAdd = onAddBiller) }
-                }
-            )
-
-            Row(
-                Modifier.fillMaxWidth()
-                    .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                    .animateContentSize(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-            ) {
-                CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-                    Box(
-                        Modifier.weight(1f)
-                            .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.48f)
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                actions = { BillAddAction(onAdd = onAddBiller) },
+                bottomContent = {
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
+                            .animateContentSize(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         MmSearchField(
                             value = query,
@@ -201,12 +186,7 @@ fun BillsScreen(
                         )
                     }
                 }
-                AnimatedVisibility(
-                    visible = scrollChrome.collapsed.value,
-                    enter = fadeIn() + expandHorizontally(),
-                    exit = fadeOut() + shrinkHorizontally()
-                ) { BillAddAction(onAdd = onAddBiller) }
-            }
+            )
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
             if (bills.isEmpty() || visibleBills.isEmpty()) {

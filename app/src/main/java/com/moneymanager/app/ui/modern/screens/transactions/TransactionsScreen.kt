@@ -67,6 +67,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.zIndex
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.mmLiquidGlass
@@ -101,6 +104,7 @@ import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.components.scrollCompactField
 import com.moneymanager.app.ui.components.scrollCompactHeight
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.formatFullDate
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -229,130 +233,102 @@ fun TransactionsScreen(
         }.toSortedMap(compareByDescending { it })
     }
 
+    var headerHeightPx by remember { mutableStateOf(0) }
+    val headerInset = with(LocalDensity.current) {
+        if (headerHeightPx > 0) headerHeightPx.toDp() else 250.dp
+    }
+
     Column(Modifier.fillMaxSize().mmPageBackdrop()) {
         MoneyManagerTopBar(
             title = "Transactions",
             subtitle = "${visibleRows.size} of ${rows.size} transactions",
             collapseProgress = scrollChrome.progress,
-            glassChrome = true,
-            collapseToolbarCompletely = true,
+            compact = scrollChrome.collapsed.value,
+            keepTitleOnCollapse = true,
+            modifier = Modifier
+                .zIndex(1f)
+                .overlayWithoutLayoutSpace()
+                .onSizeChanged { headerHeightPx = it.height },
             actions = {
-                AnimatedVisibility(
-                    visible = !scrollChrome.collapsed.value,
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs)) {
-                        TransactionsHeaderAction(
-                            icon = Icons.Filled.NorthEast,
-                            contentDescription = "Sort transactions",
-                            onClick = { showSort = true }
-                        )
-                        TransactionsHeaderAction(
-                            icon = Icons.Filled.FilterList,
-                            contentDescription = "Filter transactions",
-                            onClick = { showFilter = true },
-                            badge = filters.isActive
-                        )
-                    }
-                }
-            }
-        )
-
-        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-            Row(
-                Modifier.fillMaxWidth()
-                    .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                    .scrollCompactHeight(scrollChrome.progress, expandedHeight = 58.dp, compactHeight = 48.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-            ) {
-                // The search field owns its own glass surface. Sort and filter stay as
-                // independent sibling controls outside the capsule in the compact toolbar.
-                Box(
-                    Modifier.weight(1f)
-                        .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.50f)
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                TransactionsHeaderAction(
+                    icon = Icons.Filled.NorthEast,
+                    contentDescription = "Sort transactions",
+                    onClick = { showSort = true }
+                )
+                TransactionsHeaderAction(
+                    icon = Icons.Filled.FilterList,
+                    contentDescription = "Filter transactions",
+                    onClick = { showFilter = true },
+                    badge = filters.isActive
+                )
+            },
+            bottomContent = {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     MmSearchField(
                         value = query,
                         onValueChange = { query = it },
                         hint = "Search transactions",
                         glassField = true,
-                        modifier = Modifier.scrollCompactField(scrollChrome.progress)
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 AnimatedVisibility(
-                    visible = scrollChrome.collapsed.value,
-                    enter = fadeIn() + expandHorizontally(),
-                    exit = fadeOut() + shrinkHorizontally()
+                    visible = !scrollChrome.collapsed.value,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs)) {
-                        TransactionsHeaderAction(
-                            icon = Icons.Filled.NorthEast,
-                            contentDescription = "Sort transactions",
-                            onClick = { showSort = true }
-                        )
-                        TransactionsHeaderAction(
-                            icon = Icons.Filled.FilterList,
-                            contentDescription = "Filter transactions",
-                            onClick = { showFilter = true },
-                            badge = filters.isActive
-                        )
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                        horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                    ) {
+                        TxnTypeFilter.entries.forEach { option ->
+                            MmChip(
+                                label = option.label,
+                                selected = filters.type == option,
+                                onClick = { filters = filters.copy(type = option) }
+                            )
+                        }
+                    }
+                }
+                AnimatedVisibility(
+                    visible = filters.isActive && !scrollChrome.collapsed.value,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+                        horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        filters.activeChips(categoryNames, accountNames)
+                            .filterNot { it.startsWith("Type:") }
+                            .forEach { label ->
+                                MmChip(
+                                    label = label,
+                                    selected = true,
+                                    onClick = { showFilter = true }
+                                )
+                            }
+                        TextButton(
+                            onClick = { filters = TxnFilters() },
+                            colors = androidx.compose.material.ButtonDefaults.textButtonColors(
+                                contentColor = MmColors.accent
+                            )
+                        ) { Text("Clear all") }
                     }
                 }
             }
-        }
-
-        // Type selection is the filter that is used most often, so it lives one tap away.
-        // Five classifications no longer fit a fixed segmented control on narrow phones;
-        // a scrolling chip row keeps every option reachable and the labels readable.
-        AnimatedVisibility(
-            visible = true,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .scrollCollapse(scrollChrome.progress)
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
-                horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-            ) {
-                TxnTypeFilter.entries.forEach { option ->
-                    MmChip(
-                        label = option.label,
-                        selected = filters.type == option,
-                        onClick = { filters = filters.copy(type = option) }
-                    )
-                }
-            }
-        }
-
-        if (filters.isActive) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)
-                    .scrollCollapse(scrollChrome.progress),
-                horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                filters.activeChips(categoryNames, accountNames)
-                    .filterNot { it.startsWith("Type:") }
-                    .forEach { label ->
-                        MmChip(label = label, selected = true, onClick = { showFilter = true })
-                    }
-                TextButton(
-                    onClick = { filters = TxnFilters() },
-                    colors = androidx.compose.material.ButtonDefaults.textButtonColors(
-                        contentColor = MmColors.accent
-                    )
-                ) { Text("Clear all") }
-            }
-        }
+        )
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
         if (visibleRows.isEmpty()) {
@@ -364,20 +340,24 @@ fun TransactionsScreen(
                 actionLabel = if (filters.isActive || query.isNotBlank()) "Clear" else null,
                 onAction = if (filters.isActive || query.isNotBlank()) {
                     { filters = TxnFilters(); query = "" }
-                } else null
+                } else null,
+                modifier = Modifier.fillMaxSize().padding(top = headerInset)
             )
         } else {
             LazyColumn(
                 modifier = Modifier.nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
+                    top = headerInset,
                     bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.md
                 )
             ) {
                 item(key = "summary") {
-                    InViewSummary(
-                        income = viewTotals.first,
-                        expense = viewTotals.second
-                    )
+                    CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+                        InViewSummary(
+                            income = viewTotals.first,
+                            expense = viewTotals.second
+                        )
+                    }
                 }
                 grouped.forEach { (date, list) ->
                     // Day movement follows the same classification as the summary: transfers
@@ -508,9 +488,9 @@ private fun InViewSummary(income: Long, expense: Long) {
 
     Column(
         Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
+            .mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.46f)
             .clip(RoundedCornerShape(26.dp))
-            .background(MmColors.surfaceContainer)
-            .border(0.7.dp, MmColors.outline.copy(alpha = 0.30f), RoundedCornerShape(26.dp))
+            .background(Color.Transparent)
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -671,20 +651,15 @@ private fun TransactionsHeaderAction(
     badge: Boolean = false
 ) {
     Box {
-        Box(
-            Modifier
-                .size(MmSpacing.touchTarget)
-                .clip(CircleShape)
-                .background(MmColors.surfaceContainer.copy(alpha = 0.48f))
-                .mmGlassHighlight(cornerRadius = 999.dp, intensity = 0.42f)
-                .pressableClick(onClick = onClick),
-            contentAlignment = Alignment.Center
+        androidx.compose.material.IconButton(
+            onClick = onClick,
+            modifier = Modifier.size(MmSpacing.touchTarget)
         ) {
             Icon(
                 icon,
                 contentDescription = contentDescription,
                 tint = MmColors.textPrimary,
-                modifier = Modifier.size(19.dp)
+                modifier = Modifier.size(21.dp)
             )
         }
         if (badge) {

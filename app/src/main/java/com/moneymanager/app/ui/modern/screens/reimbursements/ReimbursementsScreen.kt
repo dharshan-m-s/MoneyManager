@@ -24,7 +24,6 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -40,8 +39,6 @@ import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.MmSearchField
-import com.moneymanager.app.ui.components.LocalMmGlassEnabled
-import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.scrollCompactField
@@ -79,26 +76,23 @@ fun ReimbursementsScreen(
             title = "Reimbursements",
             subtitle = "${pending.size} pending",
             onBack = onBack,
-            collapseProgress = scrollChrome.progress
-        )
-
-        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-            Row(
-                Modifier.fillMaxWidth()
-                    .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                    .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.48f)
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MmSearchField(
-                    value = query,
-                    onValueChange = { query = it },
-                    hint = "Search reimbursements",
-                    glassField = true,
-                    modifier = Modifier.scrollCompactField(scrollChrome.progress)
-                )
+            collapseProgress = scrollChrome.progress,
+            bottomContent = {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MmSearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        hint = "Search reimbursements",
+                        glassField = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
-        }
+        )
 
         if (pending.isEmpty()) {
             MmEmptyState(

@@ -113,7 +113,22 @@ fun BankSelectionScreen(
         MoneyManagerTopBar(
             title = "Select bank",
             subtitle = "Choose the bank this account belongs to",
-            onBack = onBack
+            onBack = onBack,
+            bottomContent = {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MmSearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        hint = "Search for a bank",
+                        glassField = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
         )
 
         MmSpotlightPanel(
@@ -123,14 +138,6 @@ fun BankSelectionScreen(
             icon = Icons.Filled.AccountBalance,
             modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)
         )
-
-        Column(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md)) {
-            MmSearchField(
-                value = query,
-                onValueChange = { query = it },
-                hint = "Search for a bank"
-            )
-        }
 
         if (filteredPopular.isEmpty() && filteredOther.isEmpty()) {
             MmEmptyState(

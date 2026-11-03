@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Immutable
@@ -226,7 +227,7 @@ fun MmBalancePanel(
     visualValues: List<Long> = emptyList(),
     visualLabel: String? = null,
     artworkKind: String = "overview",
-    glass: Boolean = false,
+    glass: Boolean = true,
     compactProgress: State<Float>? = null
 ) {
     val shape = RoundedCornerShape(28.dp)
@@ -247,6 +248,7 @@ fun MmBalancePanel(
         animationSpec = spring(dampingRatio = 0.86f, stiffness = 360f),
         label = "balancePanelArtwork"
     )
+    CompositionLocalProvider(LocalMmGlassEnabled provides glass) {
     Column(
         modifier
             .fillMaxWidth()
@@ -354,6 +356,7 @@ fun MmBalancePanel(
                 }
             }
         }
+    }
     }
 }
 @Composable

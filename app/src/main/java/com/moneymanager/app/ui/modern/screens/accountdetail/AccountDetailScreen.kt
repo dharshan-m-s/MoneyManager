@@ -187,22 +187,16 @@ fun AccountDetailScreen(
                 onEdit = {
                     account?.let { if (state.isCreditCard) onEditCreditCard(it.id) else onEditAccount(it.id) }
                 },
-                onToggleSearch = { searchOpen = !searchOpen; if (!searchOpen) query = "" }
+                onToggleSearch = { searchOpen = !searchOpen; if (!searchOpen) query = "" },
+                searchOpen = searchOpen,
+                query = query,
+                onQueryChange = { query = it }
             )
 
             if (state.isCreditCard) {
                 CreditCardTabs(selected = tab, onSelect = { tab = it })
             }
 
-            if (searchOpen) {
-                Box(Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
-                    MmSearchField(
-                        value = query,
-                        onValueChange = { query = it },
-                        hint = "Search this account"
-                    )
-                }
-            }
 
             val matches: (List<TransactionEntity>) -> List<TransactionEntity> = { list ->
                 if (query.isBlank()) list else list.filter { txn ->
@@ -318,7 +312,10 @@ private fun AccountHeader(
     collapseProgress: State<Float>,
     onBack: () -> Unit,
     onEdit: () -> Unit,
-    onToggleSearch: () -> Unit
+    onToggleSearch: () -> Unit,
+    searchOpen: Boolean,
+    query: String,
+    onQueryChange: (String) -> Unit
 ) {
     val isCreditCard = state.isCreditCard
     val account = state.account
@@ -335,6 +332,23 @@ private fun AccountHeader(
             actions = {
                 MmTopBarAction(Icons.Filled.Search, "Search this account", onToggleSearch)
                 MmTopBarAction(Icons.Filled.Edit, if (isCreditCard) "Edit credit card" else "Edit account", onEdit)
+            },
+            bottomContent = {
+                if (searchOpen) {
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MmSearchField(
+                            value = query,
+                            onValueChange = onQueryChange,
+                            hint = "Search this account",
+                            glassField = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
             }
         )
 
@@ -473,13 +487,16 @@ private fun CardBalancePage(
     val shape = RoundedCornerShape(25.dp)
 
     Column(
-        modifier.fillMaxWidth().aspectRatio(1.64f).clip(shape)
+        modifier.fillMaxWidth()
+            .aspectRatio(1.64f)
+            .mmLiquidGlass(cornerRadius = 25.dp, intensity = 0.66f)
+            .clip(shape)
             .background(
                 Brush.linearGradient(
                     listOf(
-                        accent.copy(alpha = if (androidx.compose.material.MaterialTheme.colors.isLight) 0.15f else 0.23f),
-                        MmColors.surfaceContainer,
-                        MmColors.surface
+                        accent.copy(alpha = if (androidx.compose.material.MaterialTheme.colors.isLight) 0.20f else 0.28f),
+                        MmColors.surfaceContainer.copy(alpha = 0.34f),
+                        MmColors.surface.copy(alpha = 0.24f)
                     )
                 )
             )

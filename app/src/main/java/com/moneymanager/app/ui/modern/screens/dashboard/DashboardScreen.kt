@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -77,6 +78,8 @@ import com.moneymanager.app.domain.reporting.TransactionDisplayClass
 import com.moneymanager.app.domain.reporting.TransactionDisplayClassifier
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.mmGlassHighlight
+import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.MmBottomSheet
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmMetricCard
@@ -314,22 +317,26 @@ fun DashboardScreen(
         )
     ) {
             item {
-                BalanceHeroCard(
-                    state = state,
-                    hideAmounts = hideAmounts,
-                    onToggleVisibility = { homePreferences.setHideAmounts(!hideAmounts) },
-                    onOpenBreakdown = { onOpenBreakdown(DashboardBreakdownKind.NET_WORTH) },
-                    modifier = Modifier.revealOnAppear(index = 0)
-                )
+                CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+                    BalanceHeroCard(
+                        state = state,
+                        hideAmounts = hideAmounts,
+                        onToggleVisibility = { homePreferences.setHideAmounts(!hideAmounts) },
+                        onOpenBreakdown = { onOpenBreakdown(DashboardBreakdownKind.NET_WORTH) },
+                        modifier = Modifier.revealOnAppear(index = 0)
+                    )
+                }
             }
 
             item {
-                MonthSummaryCards(
-                    state = state,
-                    hideAmounts = hideAmounts,
-                    onOpenSpent = { onOpenBreakdown(DashboardBreakdownKind.SPENT) },
-                    onOpenIncome = { onOpenBreakdown(DashboardBreakdownKind.INCOME) }
-                )
+                CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+                    MonthSummaryCards(
+                        state = state,
+                        hideAmounts = hideAmounts,
+                        onOpenSpent = { onOpenBreakdown(DashboardBreakdownKind.SPENT) },
+                        onOpenIncome = { onOpenBreakdown(DashboardBreakdownKind.INCOME) }
+                    )
+                }
             }
 
             item {
@@ -636,13 +643,14 @@ private fun BalanceHeroCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.lg)
+            .mmLiquidGlass(cornerRadius = 32.dp, intensity = 0.88f)
             .clip(RoundedCornerShape(32.dp))
             .background(
                 Brush.linearGradient(
                     listOf(
-                        Color(0xFF6268D8),
-                        Color(0xFF343A72),
-                        Color(0xFF171D32)
+                        Color(0xFF6268D8).copy(alpha = 0.34f),
+                        Color(0xFF343A72).copy(alpha = 0.44f),
+                        Color(0xFF171D32).copy(alpha = 0.58f)
                     )
                 )
             )
@@ -822,8 +830,18 @@ private fun MonthSummaryCard(
 ) {
     val shape = RoundedCornerShape(25.dp)
     Box(
-        modifier.fillMaxWidth().clip(shape)
-            .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.20f), MmColors.surface, MmColors.surfaceElevated)))
+        modifier.fillMaxWidth()
+            .mmLiquidGlass(cornerRadius = 25.dp, intensity = 0.52f)
+            .clip(shape)
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        tint.copy(alpha = 0.15f),
+                        MmColors.surface.copy(alpha = 0.20f),
+                        MmColors.surfaceElevated.copy(alpha = 0.28f)
+                    )
+                )
+            )
             .border(1.dp, tint.copy(alpha = 0.26f), shape)
             .pressableClick(onClick = onClick)
             .padding(horizontal = 15.dp, vertical = 16.dp)

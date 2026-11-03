@@ -43,7 +43,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,8 +64,6 @@ import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.mmPageBackdrop
-import com.moneymanager.app.ui.components.LocalMmGlassEnabled
-import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
@@ -118,58 +115,63 @@ fun CategoryManagerScreen(
                 subtitle = if (selectionMode) "Pick a category for your transaction"
                 else "${categories.count { it.active }} active • $hiddenCount hidden",
                 onBack = onBack,
-                collapseProgress = scrollChrome.progress
+                collapseProgress = scrollChrome.progress,
+                bottomContent = {
+                    Column(
+                        Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .scrollCompactHeight(
+                                    scrollChrome.progress,
+                                    expandedHeight = 56.dp,
+                                    compactHeight = 52.dp
+                                )
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                        ) {
+                            Box(Modifier.weight(1f)) {
+                                MmSearchField(
+                                    value = query,
+                                    onValueChange = { query = it },
+                                    hint = "Search categories",
+                                    glassField = true,
+                                    modifier = Modifier.scrollCompactField(scrollChrome.progress)
+                                )
+                            }
+                            if (!selectionMode) {
+                                androidx.compose.material.IconButton(
+                                    onClick = onCreateCategory,
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Add,
+                                        contentDescription = "Create category",
+                                        tint = MmColors.textPrimary
+                                    )
+                                }
+                            }
+                        }
+                        AnimatedVisibility(
+                            visible = !scrollChrome.collapsed.value && !selectionMode
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    if (showHidden) "Showing hidden categories too" else "Hidden categories are excluded",
+                                    style = MmType.caption,
+                                    color = MmColors.textSecondary,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(onClick = { showHidden = !showHidden }) {
+                                    Text(if (showHidden) "Hide them" else "Show hidden", style = MmType.caption)
+                                }
+                            }
+                        }
+                    }
+                }
             )
-
-            Column(
-                Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth()
-                        .scrollCompactHeight(scrollChrome.progress, expandedHeight = 56.dp, compactHeight = 52.dp)
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-                ) {
-                    CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-                        Box(
-                            Modifier.weight(1f)
-                                .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.48f)
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
-                        ) {
-                            MmSearchField(
-                                value = query,
-                                onValueChange = { query = it },
-                                hint = "Search categories",
-                                glassField = true,
-                                modifier = Modifier.scrollCompactField(scrollChrome.progress)
-                            )
-                        }
-                    }
-                    if (!selectionMode) {
-                        androidx.compose.material.IconButton(
-                            onClick = onCreateCategory,
-                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(MmColors.accentFill)
-                        ) {
-                            Icon(Icons.Filled.Add, contentDescription = "Create category", tint = MmColors.onAccent)
-                        }
-                    }
-                }
-                AnimatedVisibility(visible = !scrollChrome.collapsed.value && !selectionMode) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            if (showHidden) "Showing hidden categories too" else "Hidden categories are excluded",
-                            style = MmType.caption,
-                            color = MmColors.textSecondary,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = { showHidden = !showHidden }) {
-                            Text(if (showHidden) "Hide them" else "Show hidden", style = MmType.caption)
-                        }
-                    }
-                }
-            }
 
             if (visible.isEmpty()) {
                 MmEmptyState(
