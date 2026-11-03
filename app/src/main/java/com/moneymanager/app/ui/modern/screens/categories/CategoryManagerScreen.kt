@@ -45,12 +45,15 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +74,7 @@ import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.components.scrollCompactField
 import com.moneymanager.app.ui.components.scrollCompactHeight
@@ -102,6 +106,8 @@ fun CategoryManagerScreen(
     }
     val hiddenCount = remember(categories) { categories.count { !it.active } }
     val scrollChrome = rememberScrollChromeState()
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
     val listState = rememberLazyListState()
     val canReorder = !selectionMode && query.isBlank() && !showHidden
     var draggedCategoryId by remember { mutableStateOf<Long?>(null) }
@@ -116,6 +122,7 @@ fun CategoryManagerScreen(
                 else "${categories.count { it.active }} active • $hiddenCount hidden",
                 onBack = onBack,
                 collapseProgress = scrollChrome.progress,
+                modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height },
                 bottomContent = {
                     Column(
                         Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
@@ -180,7 +187,8 @@ fun CategoryManagerScreen(
                     message = if (query.isBlank()) "Create your first category to classify transactions."
                     else "Try a shorter search, or create a new one.",
                     actionLabel = if (query.isBlank()) "Create category" else "Clear search",
-                    onAction = if (query.isBlank()) onCreateCategory else ({ query = "" })
+                    onAction = if (query.isBlank()) onCreateCategory else ({ query = "" }),
+                    modifier = Modifier.fillMaxSize().padding(top = headerInset)
                 )
             } else {
                 LazyColumn(
@@ -188,6 +196,7 @@ fun CategoryManagerScreen(
                     modifier = Modifier.nestedScroll(scrollChrome.connection),
                     contentPadding = PaddingValues(
                         start = MmSpacing.lg,
+                        top = headerInset + MmSpacing.sm,
                         end = MmSpacing.screen,
                         bottom = maxOf(96.dp, LocalDockContentPadding.current)
                     ),
