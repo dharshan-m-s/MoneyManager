@@ -338,57 +338,69 @@ private fun AccountHeader(
     val account = state.account
     val isPaymentCard = account?.let { AccountTypeCatalog.info(it.accountType).isCard } == true
 
-    Column(Modifier.fillMaxWidth()) {
-        MoneyManagerTopBar(
-            title = if (isCreditCard) "Credit card" else (account?.nickname ?: "Account"),
-            subtitle = if (isCreditCard) account?.nickname?.ifBlank { account.institutionName } else account?.institutionName,
-            onBack = onBack,
-            compact = compact,
-            collapseProgress = collapseProgress,
-            keepTitleOnCollapse = true,
-            actions = {
-                MmTopBarAction(Icons.Filled.Search, "Search this account", onToggleSearch)
-                MmTopBarAction(Icons.Filled.Edit, if (isCreditCard) "Edit credit card" else "Edit account", onEdit)
-            },
-            bottomContent = {
-                if (searchOpen) {
-                    Row(
-                        Modifier.fillMaxWidth()
-                            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        MmSearchField(
-                            value = query,
-                            onValueChange = onQueryChange,
-                            hint = "Search this account",
-                            glassField = true,
-                            modifier = Modifier.fillMaxWidth()
+    CompositionLocalProvider(LocalMmGlassEnabled provides (account != null)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .then(
+                    if (account != null) {
+                        Modifier.mmLiquidGlass(
+                            cornerRadius = 34.dp,
+                            intensity = 1.08f,
+                            blurMultiplier = 1.18f
                         )
+                    } else Modifier
+                )
+                .padding(bottom = MmSpacing.md)
+        ) {
+            MoneyManagerTopBar(
+                title = if (isCreditCard) "Credit card" else (account?.nickname ?: "Account"),
+                subtitle = if (isCreditCard) account?.nickname?.ifBlank { account.institutionName } else account?.institutionName,
+                onBack = onBack,
+                compact = compact,
+                collapseProgress = collapseProgress,
+                keepTitleOnCollapse = true,
+                transparentChrome = account != null,
+                actions = {
+                    MmTopBarAction(Icons.Filled.Search, "Search this account", onToggleSearch)
+                    MmTopBarAction(Icons.Filled.Edit, if (isCreditCard) "Edit credit card" else "Edit account", onEdit)
+                },
+                bottomContent = {
+                    if (searchOpen) {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            MmSearchField(
+                                value = query,
+                                onValueChange = onQueryChange,
+                                hint = "Search this account",
+                                glassField = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
+            )
+
+            if (account == null) return@Column
+
+            val liftModifier = Modifier.graphicsLayer {
+                translationY = -12.dp.toPx() * collapseProgress.value.coerceIn(0f, 1f)
+                scaleX = 1f - 0.012f * collapseProgress.value.coerceIn(0f, 1f)
+                scaleY = 1f - 0.012f * collapseProgress.value.coerceIn(0f, 1f)
             }
-        )
 
-        if (account == null) return@Column
-
-        val liftModifier = Modifier.graphicsLayer {
-            translationY = -12.dp.toPx() * collapseProgress.value.coerceIn(0f, 1f)
-            scaleX = 1f - 0.012f * collapseProgress.value.coerceIn(0f, 1f)
-            scaleY = 1f - 0.012f * collapseProgress.value.coerceIn(0f, 1f)
-        }
-
-        when {
-            isPaymentCard -> {
-                val pagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxWidth().then(liftModifier),
-                    contentPadding = PaddingValues(horizontal = MmSpacing.screen),
-                    pageSpacing = 12.dp
-                ) { page ->
-                    AccountGlassFrame {
-                        // The frame draws its sampled lens first. The selected account surface
-                        // is rendered afterward, so payment artwork and balance content stay crisp.
+            when {
+                isPaymentCard -> {
+                    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxWidth().then(liftModifier),
+                        contentPadding = PaddingValues(horizontal = MmSpacing.screen),
+                        pageSpacing = 12.dp
+                    ) { page ->
                         if (page == 0) {
                             MmWalletCard(
                                 account = account,
@@ -403,83 +415,56 @@ private fun AccountHeader(
                             )
                         }
                     }
-                }
-                Row(
-                    Modifier.fillMaxWidth().padding(top = MmSpacing.sm, bottom = MmSpacing.xs),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    repeat(2) { index ->
-                        Box(
-                            Modifier.padding(horizontal = 3.dp)
-                                .size(width = if (pagerState.currentPage == index) 18.dp else 6.dp, height = 6.dp)
-                                .clip(CircleShape)
-                                .background(if (pagerState.currentPage == index) MmColors.accent else MmColors.outline)
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = MmSpacing.sm, bottom = MmSpacing.xs),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(2) { index ->
+                            Box(
+                                Modifier.padding(horizontal = 3.dp)
+                                    .size(width = if (pagerState.currentPage == index) 18.dp else 6.dp, height = 6.dp)
+                                    .clip(CircleShape)
+                                    .background(if (pagerState.currentPage == index) MmColors.accent else MmColors.outline)
+                            )
+                        }
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            if (pagerState.currentPage == 0) "Card • Swipe for balance" else "Balance • Swipe for card",
+                            style = MmType.caption,
+                            color = MmColors.textTertiary
                         )
                     }
-                    Spacer(Modifier.width(7.dp))
-                    Text(
-                        if (pagerState.currentPage == 0) "Card • Swipe for balance" else "Balance • Swipe for card",
-                        style = MmType.caption,
-                        color = MmColors.textTertiary
-                    )
                 }
-            }
-            account.accountType == AccountType.BANK -> {
-                AccountGlassFrame(
-                    modifier = Modifier.fillMaxWidth()
-                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
-                        .then(liftModifier)
-                ) {
+                account.accountType == AccountType.BANK -> {
                     MmBankAccountCard(
                         account = account,
-                        modifier = Modifier.fillMaxWidth().mmSharedElement("account-${account.id}")
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+                            .then(liftModifier)
+                            .mmSharedElement("account-${account.id}")
                     )
                 }
-            }
-            account.accountType == AccountType.WALLET ||
-                account.accountType == AccountType.INVESTMENT ||
-                account.accountType == AccountType.LOAN -> {
-                AccountGlassFrame(
-                    modifier = Modifier.fillMaxWidth()
-                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
-                        .then(liftModifier)
-                ) {
+                account.accountType == AccountType.WALLET ||
+                    account.accountType == AccountType.INVESTMENT ||
+                    account.accountType == AccountType.LOAN -> {
                     com.moneymanager.app.ui.components.MmAccountArtworkCard(
                         account = account,
                         modifier = Modifier.fillMaxWidth()
+                            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+                            .then(liftModifier)
                     )
                 }
-            }
-            else -> {
-                AccountGlassFrame(
-                    modifier = Modifier.fillMaxWidth()
-                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
-                        .then(liftModifier)
-                ) {
+                else -> {
                     CardBalancePage(
                         state = state,
                         account = account,
                         modifier = Modifier.fillMaxWidth()
+                            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+                            .then(liftModifier)
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun AccountGlassFrame(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-        Box(
-            modifier.fillMaxWidth()
-                .mmLiquidGlass(cornerRadius = 34.dp, intensity = 0.82f)
-                .padding(16.dp)
-        ) {
-            content()
         }
     }
 }
