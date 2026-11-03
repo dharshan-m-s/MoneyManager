@@ -206,7 +206,6 @@ fun AccountsScreen(
                         if (inactiveView) " · switched off" else "",
                     artworkKind = "account_${tab.label.lowercase()}",
                     glass = true,
-                    compactProgress = scrollChrome.progress,
                     modifier = Modifier.padding(vertical = MmSpacing.md)
                 )
                 Box(
