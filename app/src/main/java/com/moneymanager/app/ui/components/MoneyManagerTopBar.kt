@@ -88,10 +88,11 @@ fun MoneyManagerTopBar(
                             transparentChrome -> Modifier
                             glassChrome -> Modifier.mmLiquidGlass(
                                 cornerRadius = 24.dp,
-                                intensity = 1.08f,
-                                blurMultiplier = 1.25f,
+                                intensity = 1.0f,
+                                blurMultiplier = 1.6f,
+                                refractionMultiplier = 0.42f,
                                 edgeHighlight = false,
-                                tintOpacity = 0.82f
+                                tintOpacity = 3.0f
                             )
                             else -> Modifier.mmTopBarSurface(accentStrength = 0.72f)
                         }

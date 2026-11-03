@@ -96,6 +96,7 @@ fun BudgetScreen(
             onBack = onClose,
             collapseProgress = scrollChrome.progress,
             keepTitleOnCollapse = true,
+            glassChrome = false,
             modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height }
         )
 

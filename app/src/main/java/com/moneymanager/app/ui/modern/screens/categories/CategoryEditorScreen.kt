@@ -185,6 +185,7 @@ fun CategoryEditorScreen(
             title = if (isEdit) "Edit category" else "New category",
             subtitle = if (isEdit) "Change any detail, or delete it" else "Create your own, with an optional picture",
             onBack = onBack,
+            glassChrome = false,
             actions = {
                 MmTopBarAction(
                     icon = Icons.Filled.Check,

@@ -66,6 +66,7 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.mmLiquidGlass
@@ -257,26 +258,17 @@ fun CashScreen(
             }
         }
 
-        CompositionLocalProvider(LocalMmGlassBackdrop provides pageGlassBackdrop) {
-            Box(
-                Modifier.fillMaxWidth().zIndex(3f)
-                    .onSizeChanged { headerHeightPx = it.height }
+        key(pageGlassBackdrop) {
+            CompositionLocalProvider(
+                LocalMmGlassBackdrop provides pageGlassBackdrop,
+                LocalMmGlassEnabled provides true
             ) {
-                Column(
-                    Modifier.fillMaxWidth().mmLiquidGlass(
-                        cornerRadius = 24.dp,
-                        intensity = 1.08f,
-                        blurMultiplier = 1.25f,
-                        edgeHighlight = false,
-                        tintOpacity = 0.82f
-                    )
-                ) {
-                    MoneyManagerTopBar(
+                MoneyManagerTopBar(
                         title = "Cash in hand",
                         subtitle = "Live balance from your ledger",
                         onBack = onBack,
                         keepTitleOnCollapse = true,
-                        transparentChrome = true,
+                        modifier = Modifier.fillMaxWidth().zIndex(3f).overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height },
                         actions = {
                             state.primaryCashAccountId?.let { cashAccountId ->
                                 MmTopBarAction(
@@ -308,12 +300,14 @@ fun CashScreen(
                                 }
                             }
                         }
-                    )
-                }
+                )
             }
         }
 
-        CompositionLocalProvider(LocalMmGlassBackdrop provides pageGlassBackdrop) {
+        CompositionLocalProvider(
+            LocalMmGlassBackdrop provides pageGlassBackdrop,
+            LocalMmGlassEnabled provides true
+        ) {
             Box(
                 Modifier
                     .fillMaxWidth()

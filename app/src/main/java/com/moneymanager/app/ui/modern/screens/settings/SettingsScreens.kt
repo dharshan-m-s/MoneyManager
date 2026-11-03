@@ -96,6 +96,11 @@ import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
+import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.home.HomePreferences
@@ -354,6 +359,7 @@ fun SettingsScreen(
 
     val scope = rememberCoroutineScope()
     val scrollChrome = rememberScrollChromeState(collapseDistance = 144.dp)
+    val pageGlassBackdrop = androidx.compose.runtime.key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val headerInset = with(LocalDensity.current) {
         if (headerHeightPx > 0) headerHeightPx.toDp() else 100.dp
@@ -483,17 +489,10 @@ fun SettingsScreen(
         )
     }
 
-    Box(Modifier.fillMaxSize().background(MmColors.background)) {
+    Box(Modifier.fillMaxSize()) {
+      Box(Modifier.fillMaxSize().layerBackdrop(pageGlassBackdrop)) {
+        Box(Modifier.fillMaxSize().background(MmColors.background))
         Column(Modifier.fillMaxSize()) {
-            MoneyManagerTopBar(
-                title = "Settings",
-                onBack = onBack,
-                collapseProgress = scrollChrome.progress,
-                keepTitleOnCollapse = true,
-                modifier = Modifier.fillMaxWidth().zIndex(3f).overlayWithoutLayoutSpace()
-                    .onSizeChanged { headerHeightPx = it.height }
-            )
-
             Column(
                 Modifier
                     .fillMaxSize()
@@ -785,6 +784,19 @@ fun SettingsScreen(
                 }
             }
         }
+      }
+      androidx.compose.runtime.CompositionLocalProvider(
+          LocalMmGlassBackdrop provides pageGlassBackdrop,
+          LocalMmGlassEnabled provides true
+      ) {
+            MoneyManagerTopBar(
+                title = "Settings",
+                onBack = onBack,
+                collapseProgress = scrollChrome.progress,
+                keepTitleOnCollapse = true,
+                modifier = Modifier.fillMaxWidth().zIndex(3f).onSizeChanged { headerHeightPx = it.height }
+            )
+      }
 
         SnackbarHost(
             hostState = snackbarState,

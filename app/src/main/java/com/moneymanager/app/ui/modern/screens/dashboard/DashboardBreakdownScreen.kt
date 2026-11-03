@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.zIndex
+import androidx.compose.runtime.key
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,7 +62,12 @@ import com.moneymanager.app.ui.components.MmLoadingState
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
+import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -88,8 +95,8 @@ fun DashboardBreakdownScreen(
     val state by viewModel.stateFor(kind).collectAsState()
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
-
-    Box(Modifier.fillMaxSize().background(MmColors.background)) {
+    Box(Modifier.fillMaxSize()) {
+      Box(Modifier.fillMaxSize().background(MmColors.background)) {
         if (state.loading) {
             MmLoadingState(text = "Adding up the ledger…", modifier = Modifier.fillMaxSize())
         } else {
@@ -113,7 +120,8 @@ fun DashboardBreakdownScreen(
                                 animatedValueMinorUnits = state.total.minorUnits,
                                 visualValues = state.accountLines.map { it.amountMinorUnits }.sorted(),
                                 visualLabel = "Account mix",
-                                caption = "Across ${state.accountLines.size} included spending accounts"
+                                caption = "Across ${state.accountLines.size} included spending accounts",
+                                glass = false
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
                                 MmMetricCard(
@@ -151,7 +159,8 @@ fun DashboardBreakdownScreen(
                                 visualValues = emptyList(),
                                 visualLabel = null,
                                 artworkKind = "net_worth",
-                                caption = "${allLines.size} accounts across ${grouped.size} account types"
+                                caption = "${allLines.size} accounts across ${grouped.size} account types",
+                                glass = false
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
                                 MmMetricCard(label = "Assets", value = MoneyFormat.rupeesNoDecimals(state.assetTotal), tint = MmColors.income, icon = Icons.Filled.AccountBalanceWallet, modifier = Modifier.weight(1f))
@@ -318,6 +327,7 @@ fun DashboardBreakdownScreen(
             item { Spacer(Modifier.height(MmSpacing.xxl)) }
           }
         }
+      }
         MoneyManagerTopBar(
             title = when (kind) {
                 DashboardBreakdownKind.BALANCE -> "Balance breakdown"
@@ -328,8 +338,8 @@ fun DashboardBreakdownScreen(
             },
             subtitle = state.periodLabel.takeIf { it.isNotBlank() },
             onBack = onBack,
-            modifier = Modifier.fillMaxWidth().zIndex(3f).overlayWithoutLayoutSpace()
-                .onSizeChanged { headerHeightPx = it.height }
+            glassChrome = false,
+            modifier = Modifier.fillMaxWidth().zIndex(3f).onSizeChanged { headerHeightPx = it.height }
         )
     }
 }
@@ -358,7 +368,8 @@ private fun FlowBreakdownHeroCard(
             animatedValueMinorUnits = total.minorUnits,
             visualValues = amounts.takeLast(6),
             visualLabel = "RECENT FLOW",
-            artworkKind = if (isIncome) "income" else "spending"
+            artworkKind = if (isIncome) "income" else "spending",
+            glass = false
         )
         Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
             FlowStat(

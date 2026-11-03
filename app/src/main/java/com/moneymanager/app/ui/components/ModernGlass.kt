@@ -186,6 +186,7 @@ fun Modifier.mmLiquidGlass(
     cornerRadius: Dp = 30.dp,
     intensity: Float = 1f,
     blurMultiplier: Float = 1f,
+    refractionMultiplier: Float = 1f,
     edgeHighlight: Boolean = true,
     tintOpacity: Float = 1f
 ): Modifier {
@@ -197,7 +198,7 @@ fun Modifier.mmLiquidGlass(
     val tint = if (light) Color(0xFFFDFEFF) else Color(0xFF111722)
     val edge = if (light) Color.White.copy(alpha = 0.32f) else Color.White.copy(alpha = 0.09f)
     val safeIntensity = intensity.coerceIn(0.25f, 1.25f)
-    val safeTintOpacity = tintOpacity.coerceIn(0.5f, 1.15f)
+    val safeTintOpacity = tintOpacity.coerceIn(0.5f, 3f)
 
     if (
         !enabled ||
@@ -221,7 +222,9 @@ fun Modifier.mmLiquidGlass(
     val safeBlurMultiplier = blurMultiplier.coerceIn(0.75f, 1.6f)
     val blurRadius = with(density) { MM_GLASS_BLUR_RADIUS_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity * safeBlurMultiplier }
     val lensHeight = with(density) { 26.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
-    val lensAmount = with(density) { MM_GLASS_REFRACTION_AMOUNT_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
+    val lensAmount = with(density) {
+        MM_GLASS_REFRACTION_AMOUNT_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity * refractionMultiplier.coerceIn(0.15f, 1.5f)
+    }
 
     // Clip before the backdrop draw as well as after it. Without the leading clip the
     // sampled RenderNode can bleed into the dock's rectangular parent and look like a sheet.

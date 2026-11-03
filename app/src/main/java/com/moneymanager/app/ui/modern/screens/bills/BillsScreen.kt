@@ -79,6 +79,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
@@ -115,6 +116,9 @@ import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
+import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneId
@@ -140,6 +144,7 @@ fun BillsScreen(
     val bills by viewModel.bills.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
     val scrollChrome = rememberScrollChromeState(collapseDistance = 112.dp)
+    val pageGlassBackdrop = androidx.compose.runtime.key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
     val visibleBills = remember(bills, query) {
@@ -166,38 +171,13 @@ fun BillsScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarState) }
     ) { padding ->
-        Column(
-            Modifier.fillMaxSize()
-                .mmPageBackdrop()
-                .padding(padding)
-                .testTag("screen.bills")
-        ) {
-            MoneyManagerTopBar(
-                title = "Bills & EMIs",
-                subtitle = "Track upcoming payments without duplicate transactions",
-                onBack = onBack,
-                collapseProgress = scrollChrome.progress,
-                keepTitleOnCollapse = true,
-                hideNavigationOnCollapse = true,
-                modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height },
-                actions = { BillAddAction(onAdd = onAddBiller) },
-                bottomContent = {
-                    Row(
-                        Modifier.fillMaxWidth()
-                            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                            .animateContentSize(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        MmSearchField(
-                            value = query,
-                            onValueChange = { query = it },
-                            hint = "Search bills",
-                            glassField = true
-                        )
-                    }
-                }
-            )
-
+        Box(Modifier.fillMaxSize().padding(padding).testTag("screen.bills")) {
+          Box(Modifier.fillMaxSize().layerBackdrop(pageGlassBackdrop)) {
+          CompositionLocalProvider(
+              LocalMmGlassBackdrop provides pageGlassBackdrop,
+              LocalMmGlassEnabled provides true
+          ) {
+          Column(Modifier.fillMaxSize().mmPageBackdrop()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
             if (bills.isEmpty() || visibleBills.isEmpty()) {
                 MmEmptyState(
@@ -228,6 +208,39 @@ fun BillsScreen(
                 }
             }
             }
+          }
+          }
+          }
+          CompositionLocalProvider(
+              LocalMmGlassBackdrop provides pageGlassBackdrop,
+              LocalMmGlassEnabled provides true
+          ) {
+                MoneyManagerTopBar(
+                    title = "Bills & EMIs",
+                    subtitle = "Track upcoming payments without duplicate transactions",
+                    onBack = onBack,
+                    collapseProgress = scrollChrome.progress,
+                    keepTitleOnCollapse = true,
+                    hideNavigationOnCollapse = true,
+                    modifier = Modifier.fillMaxWidth().zIndex(3f).onSizeChanged { headerHeightPx = it.height },
+                    actions = { BillAddAction(onAdd = onAddBiller) },
+                    bottomContent = {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
+                                .animateContentSize(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            MmSearchField(
+                                value = query,
+                                onValueChange = { query = it },
+                                hint = "Search bills",
+                                glassField = true
+                            )
+                        }
+                    }
+                )
+          }
         }
     }
 

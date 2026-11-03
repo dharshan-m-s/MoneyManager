@@ -294,9 +294,14 @@ fun ModernRoot() {
         Destination.Transactions.route,
         Destination.Income.route,
         Destination.Reimbursements.route,
+        Destination.Bills.route,
+        Destination.Categories.route,
+        Destination.Settings.route,
         // Account picker and forms use the destination-keyed root snapshot so the
         // toolbar never samples a stale, separately recorded in-page layer.
-    ) || currentRoute.startsWith(Destination.AccountDetail.route.substringBefore("/{"))
+    ) || currentRoute.startsWith(Destination.AccountDetail.route.substringBefore("/{")) ||
+        currentRoute.startsWith(Destination.DashboardBreakdown.route.substringBefore("/{")) ||
+        currentRoute.startsWith(Destination.TransactionDetail.route.substringBefore("/{"))
     var pageCaptureReady by remember(pageCaptureKey) { mutableStateOf(false) }
     androidx.compose.runtime.LaunchedEffect(pageCaptureKey, pageActivation) {
         pageGlassBackdrop.release()

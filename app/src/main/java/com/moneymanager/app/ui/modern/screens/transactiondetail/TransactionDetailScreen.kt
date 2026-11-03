@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,15 +35,20 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
@@ -58,6 +64,12 @@ import com.moneymanager.app.ui.modern.screens.categories.CategoryVisual
 import com.moneymanager.app.ui.modern.screens.categories.categoryIcon
 import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
+import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmIconBadge
@@ -96,20 +108,23 @@ fun TransactionDetailScreen(
     val snackbarState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) { if (headerHeightPx > 0) headerHeightPx.toDp() else 100.dp }
+    val pageGlassBackdrop = androidx.compose.runtime.key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
 
     Scaffold(
-        topBar = {
-            DetailTopBar(
-                txnExists = state.txn != null,
-                onBack = onBack,
-                onEdit = { state.txn?.let { onEdit(it.id) } },
-                onDelete = { showDeleteConfirm = true }
-            )
-        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarState) },
         backgroundColor = MmColors.background
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+      Box(Modifier.fillMaxSize().padding(padding)) {
+        Box(Modifier.fillMaxSize().layerBackdrop(pageGlassBackdrop)) {
+          Box(Modifier.fillMaxSize().background(MmColors.background))
+          CompositionLocalProvider(
+              LocalMmGlassBackdrop provides pageGlassBackdrop,
+                LocalMmGlassEnabled provides false
+          ) {
+          Box(Modifier.fillMaxSize().padding(top = headerInset)) {
             val txn = state.txn
             when {
                 state.loading -> MmLoadingState("Loading transaction…")
@@ -249,7 +264,23 @@ fun TransactionDetailScreen(
                     }
                 }
             }
+          }
+          }
         }
+        CompositionLocalProvider(
+            LocalMmGlassBackdrop provides pageGlassBackdrop,
+            LocalMmGlassEnabled provides true
+        ) {
+            DetailTopBar(
+                txnExists = state.txn != null,
+                onBack = onBack,
+                onEdit = { state.txn?.let { onEdit(it.id) } },
+                onDelete = { showDeleteConfirm = true },
+                transparentChrome = false,
+                modifier = Modifier.fillMaxWidth().zIndex(3f).onSizeChanged { headerHeightPx = it.height }
+            )
+        }
+      }
     }
 
     if (showDeleteConfirm) {
@@ -280,11 +311,16 @@ private fun DetailTopBar(
     txnExists: Boolean,
     onBack: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    transparentChrome: Boolean,
+    modifier: Modifier = Modifier
 ) {
     MoneyManagerTopBar(
         title = "Transaction",
         onBack = onBack,
+        transparentChrome = transparentChrome,
+        glassChrome = false,
+        modifier = modifier,
         actions = {
             if (txnExists) {
                 MmTopBarAction(
@@ -319,10 +355,12 @@ private fun DetailHero(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+            .background(
+                Brush.verticalGradient(listOf(MmColors.surfaceElevated, MmColors.surfaceContainer)),
+                RoundedCornerShape(32.dp)
+            )
             .clip(RoundedCornerShape(32.dp))
-            .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.17f), MmColors.surfaceElevated, MmColors.surface)))
             .border(1.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(32.dp))
-            .mmGlassHighlight(cornerRadius = 32.dp, intensity = 0.38f)
             .revealOnAppear(index = 0)
             .padding(horizontal = MmSpacing.xl, vertical = MmSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally

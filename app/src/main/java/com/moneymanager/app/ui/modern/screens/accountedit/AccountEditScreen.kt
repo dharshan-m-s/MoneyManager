@@ -93,6 +93,7 @@ fun AccountEditScreen(
         MoneyManagerTopBar(
             title = "Edit account",
             onBack = onBack,
+            glassChrome = false,
             actions = {
                 MmTopBarAction(
                     icon = Icons.Filled.Check,

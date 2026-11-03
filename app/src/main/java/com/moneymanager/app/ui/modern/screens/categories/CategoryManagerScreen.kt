@@ -53,6 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -66,6 +67,11 @@ import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmSearchField
+import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
+import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
@@ -106,6 +112,7 @@ fun CategoryManagerScreen(
     }
     val hiddenCount = remember(categories) { categories.count { !it.active } }
     val scrollChrome = rememberScrollChromeState()
+    val pageGlassBackdrop = androidx.compose.runtime.key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
     val listState = rememberLazyListState()
@@ -115,7 +122,7 @@ fun CategoryManagerScreen(
     var dragCurrentY by remember { mutableFloatStateOf(0f) }
 
     Box(Modifier.fillMaxSize()) {
-    Box(Modifier.fillMaxSize().mmPageBackdrop()) {
+    Box(Modifier.fillMaxSize().layerBackdrop(pageGlassBackdrop).mmPageBackdrop()) {
         Column(Modifier.fillMaxSize()) {
             if (visible.isEmpty()) {
                 MmEmptyState(
@@ -201,6 +208,10 @@ fun CategoryManagerScreen(
 
 
       }
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalMmGlassBackdrop provides pageGlassBackdrop,
+            LocalMmGlassEnabled provides true
+        ) {
           MoneyManagerTopBar(
               title = if (selectionMode) "Choose category" else "Categories",
               subtitle = if (selectionMode) "Pick a category for your transaction"
@@ -208,8 +219,7 @@ fun CategoryManagerScreen(
               onBack = onBack,
               collapseProgress = scrollChrome.progress,
               keepTitleOnCollapse = true,
-              modifier = Modifier.overlayWithoutLayoutSpace()
-                  .onSizeChanged { headerHeightPx = it.height },
+              modifier = Modifier.fillMaxWidth().zIndex(3f).onSizeChanged { headerHeightPx = it.height },
               bottomContent = {
                   Column(
                       Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
@@ -260,6 +270,7 @@ fun CategoryManagerScreen(
                   }
               }
           )
+    }
     }
 
     deleting?.let { category ->
