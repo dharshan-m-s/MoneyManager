@@ -76,10 +76,12 @@ class LayerBackdrop internal constructor(
 
     internal fun beginRecording() {
         recordingDepth += 1
+        com.moneymanager.app.ui.components.glass.backdrop.BackdropCaptureState.begin()
     }
 
     internal fun endRecording() {
         if (recordingDepth > 0) recordingDepth -= 1
+        com.moneymanager.app.ui.components.glass.backdrop.BackdropCaptureState.end()
     }
 
     private var inverseLayerScope: InverseLayerScope? = null
