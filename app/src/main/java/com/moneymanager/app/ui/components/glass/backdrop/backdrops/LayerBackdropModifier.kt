@@ -74,6 +74,7 @@ private class LayerBackdropNode(
         // capture omit themselves in DrawBackdropNode while isRecording is true; the normal
         // draw below then samples this exact frame instead of the previous scroll frame.
         // The captured layer is never composited here, so the RenderNode graph stays acyclic.
+        // Enter the shared guard before recording this live page layer.
         backdrop.beginRecording()
         try {
             recordLayer(this@LayerBackdropNode, backdrop.graphicsLayer) {
