@@ -471,18 +471,30 @@ private class DrawBackdropNode(
     }
 
     override fun onAttach() {
-        val graphicsContext = requireGraphicsContext()
-        graphicsLayer = graphicsContext.createGraphicsLayer()
         backdropDrawUnavailable = false
-
-        observeEffects()
+        try {
+            val graphicsContext = requireGraphicsContext()
+            graphicsLayer = graphicsContext.createGraphicsLayer()
+            observeEffects()
+        } catch (_: RuntimeException) {
+            // Some hardware-backed contexts can reject layer allocation. Keep the
+            // composable's normal content and fallback surface alive without sampling.
+            graphicsLayer = null
+            backdropDrawUnavailable = true
+            (backdrop as? LayerBackdrop)?.markCaptureUnavailable()
+        }
     }
 
     override fun onDetach() {
-        val graphicsContext = requireGraphicsContext()
-        graphicsLayer?.let { layer ->
-            graphicsContext.releaseGraphicsLayer(layer)
-            graphicsLayer = null
+        val layer = graphicsLayer
+        graphicsLayer = null
+        if (layer != null) {
+            try {
+                requireGraphicsContext().releaseGraphicsLayer(layer)
+            } catch (_: RuntimeException) {
+                // Disposal must not crash navigation if the renderer already discarded
+                // its layer or the hosting graphics context has gone away.
+            }
         }
 
         effectScope.reset()
