@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
@@ -98,6 +100,8 @@ import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.formatDayMonth
 import com.moneymanager.app.ui.components.modernTopInsets
 import com.moneymanager.app.ui.components.LocalDockContentPadding
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.mmSharedElement
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.mmTopBarSurface
@@ -131,6 +135,8 @@ fun AccountsScreen(
     var showInactive by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     val scrollChrome = rememberScrollChromeState(collapseDistance = 132.dp)
+    var accountsHeaderHeightPx by remember { mutableIntStateOf(0) }
+    val accountsHeaderInset = with(androidx.compose.ui.platform.LocalDensity.current) { accountsHeaderHeightPx.toDp() }
     val tab = AccountsTab.entries[selectedTab]
     val filtered = accounts.filter { it.accountType in tab.types && !it.deleted }
     val visible = filtered.filter { account ->
@@ -175,7 +181,8 @@ fun AccountsScreen(
             onBack = onBack,
             onSettings = onAccountSettings,
             onToggleEdit = { editMode = !editMode },
-            showBack = false
+            showBack = false,
+            onHeaderHeightChanged = { accountsHeaderHeightPx = it }
         )
 
         val accountsStickyHeader: @Composable () -> Unit = {
@@ -243,6 +250,7 @@ fun AccountsScreen(
                 modifier = Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 accounts = accounts,
                 headerContent = accountsStickyHeader,
+                topInset = accountsHeaderInset,
                 onSelectType = { type ->
                     selectedTab = AccountsTab.entries.indexOf(AccountsTab.forType(type))
                     showInactive = false
@@ -259,6 +267,7 @@ fun AccountsScreen(
                 modifier = Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
+                    top = accountsHeaderInset + MmSpacing.sm,
                     end = MmSpacing.screen,
                     bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.xl
                 ),
@@ -364,7 +373,8 @@ private fun AccountsHeader(
     onBack: () -> Unit,
     onSettings: () -> Unit,
     onToggleEdit: () -> Unit,
-    showBack: Boolean = true
+    showBack: Boolean = true,
+    onHeaderHeightChanged: (Int) -> Unit = {}
 ) {
     CompositionLocalProvider(LocalMmGlassEnabled provides true) {
         Column(
@@ -373,6 +383,8 @@ private fun AccountsHeader(
                 .mmLiquidGlass(cornerRadius = 24.dp, intensity = 1.08f, blurMultiplier = 1.4f)
                 .modernTopInsets()
                 .padding(horizontal = MmSpacing.sm)
+                .overlayWithoutLayoutSpace()
+                .onSizeChanged { onHeaderHeightChanged(it.height) }
         ) {
         Row(
             Modifier
@@ -635,13 +647,14 @@ private fun ModernAllAccountTypesBrowser(
     accounts: List<AccountEntity>,
     headerContent: @Composable () -> Unit,
     onSelectType: (AccountType) -> Unit,
-    onAddType: (AccountType) -> Unit
+    onAddType: (AccountType) -> Unit,
+    topInset: androidx.compose.ui.unit.Dp = 0.dp
 ) {
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(
             start = MmSpacing.screen,
-            top = MmSpacing.sm,
+            top = topInset + MmSpacing.sm,
             end = MmSpacing.screen,
             bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.sm
         ),
