@@ -7,6 +7,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +30,7 @@ import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +39,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +63,7 @@ import com.moneymanager.app.ui.components.MmBankLogo
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -120,29 +127,13 @@ fun AccountSelectionScreen(
     }
     val grouped = filteredAccounts.groupBy { it.accountType }
 
-    Column(Modifier.fillMaxSize().background(MmColors.background)) {
-        MoneyManagerTopBar(
-            title = title,
-            subtitle = "Choose the account used for this transaction",
-            onBack = onBack,
-            bottomContent = {
-                if (accounts.isNotEmpty()) {
-                    Row(
-                        Modifier.fillMaxWidth()
-                            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        MmSearchField(
-                            value = query,
-                            onValueChange = { query = it },
-                            hint = "Search accounts, cards or wallets",
-                            glassField = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            }
-        )
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) {
+        if (headerHeightPx > 0) headerHeightPx.toDp() else 156.dp
+    }
+    Box(Modifier.fillMaxSize()) {
+       Column(Modifier.fillMaxSize().background(MmColors.background)) {
+        Spacer(Modifier.height(headerInset))
 
         if (accounts.isEmpty()) {
             MmEmptyState(
@@ -203,6 +194,32 @@ fun AccountSelectionScreen(
                 }
             }
         }
+       }
+          MoneyManagerTopBar(
+              title = title,
+              subtitle = "Choose the account used for this transaction",
+              onBack = onBack,
+              glassChrome = false,
+              modifier = Modifier.fillMaxWidth().overlayWithoutLayoutSpace()
+                  .onSizeChanged { headerHeightPx = it.height },
+              bottomContent = {
+                  if (accounts.isNotEmpty()) {
+                      Row(
+                          Modifier.fillMaxWidth()
+                              .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                          verticalAlignment = Alignment.CenterVertically
+                      ) {
+                          MmSearchField(
+                              value = query,
+                              onValueChange = { query = it },
+                              hint = "Search accounts, cards or wallets",
+                              glassField = false,
+                              modifier = Modifier.fillMaxWidth()
+                          )
+                      }
+                  }
+              }
+          )
     }
 }
 

@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,9 +35,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -56,6 +61,7 @@ import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MmTextField
 import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -76,10 +82,14 @@ fun AccountEditScreen(
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
     LaunchedEffect(state.deleted) { if (state.deleted) onDeleted() }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) {
+        if (headerHeightPx > 0) headerHeightPx.toDp() else 100.dp
+    }
 
     val supportsManualBalance = AccountTypeCatalog.supportsManualBalance(state.accountType)
 
-    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+    Box(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
             title = "Edit account",
             onBack = onBack,
@@ -89,13 +99,16 @@ fun AccountEditScreen(
                     contentDescription = "Save account",
                     onClick = viewModel::save
                 )
-            }
+            },
+            modifier = Modifier.fillMaxWidth().zIndex(3f).overlayWithoutLayoutSpace()
+                .onSizeChanged { headerHeightPx = it.height }
         )
         Column(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .imePadding()
+                .padding(top = headerInset)
                 .padding(horizontal = MmSpacing.screen)
                 .padding(bottom = MmSpacing.xxl)
                 .revealOnAppear(),

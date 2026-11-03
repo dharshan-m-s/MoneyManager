@@ -406,23 +406,17 @@ private class DrawBackdropNode(
             updateEffects()
         }
 
-        // A glass surface can live inside the page it samples. The entry snapshot must omit
-        // the complete surface subtree, otherwise its own labels are sampled back under the
-        // foreground and appear doubled. Other page content remains in the still. Live page
-        // recording can keep the children because these surfaces sample the separate still.
+        // Glass chrome can sit inside the live page it samples. Omit its complete subtree
+        // while recording the source; the normal window pass draws the surface after the page
+        // layer is ready. Recording its children creates a same-page reflection, while
+        // recording its material creates a page -> glass -> page RenderNode cycle.
         val isRecordingPage = (backdrop as? LayerBackdrop)?.isRecording == true
         val isRecordingStill = (backdrop as? SnapshotBackdrop)?.snapshotCaptureInProgress == true
         val isAnyBackdropCapture = BackdropCaptureState.isCapturing
 
-        // This is an actual still capture, so exclude the entire sampled glass surface.
-        if (isRecordingStill) return
-
-        // Do not record a glass material into a live RenderNode layer. Keep its child content
-        // there; the live layer is used only by sibling dock and popup surfaces.
-        if (isRecordingPage || isAnyBackdropCapture) {
-            drawContent()
-            return
-        }
+        // Exclude both the material and its content from every source recording. The surface
+        // itself is drawn normally immediately after the parent capture completes.
+        if (isRecordingPage || isRecordingStill || isAnyBackdropCapture) return
 
         onDrawBehind?.invoke(this)
         drawBackdropLayer()
@@ -519,5 +513,8 @@ private class DrawBackdropNode(
         effectScope.reset()
         layoutCoordinates = null
         exportedBackdrop?.layerCoordinates = null
+        // Navigation may restore this composable with a fresh page RenderNode. A renderer
+        // failure from its old attachment must not leave the restored glass permanently blank.
+        backdropDrawUnavailable = false
     }
 }

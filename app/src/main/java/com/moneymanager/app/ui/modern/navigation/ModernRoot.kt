@@ -36,7 +36,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -73,6 +72,7 @@ import com.moneymanager.app.security.LockMethod
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.LocalMmGlassAutoCaptureAllowed
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
@@ -221,9 +221,17 @@ fun ModernRoot() {
     val sheetAnimationScope = rememberCoroutineScope()
     var navHostHeightPx by remember { mutableIntStateOf(0) }
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val visibleBackStackEntries by navController.visibleEntries.collectAsState()
     val currentRoute = backStackEntry?.destination?.route ?: Destination.Dashboard.route
-    val pageCaptureReady = visibleBackStackEntries.singleOrNull()?.id == backStackEntry?.id
+    var pageActivation by remember { mutableIntStateOf(0) }
+    DisposableEffect(backStackEntry) {
+        val entry = backStackEntry
+        if (entry == null) return@DisposableEffect onDispose {}
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) pageActivation += 1
+        }
+        entry.lifecycle.addObserver(observer)
+        onDispose { entry.lifecycle.removeObserver(observer) }
+    }
     var overlay by remember { mutableStateOf(DockOverlay.NONE) }
     androidx.compose.runtime.LaunchedEffect(currentRoute) {
         overlay = DockOverlay.NONE
@@ -276,11 +284,26 @@ fun ModernRoot() {
     // sample this live layer of the finished page.
     val glassBackdrop = rememberLayerBackdrop()
 
-    // Page-owned surfaces sample a still, never the live RenderNode that contains them. Key
-    // each still by its navigation entry so returning to a destination cannot borrow another
-    // page's capture. This is the entry-keyed snapshot lifecycle introduced in beta history.
+    // Pages with their own live content layer keep it separate from the root dock layer. Other
+    // routes use a destination-keyed still so their glass cannot sample the enclosing RenderNode.
     val pageCaptureKey = backStackEntry?.id ?: currentRoute
     val pageGlassBackdrop = rememberSnapshotBackdrop(pageCaptureKey)
+    val pageOwnsLiveGlassBackdrop = currentRoute in setOf(
+        Destination.Accounts.route,
+        Destination.Cash.route,
+        Destination.Transactions.route,
+        Destination.Income.route,
+        Destination.Reimbursements.route,
+        // Account picker and forms use the destination-keyed root snapshot so the
+        // toolbar never samples a stale, separately recorded in-page layer.
+    ) || currentRoute.startsWith(Destination.AccountDetail.route.substringBefore("/{"))
+    var pageCaptureReady by remember(pageCaptureKey) { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(pageCaptureKey, pageActivation) {
+        pageGlassBackdrop.release()
+        pageGlassBackdrop.lastAutoCaptureNanos = 0L
+        pageCaptureReady = !pageOwnsLiveGlassBackdrop
+        if (!pageOwnsLiveGlassBackdrop) pageGlassBackdrop.capture()
+    }
 
     // Keep the floating controls outside both the page capture and the shared-transition
     // RenderNode. A full-screen shared-transition parent around the dock caused a visible
@@ -291,18 +314,19 @@ fun ModernRoot() {
             Modifier
                 .fillMaxSize()
                 .layerBackdrop(glassBackdrop)
-                // NavHost keeps the outgoing destination visible during its transition. Do not
-                // capture that mixed frame into the incoming entry's still; resume automatic
-                // capture once navigation exposes only the active entry.
-                .snapshotBackdropSource(pageGlassBackdrop, autoCapture = pageCaptureReady)
+                .snapshotBackdropSource(
+                    pageGlassBackdrop,
+                    autoCapture = pageCaptureReady && !pageOwnsLiveGlassBackdrop
+                )
         ) {
                         // A subtle ambient page wash gives the floating dock and the
                         // glass-free regions of selected controls a soft optical backdrop.
                         Box(Modifier.fillMaxSize().mmPageBackdrop())
                         CompositionLocalProvider(
-                            // Page glass samples an entry-keyed still; sibling controls below
-                            // sample the completed live page layer. Neither source samples itself.
+                            // Generic page chrome samples its destination still. Live-glass routes
+                            // replace this source with a sibling content layer inside their screen.
                             LocalMmGlassBackdrop provides pageGlassBackdrop,
+                            LocalMmGlassAutoCaptureAllowed provides !pageOwnsLiveGlassBackdrop,
                             LocalMmGlassEnabled provides false,
                             LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
                         ) {
@@ -341,9 +365,9 @@ fun ModernRoot() {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .padding(top = statusInset + 3.dp)
-                                .width(64.dp)
-                                .height(24.dp)
+                                .padding(top = (statusInset - 6.dp).coerceAtLeast(0.dp))
+                                .width(56.dp)
+                                .height(14.dp)
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(MmColors.surfaceContainer.copy(alpha = 0.82f))
                                 .pointerInput(currentRoute, navHostHeightPx) {
@@ -392,7 +416,7 @@ fun ModernRoot() {
                             contentAlignment = Alignment.Center
                         ) {
                             Box(
-                                Modifier.width(30.dp).height(4.dp).clip(CircleShape)
+                                Modifier.width(26.dp).height(3.dp).clip(CircleShape)
                                     .background(MmColors.textTertiary.copy(alpha = 0.62f))
                             )
                         }

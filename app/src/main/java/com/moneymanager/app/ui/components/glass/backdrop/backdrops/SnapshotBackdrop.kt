@@ -152,6 +152,13 @@ fun Modifier.snapshotBackdropSource(
         .drawWithContent {
             drawContent()
 
+            // The app's live page layer records this source once before the normal window
+            // pass. Do not take a nested still from that RenderNode recording: it can capture
+            // a transition composite or a stale child layer. Wait for the ordinary page draw.
+            if (com.moneymanager.app.ui.components.glass.backdrop.BackdropCaptureState.isCapturing) {
+                return@drawWithContent
+            }
+
             if (autoCapture) {
                 if (backdrop.skipAutoCapture) {
                     backdrop.skipAutoCapture = false

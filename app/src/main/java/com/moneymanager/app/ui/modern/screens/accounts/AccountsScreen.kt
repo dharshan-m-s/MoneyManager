@@ -60,6 +60,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,13 +75,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.entity.AccountBalanceSource
 import com.moneymanager.app.data.local.entity.AccountEntity
@@ -110,10 +111,14 @@ import com.moneymanager.app.ui.components.formatDayMonth
 import com.moneymanager.app.ui.components.modernTopInsets
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
 import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.mmSharedElement
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.mmTopBarSurface
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.pressScale
 import com.moneymanager.app.ui.components.revealOnAppear
@@ -143,6 +148,7 @@ fun AccountsScreen(
     var editMode by rememberSaveable { mutableStateOf(false) }
     var showInactive by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+    val accountsGlassBackdrop = key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
     val scrollChrome = rememberScrollChromeState(collapseDistance = 132.dp)
     var accountsHeaderHeightPx by remember { mutableIntStateOf(0) }
     val accountsHeaderInset = with(androidx.compose.ui.platform.LocalDensity.current) { accountsHeaderHeightPx.toDp() }
@@ -182,7 +188,114 @@ fun AccountsScreen(
             }
     }
 
-    Column(Modifier.fillMaxSize().mmPageBackdrop().testTag("screen.accounts")) {
+    Box(
+        Modifier.fillMaxSize()
+            .mmPageBackdrop()
+            .testTag("screen.accounts")
+    ) {
+        Box(Modifier.fillMaxSize().layerBackdrop(accountsGlassBackdrop)) {
+            Box(Modifier.fillMaxSize().mmPageBackdrop())
+            if (tab == AccountsTab.ALL && !inactiveView) {
+                ModernAllAccountTypesBrowser(
+                    modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
+                    accounts = accounts,
+                    topInset = accountsHeaderInset + accountsOverviewInset + MmSpacing.md,
+                    onSelectType = { type ->
+                        selectedTab = AccountsTab.entries.indexOf(AccountsTab.forType(type))
+                        showInactive = false
+                    },
+                    onAddType = { type ->
+                        when (type) {
+                            AccountType.CREDIT_CARD -> onAddCreditCard()
+                            else -> onAddAccount()
+                        }
+                    }
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
+                    contentPadding = PaddingValues(
+                        start = MmSpacing.screen,
+                        top = accountsHeaderInset + MmSpacing.sm + accountsOverviewInset + MmSpacing.md,
+                        end = MmSpacing.screen,
+                        bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.xl
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
+                    if (shown.isEmpty() && tab != AccountsTab.ALL) {
+                        item(key = "accounts-empty") {
+                            val hasInactive = inactiveAccounts.isNotEmpty()
+                            val emptyTitle: String
+                            val emptyMessage: String
+                            val emptyActionLabel: String?
+                            val emptyAction: (() -> Unit)?
+                            if (inactiveView) {
+                                emptyTitle = "No inactive accounts"
+                                emptyMessage = "Accounts you switch off are kept here, out of your live list."
+                                emptyActionLabel = null
+                                emptyAction = null
+                            } else if (hasInactive) {
+                                emptyTitle = "No active accounts"
+                                emptyMessage = "Your ${inactiveAccounts.size} switched-off " +
+                                    "${if (inactiveAccounts.size == 1) "account is" else "accounts are"} " +
+                                    "in the Inactive view."
+                                emptyActionLabel = "Show inactive"
+                                emptyAction = { showInactive = true }
+                            } else {
+                                emptyTitle = "No ${tab.label.lowercase()} yet"
+                                emptyMessage = when (tab) {
+                                    AccountsTab.CREDIT_CARDS -> "Add a card to track outstanding, limits and billing cycles."
+                                    AccountsTab.DEBIT_CARDS -> "Add a debit card to track spending from a bank account."
+                                    AccountsTab.LOANS -> "Add a loan to keep track of what is left to pay."
+                                    AccountsTab.WALLETS -> "Add a wallet to track balances."
+                                    AccountsTab.PREPAID_CARDS -> "Add a prepaid card to track its balance."
+                                    AccountsTab.BANK -> "Add a bank account to track your balance and transactions."
+                                    AccountsTab.CASH -> "Add or manage your cash account."
+                                    AccountsTab.INVESTMENTS -> "Add an investment account to track it here."
+                                    AccountsTab.ALL -> "No accounts found for this selection."
+                                }
+                                emptyActionLabel = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account"
+                                emptyAction = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                            }
+                            MmEmptyState(
+                                icon = tab.icon,
+                                title = emptyTitle,
+                                message = emptyMessage,
+                                actionLabel = emptyActionLabel,
+                                onAction = emptyAction
+                            )
+                        }
+                    } else {
+                        itemsIndexed(shown, key = { _, account -> account.id }) { index, account ->
+                            AccountRow(
+                                account = account,
+                                modifier = Modifier.revealOnAppear(index = index),
+                                isCreditCard = account.accountType == AccountType.CREDIT_CARD,
+                                editMode = editMode,
+                                showTopDivider = index > 0,
+                                onClick = { onAccountClick(account.id) },
+                                onEdit = {
+                                    if (account.accountType == AccountType.CREDIT_CARD) onEditCreditCard(account.id)
+                                    else onEditAccount(account.id)
+                                }
+                            )
+                        }
+                        if (showInlineAdd && !editMode) {
+                            item(key = "add-account") {
+                                Box(Modifier.padding(horizontal = MmSpacing.sm)) {
+                                    AddAccountRow(
+                                        label = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account",
+                                        onClick = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        key(accountsGlassBackdrop) {
+        CompositionLocalProvider(LocalMmGlassBackdrop provides accountsGlassBackdrop) {
         AccountsHeader(
             showingInactive = inactiveView,
             editMode = editMode,
@@ -220,20 +333,26 @@ fun AccountsScreen(
                     compactProgress = scrollChrome.progress,
                     modifier = Modifier.padding(vertical = MmSpacing.md).testTag("accounts.overview")
                 )
-                Box(
-                    Modifier.fillMaxWidth()
-                        .padding(vertical = MmSpacing.xs)
+                AnimatedVisibility(
+                    visible = scrollChrome.progress.value <= 0.015f,
+                    enter = fadeIn(tween(150)) + expandVertically(tween(180)),
+                    exit = fadeOut(tween(100)) + shrinkVertically(tween(150))
                 ) {
-                    AccountsTabs(
-                        selected = selectedTab,
-                        onSelect = {
-                            selectedTab = it
-                            showInactive = false
-                        },
-                        horizontalInset = 0.dp
-                    )
+                    Box(
+                        Modifier.fillMaxWidth()
+                            .padding(vertical = MmSpacing.xs)
+                    ) {
+                        AccountsTabs(
+                            selected = selectedTab,
+                            onSelect = {
+                                selectedTab = it
+                                showInactive = false
+                            },
+                            horizontalInset = 0.dp
+                        )
+                    }
                 }
-                if (inactiveAccounts.isNotEmpty()) {
+                if (inactiveAccounts.isNotEmpty() && scrollChrome.progress.value <= 0.015f) {
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = MmSpacing.sm),
                         horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
@@ -253,115 +372,18 @@ fun AccountsScreen(
             }
         }
 
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (tab == AccountsTab.ALL && !inactiveView) {
-            ModernAllAccountTypesBrowser(
-                modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
-                accounts = accounts,
-                topInset = accountsHeaderInset + accountsOverviewInset + MmSpacing.md,
-                onSelectType = { type ->
-                    selectedTab = AccountsTab.entries.indexOf(AccountsTab.forType(type))
-                    showInactive = false
-                },
-                onAddType = { type ->
-                    when (type) {
-                        AccountType.CREDIT_CARD -> onAddCreditCard()
-                        else -> onAddAccount()
-                    }
-                }
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
-                contentPadding = PaddingValues(
-                    start = MmSpacing.screen,
-                    top = accountsHeaderInset + MmSpacing.sm + accountsOverviewInset + MmSpacing.md,
-                    end = MmSpacing.screen,
-                    bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.xl
-                ),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
-            ) {
-                if (shown.isEmpty() && tab != AccountsTab.ALL) {
-                    item(key = "accounts-empty") {
-                        val hasInactive = inactiveAccounts.isNotEmpty()
-                        val emptyTitle: String
-                        val emptyMessage: String
-                        val emptyActionLabel: String?
-                        val emptyAction: (() -> Unit)?
-                        if (inactiveView) {
-                            emptyTitle = "No inactive accounts"
-                            emptyMessage = "Accounts you switch off are kept here, out of your live list."
-                            emptyActionLabel = null
-                            emptyAction = null
-                        } else if (hasInactive) {
-                            emptyTitle = "No active accounts"
-                            emptyMessage = "Your ${inactiveAccounts.size} switched-off " +
-                                "${if (inactiveAccounts.size == 1) "account is" else "accounts are"} " +
-                                "in the Inactive view."
-                            emptyActionLabel = "Show inactive"
-                            emptyAction = { showInactive = true }
-                        } else {
-                            emptyTitle = "No ${tab.label.lowercase()} yet"
-                            emptyMessage = when (tab) {
-                                AccountsTab.CREDIT_CARDS -> "Add a card to track outstanding, limits and billing cycles."
-                                AccountsTab.DEBIT_CARDS -> "Add a debit card to track spending from a bank account."
-                                AccountsTab.LOANS -> "Add a loan to keep track of what is left to pay."
-                                AccountsTab.WALLETS -> "Add a wallet to track balances."
-                                AccountsTab.PREPAID_CARDS -> "Add a prepaid card to track its balance."
-                                AccountsTab.BANK -> "Add a bank account to track your balance and transactions."
-                                AccountsTab.CASH -> "Add or manage your cash account."
-                                AccountsTab.INVESTMENTS -> "Add an investment account to track it here."
-                                AccountsTab.ALL -> "No accounts found for this selection."
-                            }
-                            emptyActionLabel = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account"
-                            emptyAction = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
-                        }
-                        MmEmptyState(
-                            icon = tab.icon,
-                            title = emptyTitle,
-                            message = emptyMessage,
-                            actionLabel = emptyActionLabel,
-                            onAction = emptyAction
-                        )
-                    }
-                } else {
-                    itemsIndexed(shown, key = { _, account -> account.id }) { index, account ->
-                        AccountRow(
-                            account = account,
-                            modifier = Modifier.revealOnAppear(index = index),
-                            isCreditCard = account.accountType == AccountType.CREDIT_CARD,
-                            editMode = editMode,
-                            showTopDivider = index > 0,
-                            onClick = { onAccountClick(account.id) },
-                            onEdit = {
-                                if (account.accountType == AccountType.CREDIT_CARD) onEditCreditCard(account.id)
-                                else onEditAccount(account.id)
-                            }
-                        )
-                    }
-                    if (showInlineAdd && !editMode) {
-                        item(key = "add-account") {
-                            Box(Modifier.padding(horizontal = MmSpacing.sm)) {
-                                AddAccountRow(
-                                    label = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account",
-                                    onClick = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
         Column(
             Modifier
                 .fillMaxWidth()
+                .zIndex(2f)
                 .padding(horizontal = MmSpacing.screen)
                 .padding(top = accountsHeaderInset + MmSpacing.sm)
                 .onSizeChanged { accountsOverviewHeightPx = it.height }
         ) {
             accountsStickyHeader()
         }
-    }
+        }
+        }
 }
 
 }
@@ -396,13 +418,21 @@ private fun AccountsHeader(
         Box(
             Modifier
                 .fillMaxWidth()
-                .overlayWithoutLayoutSpace()
+                // This header overlays the scrolling viewport, but still needs to report its
+                // measured height so the overview card can stay below the compact top bar.
+                .zIndex(3f)
                 .onSizeChanged { onHeaderHeightChanged(it.height) }
         ) {
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .mmLiquidGlass(cornerRadius = 24.dp, intensity = 1.08f, blurMultiplier = 1.4f)
+                    .mmLiquidGlass(
+                        cornerRadius = 24.dp,
+                        intensity = 1.08f,
+                        blurMultiplier = 1.25f,
+                        edgeHighlight = false,
+                        tintOpacity = 0.82f
+                    )
                     .modernTopInsets()
                     .padding(horizontal = MmSpacing.sm)
             ) {

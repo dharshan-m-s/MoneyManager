@@ -34,8 +34,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Icon
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.RadioButton
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
@@ -47,11 +47,13 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -74,7 +76,9 @@ import androidx.compose.ui.zIndex
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.mmTopBarSurface
-import com.moneymanager.app.ui.components.mmGlassHighlight
+import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.domain.model.Money
@@ -100,6 +104,8 @@ import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.modernTopInsets
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.components.scrollCompactField
@@ -113,9 +119,10 @@ import com.moneymanager.app.ui.theme.MmType
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.MmPrimaryButton
-import com.moneymanager.app.ui.components.glass.backdrop.backdrops.SnapshotBackdrop
 
 private val txnZone: ZoneId = ZoneId.of("Asia/Kolkata")
 
@@ -153,6 +160,14 @@ private data class TxnFilters(
             reimbursableOnly || pendingReimbursementOnly
 }
 
+private data class TxnPresentation(
+    val rows: List<TransactionEntity> = emptyList(),
+    val incomeMinor: Long = 0L,
+    val expenseMinor: Long = 0L,
+    val sections: List<Pair<LocalDate, List<TransactionEntity>>> = emptyList(),
+    val ready: Boolean = false
+)
+
 @Composable
 fun TransactionsScreen(
     onBack: () -> Unit,
@@ -160,7 +175,6 @@ fun TransactionsScreen(
     viewModel: TransactionsViewModel = hiltViewModel()
 ) {
     val rows by viewModel.transactions.collectAsState()
-    val pageGlassBackdrop = LocalMmGlassBackdrop.current
     val categories by viewModel.categories.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
     val searchableCategories by viewModel.searchableCategories.collectAsState()
@@ -193,54 +207,49 @@ fun TransactionsScreen(
         FinancialSummary.accountMap(searchableAccounts)
     }
 
-    val visibleRows = remember(rows, sort, filters, query, categoryNames, searchableCategoryNames, accountNames, accountSearchNames) {
-        val searched = if (query.isBlank()) rows else rows.filter { txn ->
-            val haystack = listOfNotNull(
-                txn.merchantReceiverSender, txn.rawCategoryName,
-                txn.categoryId?.let { searchableCategoryNames[it] },
-                txn.notes, txn.rawPaymentType, accountSearchNames[txn.accountId]
-            ).joinToString(" ")
-            haystack.contains(query.trim(), ignoreCase = true) || matchesAmountQuery(txn, query)
-        }
-        val filtered = searched.filter { matchesFilters(it, filters) }
-        when (activeSort) {
-            TxnSort.NEWEST -> filtered.sortedWith(compareByDescending<TransactionEntity> { it.occurredAtEpochMillis }.thenByDescending { it.id })
-            TxnSort.OLDEST -> filtered.sortedWith(compareBy<TransactionEntity> { it.occurredAtEpochMillis }.thenBy { it.id })
-            TxnSort.HIGHEST -> filtered.sortedWith(compareByDescending<TransactionEntity> { kotlin.math.abs(it.creditMinorUnits - it.debitMinorUnits) }.thenByDescending { it.occurredAtEpochMillis })
-            TxnSort.LOWEST -> filtered.sortedWith(compareBy<TransactionEntity> { kotlin.math.abs(it.creditMinorUnits - it.debitMinorUnits) }.thenByDescending { it.occurredAtEpochMillis })
-            TxnSort.NAME_AZ -> filtered.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { txn: TransactionEntity -> txn.merchantReceiverSender ?: txn.rawCategoryName ?: "" }.thenByDescending { it.occurredAtEpochMillis })
-            TxnSort.NAME_ZA -> filtered.sortedWith(compareByDescending(String.CASE_INSENSITIVE_ORDER) { txn: TransactionEntity -> txn.merchantReceiverSender ?: txn.rawCategoryName ?: "" }.thenByDescending { it.occurredAtEpochMillis })
-        }
-    }
-
-    // Refresh the Activity still once its asynchronously loaded ledger is present. This keeps
-    // the pinned glass card from holding the initial empty-state frame under its blur.
-    LaunchedEffect(rows, pageGlassBackdrop) {
-        if (rows.isNotEmpty()) (pageGlassBackdrop as? SnapshotBackdrop)?.capture()
-    }
-
-    // Honest "in view" totals: use the same FinancialSummary rules as the dashboard, so
-    // transfers, card bill payments and Not-a-spend rows contribute to neither side and refunds
-    // reduce spending instead of inflating income. Computed from the rows already on screen.
-    val viewTotals = remember(visibleRows, accountById) {
-        var income = 0L
-        var expense = 0L
-        visibleRows.forEach { txn ->
-            if (FinancialSummary.isIncomeRow(txn, accountById)) {
-                income += FinancialSummary.incomeAmountMinor(txn)
+    // Filtering, sorting, date grouping and reporting over a large ledger can block the first
+    // frame if they run in composition. Keep the screen responsive while the latest result is
+    // calculated off the UI thread; cancellation drops obsolete search/filter calculations.
+    val presentation by produceState(
+        initialValue = TxnPresentation(),
+        rows, sort, filters, query, searchableCategoryNames, accountSearchNames, accountById
+    ) {
+        value = withContext(Dispatchers.Default) {
+            val normalizedQuery = query.trim()
+            val searched = if (normalizedQuery.isBlank()) rows else rows.filter { txn ->
+                val haystack = listOfNotNull(
+                    txn.merchantReceiverSender, txn.rawCategoryName,
+                    txn.categoryId?.let { searchableCategoryNames[it] },
+                    txn.notes, txn.rawPaymentType, accountSearchNames[txn.accountId]
+                ).joinToString(" ")
+                haystack.contains(normalizedQuery, ignoreCase = true) || matchesAmountQuery(txn, normalizedQuery)
             }
-            if (FinancialSummary.isSpendRow(txn, accountById)) {
-                expense += FinancialSummary.spendAmountMinor(txn)
+            val filtered = searched.filter { matchesFilters(it, filters) }
+            // observeAllTransactions already orders by timestamp and id descending. Keep that
+            // database order for the default view instead of sorting the full ledger again.
+            val sorted = when (activeSort) {
+                TxnSort.NEWEST -> filtered
+                TxnSort.OLDEST -> filtered.sortedWith(compareBy<TransactionEntity> { it.occurredAtEpochMillis }.thenBy { it.id })
+                TxnSort.HIGHEST -> filtered.sortedWith(compareByDescending<TransactionEntity> { kotlin.math.abs(it.creditMinorUnits - it.debitMinorUnits) }.thenByDescending { it.occurredAtEpochMillis })
+                TxnSort.LOWEST -> filtered.sortedWith(compareBy<TransactionEntity> { kotlin.math.abs(it.creditMinorUnits - it.debitMinorUnits) }.thenByDescending { it.occurredAtEpochMillis })
+                TxnSort.NAME_AZ -> filtered.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { txn: TransactionEntity -> txn.merchantReceiverSender ?: txn.rawCategoryName ?: "" }.thenByDescending { it.occurredAtEpochMillis })
+                TxnSort.NAME_ZA -> filtered.sortedWith(compareByDescending(String.CASE_INSENSITIVE_ORDER) { txn: TransactionEntity -> txn.merchantReceiverSender ?: txn.rawCategoryName ?: "" }.thenByDescending { it.occurredAtEpochMillis })
             }
+            var income = 0L
+            var expense = 0L
+            sorted.forEach { txn ->
+                if (FinancialSummary.isIncomeRow(txn, accountById)) income += FinancialSummary.incomeAmountMinor(txn)
+                if (FinancialSummary.isSpendRow(txn, accountById)) expense += FinancialSummary.spendAmountMinor(txn)
+            }
+            val sections = sorted.groupBy {
+                Instant.ofEpochMilli(it.occurredAtEpochMillis).atZone(txnZone).toLocalDate()
+            }.toSortedMap(compareByDescending { it }).map { (date, dayRows) -> date to dayRows }
+            TxnPresentation(sorted, income, expense, sections, ready = true)
         }
-        income to expense
     }
-
-    val grouped = remember(visibleRows) {
-        visibleRows.groupBy {
-            Instant.ofEpochMilli(it.occurredAtEpochMillis).atZone(txnZone).toLocalDate()
-        }.toSortedMap(compareByDescending { it })
-    }
+    val visibleRows = presentation.rows
+    val viewTotals = presentation.incomeMinor to presentation.expenseMinor
+    val groupedSections = presentation.sections
 
     var headerHeightPx by remember { mutableStateOf(0) }
     var summaryHeightPx by remember { mutableStateOf(0) }
@@ -251,15 +260,89 @@ fun TransactionsScreen(
         if (summaryHeightPx > 0) summaryHeightPx.toDp() else 220.dp
     }
 
-    Column(Modifier.fillMaxSize().mmPageBackdrop().testTag("screen.transactions")) {
-        MoneyManagerTopBar(
+    val pageGlassBackdrop = key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
+    Box(Modifier.fillMaxSize().testTag("screen.transactions")) {
+        // Only the opaque page sheet is recorded. Fixed glass chrome is a sibling overlay,
+        // so its live backdrop follows the current ledger without recording itself.
+        Box(Modifier.fillMaxSize().layerBackdrop(pageGlassBackdrop)) {
+            Box(Modifier.fillMaxSize().mmPageBackdrop())
+            if (presentation.ready && visibleRows.isEmpty()) {
+                MmEmptyState(
+                    icon = Icons.Filled.Search,
+                    title = if (rows.isEmpty()) "No transactions yet" else "Nothing matches",
+                    message = if (rows.isEmpty()) "Add a transaction to get started."
+                    else "Try a different search or clear the filters.",
+                    actionLabel = if (filters.isActive || query.isNotBlank()) "Clear" else null,
+                    onAction = if (filters.isActive || query.isNotBlank()) {
+                        { filters = TxnFilters(); query = "" }
+                    } else null,
+                    modifier = Modifier.fillMaxSize().padding(top = headerInset)
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
+                    contentPadding = PaddingValues(
+                        top = headerInset + summaryHeight + MmSpacing.sm,
+                        bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.md
+                    )
+                ) {
+                    items(groupedSections, key = { "day-${it.first}" }) { section ->
+                        val (date, list) = section
+                        val dayNet = remember(section, accountById) {
+                            list.sumOf { txn ->
+                                when {
+                                    FinancialSummary.isIncomeRow(txn, accountById) ->
+                                        FinancialSummary.incomeAmountMinor(txn)
+                                    FinancialSummary.isSpendRow(txn, accountById) ->
+                                        -FinancialSummary.spendAmountMinor(txn)
+                                    else -> 0L
+                                }
+                            }
+                        }
+                        Column {
+                            DayHeader(date = date, dayNet = dayNet)
+                            list.forEachIndexed { index, txn ->
+                                val position = when {
+                                    list.size == 1 -> MmGroupPosition.SINGLE
+                                    index == 0 -> MmGroupPosition.TOP
+                                    index == list.lastIndex -> MmGroupPosition.BOTTOM
+                                    else -> MmGroupPosition.MIDDLE
+                                }
+                                MmTransactionRow(
+                                    txn = txn,
+                                    onClick = { onTransactionClick(txn.id) },
+                                    showDivider = false,
+                                    groupPosition = position
+                                )
+                            }
+                            Spacer(Modifier.height(MmSpacing.sm))
+                        }
+                    }
+                }
+                if (!presentation.ready) {
+                    Box(
+                        Modifier.fillMaxSize().padding(top = headerInset + summaryHeight),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = MmColors.accent, strokeWidth = 2.dp)
+                    }
+                }
+            }
+        }
+
+        key(pageGlassBackdrop) {
+        CompositionLocalProvider(
+            LocalMmGlassBackdrop provides pageGlassBackdrop,
+            LocalMmGlassEnabled provides true
+        ) {
+            MoneyManagerTopBar(
             title = "Transactions",
-            subtitle = "${visibleRows.size} of ${rows.size} transactions",
+            subtitle = if (presentation.ready) "${visibleRows.size} of ${rows.size} transactions" else "Preparing ledger",
             collapseProgress = scrollChrome.progress,
             compact = scrollChrome.collapsed.value,
             keepTitleOnCollapse = true,
             modifier = Modifier
-                .zIndex(1f)
+                .zIndex(3f)
                 .overlayWithoutLayoutSpace()
                 .onSizeChanged { headerHeightPx = it.height },
             actions = {
@@ -347,66 +430,13 @@ fun TransactionsScreen(
                     }
                 }
             }
-        )
-
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-        if (visibleRows.isEmpty()) {
-            MmEmptyState(
-                icon = Icons.Filled.Search,
-                title = if (rows.isEmpty()) "No transactions yet" else "Nothing matches",
-                message = if (rows.isEmpty()) "Add a transaction to get started."
-                else "Try a different search or clear the filters.",
-                actionLabel = if (filters.isActive || query.isNotBlank()) "Clear" else null,
-                onAction = if (filters.isActive || query.isNotBlank()) {
-                    { filters = TxnFilters(); query = "" }
-                } else null,
-                modifier = Modifier.fillMaxSize().padding(top = headerInset)
             )
-        } else {
-            Box(Modifier.fillMaxSize()) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
-                    contentPadding = PaddingValues(
-                        top = headerInset + summaryHeight + MmSpacing.sm,
-                        bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.md
-                    )
-                ) {
-                    grouped.forEach { (date, list) ->
-                        // Day movement follows the same classification as the summary: transfers
-                        // and Not-a-spend rows never move this number, and a refund reduces spend.
-                        val dayNet = list.sumOf { txn ->
-                            when {
-                                FinancialSummary.isIncomeRow(txn, accountById) ->
-                                    FinancialSummary.incomeAmountMinor(txn)
-                                FinancialSummary.isSpendRow(txn, accountById) ->
-                                    -FinancialSummary.spendAmountMinor(txn)
-                                else -> 0L
-                            }
-                        }
-                        item(key = "header-$date") {
-                            DayHeader(date = date, dayNet = dayNet)
-                        }
-                        itemsIndexed(list, key = { _, txn -> txn.id }) { index, txn ->
-                            val position = when {
-                                list.size == 1 -> MmGroupPosition.SINGLE
-                                index == 0 -> MmGroupPosition.TOP
-                                index == list.lastIndex -> MmGroupPosition.BOTTOM
-                                else -> MmGroupPosition.MIDDLE
-                            }
-                            MmTransactionRow(
-                                txn = txn,
-                                onClick = { onTransactionClick(txn.id) },
-                                showDivider = false,
-                                groupPosition = position
-                            )
-                        }
-                        item(key = "gap-$date") { Spacer(Modifier.height(MmSpacing.sm)) }
-                    }
-                }
+            if (visibleRows.isNotEmpty()) {
                 InViewSummary(
                     income = viewTotals.first,
                     expense = viewTotals.second,
                     modifier = Modifier.align(Alignment.TopCenter)
+                        .zIndex(2f)
                         .padding(top = headerInset)
                         .onSizeChanged { summaryHeightPx = it.height }
                 )
@@ -505,25 +535,12 @@ private fun InViewSummary(income: Long, expense: Long, modifier: Modifier = Modi
     val incomeTint = MmColors.income
     val expenseTint = MmColors.expense
     val trackTint = MmColors.outline.copy(alpha = 0.26f)
-    val glassFill = if (MaterialTheme.colors.isLight) {
-        Brush.verticalGradient(
-            listOf(Color.White.copy(alpha = 0.76f), Color.White.copy(alpha = 0.70f), MmColors.surfaceContainer.copy(alpha = 0.66f))
-        )
-    } else {
-        Brush.verticalGradient(
-            listOf(Color(0xFFB9C9E8).copy(alpha = 0.72f), MmColors.surfaceContainer.copy(alpha = 0.70f), Color.Black.copy(alpha = 0.64f))
-        )
-    }
-    val glassShape = RoundedCornerShape(26.dp)
-
     Column(
         modifier.fillMaxWidth().testTag("transactions.summary")
             .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
-            // Keep this fixed overlay tied to the Activity page and let the ledger stay clearly
-            // readable as it moves behind the translucent surface.
-            .clip(glassShape)
-            .background(glassFill, glassShape)
-            .mmGlassHighlight(cornerRadius = 26.dp, intensity = 0.72f)
+            // The page source excludes this whole surface while recording, so its live blur
+            // follows ledger content without reflecting old routes or its own labels.
+            .mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.72f, blurMultiplier = 0.78f)
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {

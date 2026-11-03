@@ -65,11 +65,15 @@ import com.moneymanager.app.ui.components.LocalDockContentPadding
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -92,6 +96,7 @@ import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.home.HomePreferences
 import com.moneymanager.app.ui.modern.screens.security.PinSetupDialog
@@ -349,6 +354,10 @@ fun SettingsScreen(
 
     val scope = rememberCoroutineScope()
     val scrollChrome = rememberScrollChromeState(collapseDistance = 144.dp)
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) {
+        if (headerHeightPx > 0) headerHeightPx.toDp() else 100.dp
+    }
     val snackbarState = remember { SnackbarHostState() }
 
     var backupFolder by remember { mutableStateOf(backupManager.configuredTreeUri()) }
@@ -476,13 +485,21 @@ fun SettingsScreen(
 
     Box(Modifier.fillMaxSize().background(MmColors.background)) {
         Column(Modifier.fillMaxSize()) {
-            MoneyManagerTopBar(title = "Settings", onBack = onBack, glassChrome = true)
+            MoneyManagerTopBar(
+                title = "Settings",
+                onBack = onBack,
+                collapseProgress = scrollChrome.progress,
+                keepTitleOnCollapse = true,
+                modifier = Modifier.fillMaxWidth().zIndex(3f).overlayWithoutLayoutSpace()
+                    .onSizeChanged { headerHeightPx = it.height }
+            )
 
             Column(
                 Modifier
                     .fillMaxSize()
                     .nestedScroll(scrollChrome.connection)
                     .verticalScroll(rememberScrollState())
+                    .padding(top = headerInset)
                     .padding(bottom = MmSpacing.xxl + LocalDockContentPadding.current)
             ) {
                 MmSpotlightPanel(

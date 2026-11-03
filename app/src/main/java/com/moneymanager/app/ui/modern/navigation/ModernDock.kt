@@ -114,7 +114,7 @@ internal fun ModernDock(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(72.dp)
-                .mmLiquidGlass(cornerRadius = 36.dp, intensity = 0.48f)
+                .mmLiquidGlass(cornerRadius = 36.dp, intensity = 0.60f)
         ) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val unit = maxWidth / 4.8f

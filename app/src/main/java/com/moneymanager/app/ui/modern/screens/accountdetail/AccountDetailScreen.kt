@@ -50,6 +50,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,9 +92,13 @@ import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.mmSharedElement
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.mmPageBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -120,6 +125,7 @@ fun AccountDetailScreen(
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     val scrollChrome = rememberScrollChromeState(collapseDistance = 104.dp)
+    val pageGlassBackdrop = key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
 
     // One add control with an explicit choice, matching the dashboard and cash screens, so the
     // same gesture means the same thing everywhere and no white-on-light-green icon appears in
@@ -184,10 +190,15 @@ fun AccountDetailScreen(
         Box(
             Modifier.fillMaxSize()
                 .padding(padding)
-                .nestedScroll(scrollChrome.connection)
                 .mmPageBackdrop()
         ) {
-            Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier.fillMaxSize()
+                    .layerBackdrop(pageGlassBackdrop)
+                    .nestedScroll(scrollChrome.connection)
+            ) {
+                Box(Modifier.fillMaxSize().mmPageBackdrop())
+                Box(Modifier.fillMaxSize()) {
                 val matches: (List<TransactionEntity>) -> List<TransactionEntity> = { list ->
                     if (query.isBlank()) list else list.filter { txn ->
                         val haystack = listOfNotNull(
@@ -263,7 +274,9 @@ fun AccountDetailScreen(
                     )
                 }
             }
+            }
 
+            CompositionLocalProvider(LocalMmGlassBackdrop provides pageGlassBackdrop) {
             Column(
                 Modifier
                     .align(Alignment.TopCenter)
@@ -290,6 +303,7 @@ fun AccountDetailScreen(
             }
         }
     }
+}
 }
 
 private data class PeriodView(
@@ -347,7 +361,9 @@ private fun AccountHeader(
                         Modifier.mmLiquidGlass(
                             cornerRadius = 32.dp,
                             intensity = 1.02f,
-                            blurMultiplier = 1.08f
+                            blurMultiplier = 1.25f,
+                            edgeHighlight = false,
+                            tintOpacity = 0.82f
                         )
                     } else Modifier
                 )

@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,9 +67,13 @@ import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.LocalDockContentPadding
+import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
+import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
 import com.moneymanager.app.ui.income.IncomeViewModel
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -108,14 +115,63 @@ fun IncomeScreen(
     val total = filteredRows.sumOf { it.creditMinorUnits - it.debitMinorUnits }
     val scrollChrome = rememberScrollChromeState()
     var headerHeightPx by remember { mutableIntStateOf(0) }
-    val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
+    var summaryHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) {
+        if (headerHeightPx > 0) headerHeightPx.toDp() else 100.dp
+    }
+    val summaryHeight = with(LocalDensity.current) {
+        headerInset + MmSpacing.sm +
+            (if (summaryHeightPx > 0) summaryHeightPx.toDp() else 220.dp) + MmSpacing.sm
+    }
+    val pageGlassBackdrop = key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
 
-    Column(Modifier.fillMaxSize().mmPageBackdrop()) {
+    Box(Modifier.fillMaxSize()) {
+      Box(Modifier.fillMaxSize().layerBackdrop(pageGlassBackdrop)) {
+        Box(Modifier.fillMaxSize().mmPageBackdrop())
+        if (filteredRows.isEmpty()) {
+            MmEmptyState(
+                icon = Icons.AutoMirrored.Filled.TrendingUp,
+                title = if (rows.isEmpty()) "No income recorded yet" else "No matching income",
+                message = if (rows.isEmpty()) "Income you add or import appears here, newest first."
+                else "Try another search or choose a wider date range.",
+                modifier = Modifier.fillMaxSize().padding(top = headerInset)
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
+                contentPadding = PaddingValues(
+                    start = MmSpacing.lg,
+                    end = MmSpacing.lg,
+                    top = summaryHeight,
+                    bottom = MmSpacing.xxl + LocalDockContentPadding.current
+                ),
+                verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+            ) {
+                item(key = "income-intro") {
+                    MmSpotlightPanel(
+                        eyebrow = "CASH FLOW",
+                        title = "Money coming in",
+                        description = "Every recorded credit, collected in one place and ordered newest first.",
+                        icon = Icons.AutoMirrored.Filled.TrendingUp,
+                        tint = MmColors.income
+                    )
+                }
+                itemsIndexed(filteredRows, key = { _, txn -> txn.id }) { index, txn ->
+                    MmTransactionRow(txn = txn, onClick = { onTransactionClick(txn.id) }, modifier = Modifier.revealOnAppear(index = index))
+                }
+            }
+        }
+      }
+      key(pageGlassBackdrop) {
+       CompositionLocalProvider(
+        LocalMmGlassBackdrop provides pageGlassBackdrop,
+        LocalMmGlassEnabled provides true
+       ) {
         MoneyManagerTopBar(
             title = "Income",
             subtitle = "${filteredRows.size} transactions · ${periodLabels[periodFilter]}",
             onBack = onBack,
-            modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height },
+            modifier = Modifier.zIndex(3f).overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height },
             actions = {
                 MmTopBarAction(Icons.Filled.Search, "Search income", { searchOpen = !searchOpen; if (!searchOpen) query = "" })
                 Box {
@@ -160,47 +216,19 @@ fun IncomeScreen(
                 }
             }
         )
-        if (filteredRows.isEmpty()) {
-            MmEmptyState(
-                icon = Icons.AutoMirrored.Filled.TrendingUp,
-                title = if (rows.isEmpty()) "No income recorded yet" else "No matching income",
-                message = if (rows.isEmpty()) "Income you add or import appears here, newest first."
-                else "Try another search or choose a wider date range.",
-                modifier = Modifier.fillMaxSize().padding(top = headerInset)
+        if (filteredRows.isNotEmpty()) {
+            IncomeSummaryCard(
+                total = total,
+                transactionCount = filteredRows.size,
+                compactProgress = scrollChrome.progress,
+                modifier = Modifier.padding(top = headerInset + MmSpacing.sm)
+                    .fillMaxWidth()
+                    .padding(horizontal = MmSpacing.lg)
+                    .onSizeChanged { summaryHeightPx = it.height }
             )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
-                contentPadding = PaddingValues(
-                    start = MmSpacing.lg,
-                    end = MmSpacing.lg,
-                    top = headerInset + MmSpacing.sm,
-                    bottom = MmSpacing.xxl + LocalDockContentPadding.current
-                ),
-                verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-            ) {
-                item(key = "income-intro") {
-                    MmSpotlightPanel(
-                        eyebrow = "CASH FLOW",
-                        title = "Money coming in",
-                        description = "Every recorded credit, collected in one place and ordered newest first.",
-                        icon = Icons.AutoMirrored.Filled.TrendingUp,
-                        tint = MmColors.income
-                    )
-                }
-                stickyHeader(key = "income-summary") {
-                    IncomeSummaryCard(
-                        total = total,
-                        transactionCount = filteredRows.size,
-                        compactProgress = scrollChrome.progress,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = MmSpacing.xs)
-                    )
-                }
-                itemsIndexed(filteredRows, key = { _, txn -> txn.id }) { index, txn ->
-                    MmTransactionRow(txn = txn, onClick = { onTransactionClick(txn.id) }, modifier = Modifier.revealOnAppear(index = index))
-                }
-            }
         }
+       }
+      }
     }
 
 }

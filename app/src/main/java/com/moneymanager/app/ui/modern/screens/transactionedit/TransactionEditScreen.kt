@@ -37,11 +37,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -69,6 +73,7 @@ import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.components.revealOnAppear
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.transactionedit.TransactionEditViewModel
 import com.moneymanager.app.ui.transactionedit.editablePaymentTypes
 
@@ -91,6 +96,10 @@ fun TransactionEditScreen(
     var categorySheet by remember { mutableStateOf(false) }
     var accountSheet by remember { mutableStateOf(false) }
     var paymentSheet by remember { mutableStateOf(false) }
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) {
+        if (headerHeightPx > 0) headerHeightPx.toDp() else 100.dp
+    }
 
     LaunchedEffect(transactionId) { viewModel.load(transactionId) }
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
@@ -101,13 +110,16 @@ fun TransactionEditScreen(
                 title = "Edit",
                 subtitle = if (state.isTransfer) "Transfer" else if (state.isIncome) "Income" else "Expense",
                 onBack = onBack,
+                glassChrome = false,
                 actions = {
                     MmTopBarAction(
                         icon = if (state.saving) Icons.Filled.Done else Icons.Filled.Check,
                         contentDescription = "Save changes",
                         onClick = { if (!state.saving) viewModel.save() }
                     )
-                }
+                },
+                modifier = Modifier.fillMaxWidth().zIndex(3f).overlayWithoutLayoutSpace()
+                    .onSizeChanged { headerHeightPx = it.height }
             )
         },
         snackbarHost = { SnackbarHost(snackbarState) },
@@ -122,6 +134,7 @@ fun TransactionEditScreen(
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
                         .imePadding()
+                        .padding(top = headerInset)
                         .padding(MmSpacing.screen)
                         .padding(bottom = MmSpacing.xxl)
                         .revealOnAppear(),

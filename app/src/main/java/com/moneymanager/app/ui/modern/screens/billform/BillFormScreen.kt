@@ -34,12 +34,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,6 +64,7 @@ import com.moneymanager.app.ui.components.MmStepper
 import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MmTextField
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -90,8 +95,12 @@ fun BillFormScreen(
     var showBillerTypeSheet by remember { mutableStateOf(false) }
     var showBillingCycleSheet by remember { mutableStateOf(false) }
     var showCardSheet by remember { mutableStateOf(false) }
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) {
+        if (headerHeightPx > 0) headerHeightPx.toDp() else 100.dp
+    }
 
-    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+    Box(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
             title = if (editingBillId == null) "Add bill or EMI" else "Edit bill or EMI",
             subtitle = "Payment, reminder and account details",
@@ -102,7 +111,9 @@ fun BillFormScreen(
                     contentDescription = "Save bill",
                     onClick = viewModel::save
                 )
-            }
+            },
+            modifier = Modifier.fillMaxWidth().zIndex(3f).overlayWithoutLayoutSpace()
+                .onSizeChanged { headerHeightPx = it.height }
         )
 
         Column(
@@ -110,6 +121,7 @@ fun BillFormScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .imePadding()
+                .padding(top = headerInset)
                 .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.lg)
                 .revealOnAppear(),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)

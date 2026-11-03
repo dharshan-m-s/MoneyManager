@@ -57,6 +57,7 @@ fun rememberScrollChromeState(collapseDistance: Dp = 112.dp): ScrollChromeState 
                 }
                 return Offset(x = 0f, y = consumedY)
             }
+
         }
     }
     return ScrollChromeState(progress, collapsed, connection)

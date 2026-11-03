@@ -40,10 +40,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +55,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.ui.components.MmAmountField
 import com.moneymanager.app.ui.components.MmCard
@@ -80,6 +85,10 @@ fun CreditCardFormScreen(
     val state by viewModel.ui.collectAsState()
     val snackbarState = remember { SnackbarHostState() }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) {
+        if (headerHeightPx > 0) headerHeightPx.toDp() else 100.dp
+    }
 
     LaunchedEffect(editingAccountId) { editingAccountId?.let { viewModel.loadForEdit(it) } }
     // Navigate back to the actual caller immediately. Showing (and waiting for) a snackbar
@@ -108,7 +117,9 @@ fun CreditCardFormScreen(
                         contentDescription = "Save credit card",
                         onClick = { if (!state.saving) viewModel.save() }
                     )
-                }
+                },
+                modifier = Modifier.fillMaxWidth().zIndex(3f).overlayWithoutLayoutSpace()
+                    .onSizeChanged { headerHeightPx = it.height }
             )
         },
         snackbarHost = { SnackbarHost(snackbarState) },
@@ -120,6 +131,7 @@ fun CreditCardFormScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .imePadding()
+                .padding(top = headerInset)
                 .padding(MmSpacing.screen)
                 .padding(bottom = MmSpacing.xxl)
                 .revealOnAppear(),

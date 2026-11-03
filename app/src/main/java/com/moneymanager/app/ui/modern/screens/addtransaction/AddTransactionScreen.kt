@@ -33,16 +33,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.ui.modern.screens.categories.CategoryVisual
@@ -52,6 +55,7 @@ import com.moneymanager.app.ui.components.MmDateField
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.MmOption
 import com.moneymanager.app.ui.components.MmPickerSheet
 import com.moneymanager.app.ui.components.MmSwitchRow
@@ -90,6 +94,10 @@ fun AddTransactionScreen(
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
     val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) {
+        if (headerHeightPx > 0) headerHeightPx.toDp() else 100.dp
+    }
     val isCash = state.isCash
     // A credit card is not an income source: money coming back to it is a refund that clears what
     // the card owes. The whole screen (title, wording, helper copy) follows that meaning so the
@@ -104,27 +112,14 @@ fun AddTransactionScreen(
         entryPoint == AddTransactionEntryPoint.CASH_INCOME -> "Add cash income"
         else -> "Add cash expense"
     }
-
-    Column(Modifier.fillMaxSize().background(MmColors.background)) {
-        MoneyManagerTopBar(
-            title = title,
-            subtitle = if (isCash) "Cash" else selectedAccount?.nickname?.ifBlank { selectedAccount.institutionName }
-                ?: "Choose an account before saving",
-            onBack = onBack,
-            actions = {
-                MmTopBarAction(
-                    icon = Icons.Filled.Check,
-                    contentDescription = "Save transaction",
-                    onClick = { viewModel.save(entryPoint) }
-                )
-            }
-        )
-
+    Box(Modifier.fillMaxSize()) {
+       Box(Modifier.fillMaxSize().background(MmColors.background)) {
         Column(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .imePadding()
+                .padding(top = headerInset)
                 .padding(horizontal = MmSpacing.screen)
                 .padding(bottom = MmSpacing.xxl),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
@@ -399,6 +394,23 @@ fun AddTransactionScreen(
                 )
             }
         }
+      }
+          MoneyManagerTopBar(
+              title = title,
+              subtitle = if (isCash) "Cash" else selectedAccount?.nickname?.ifBlank { selectedAccount.institutionName }
+                  ?: "Choose an account before saving",
+              onBack = onBack,
+              glassChrome = false,
+              actions = {
+                  MmTopBarAction(
+                      icon = Icons.Filled.Check,
+                      contentDescription = "Save transaction",
+                      onClick = { viewModel.save(entryPoint) }
+                  )
+              },
+              modifier = Modifier.fillMaxWidth().overlayWithoutLayoutSpace()
+                  .onSizeChanged { headerHeightPx = it.height }
+          )
     }
 
     if (accountPickerOpen && !isCash) {

@@ -31,12 +31,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,6 +50,7 @@ import com.moneymanager.app.data.local.entity.CategoryEntity
 import com.moneymanager.app.data.local.entity.CategoryKind
 import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmSegmentedControl
 import com.moneymanager.app.ui.components.MmTextField
@@ -88,6 +93,10 @@ fun CategoryEditorScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     var seeded by remember { mutableStateOf(false) }
     var missing by remember { mutableStateOf(false) }
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) {
+        if (headerHeightPx > 0) headerHeightPx.toDp() else 100.dp
+    }
 
     LaunchedEffect(categoryId) {
         viewModel.reportError(null)
@@ -171,7 +180,7 @@ fun CategoryEditorScreen(
     val kinds = listOf(CategoryKind.EXPENSE, CategoryKind.INCOME, CategoryKind.BOTH)
     val kindLabels = listOf("Expense", "Income", "Both")
 
-    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+    Box(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
             title = if (isEdit) "Edit category" else "New category",
             subtitle = if (isEdit) "Change any detail, or delete it" else "Create your own, with an optional picture",
@@ -182,7 +191,9 @@ fun CategoryEditorScreen(
                     contentDescription = "Save category",
                     onClick = { save() }
                 )
-            }
+            },
+            modifier = Modifier.fillMaxWidth().zIndex(3f).overlayWithoutLayoutSpace()
+                .onSizeChanged { headerHeightPx = it.height }
         )
 
         Column(
@@ -190,6 +201,7 @@ fun CategoryEditorScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .imePadding()
+                .padding(top = headerInset)
                 .padding(horizontal = MmSpacing.screen)
                 .padding(bottom = MmSpacing.xxl)
                 .revealOnAppear(),

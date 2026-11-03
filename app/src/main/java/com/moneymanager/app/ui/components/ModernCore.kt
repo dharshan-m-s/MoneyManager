@@ -254,19 +254,16 @@ fun MmBalancePanel(
             .fillMaxWidth()
             .then(if (glass) Modifier.mmLiquidGlass(cornerRadius = 28.dp, intensity = 0.88f) else Modifier)
             .clip(shape)
-            .background(
-                Brush.verticalGradient(
-                    if (glass) {
-                        listOf(
-                            MmColors.surface.copy(alpha = 0.96f),
-                            MmColors.surfaceContainer.copy(alpha = 0.92f),
-                            MmColors.surfaceContainerHigh.copy(alpha = 0.96f)
-                        )
-                    } else {
+            // mmLiquidGlass already paints its optical tint over the sampled page.
+            // A near-opaque gradient here covered that sample and made the card read as
+            // a static sheet. Keep the solid fill only for explicitly non-glass panels.
+            .then(
+                if (glass) Modifier else Modifier.background(
+                    Brush.verticalGradient(
                         listOf(MmColors.surfaceContainer, MmColors.surfaceContainer)
-                    }
-                ),
-                shape
+                    ),
+                    shape
+                )
             )
             .padding(panelPadding)
             .animateContentSize()

@@ -89,7 +89,9 @@ fun MoneyManagerTopBar(
                             glassChrome -> Modifier.mmLiquidGlass(
                                 cornerRadius = 24.dp,
                                 intensity = 1.08f,
-                                blurMultiplier = 1.4f
+                                blurMultiplier = 1.25f,
+                                edgeHighlight = false,
+                                tintOpacity = 0.82f
                             )
                             else -> Modifier.mmTopBarSurface(accentStrength = 0.72f)
                         }

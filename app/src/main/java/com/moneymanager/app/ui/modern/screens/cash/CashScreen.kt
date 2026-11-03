@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +53,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.MmCard
@@ -63,7 +65,12 @@ import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.LocalDockContentPadding
+import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
+import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
 import com.moneymanager.app.ui.components.mmPageBackdrop
+import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmColors
@@ -134,6 +141,7 @@ fun CashScreen(
     var query by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
     val scrollChrome = rememberScrollChromeState()
+    val pageGlassBackdrop = key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
     var balancePanelHeightPx by remember { mutableIntStateOf(0) }
@@ -152,51 +160,12 @@ fun CashScreen(
     if (!grouped.containsKey(currentMonth)) grouped[currentMonth] = emptyList()
 
     Box(Modifier.fillMaxSize().mmPageBackdrop().testTag("screen.cash")) {
-        Column(Modifier.fillMaxSize()) {
-
-            MoneyManagerTopBar(
-                title = "Cash in hand",
-                subtitle = "Live balance from your ledger",
-                onBack = onBack,
-                keepTitleOnCollapse = true,
-                modifier = Modifier
-                    .overlayWithoutLayoutSpace()
-                    .onSizeChanged { headerHeightPx = it.height },
-                actions = {
-                    state.primaryCashAccountId?.let { cashAccountId ->
-                        MmTopBarAction(
-                            icon = Icons.Filled.Edit,
-                            contentDescription = "Edit cash balance",
-                            onClick = { onEditCash(cashAccountId) }
-                        )
-                    }
-                    MmTopBarAction(
-                        icon = Icons.Filled.Search,
-                        contentDescription = "Search cash",
-                        onClick = { showSearch = !showSearch }
-                    )
-                },
-                bottomContent = {
-                    if (showSearch) {
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            MmSearchField(
-                                value = query,
-                                onValueChange = { query = it },
-                                hint = "Search cash transactions",
-                                glassField = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
-            )
-
+        Box(Modifier.fillMaxSize().layerBackdrop(pageGlassBackdrop)) {
+            Box(Modifier.fillMaxSize().mmPageBackdrop())
+            Column(Modifier.fillMaxSize()) {
             LazyColumn(
-                Modifier.weight(1f).nestedScroll(scrollChrome.connection),
+                Modifier.weight(1f).fillMaxWidth()
+                    .nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
                     top = headerInset + balancePanelInset + MmSpacing.lg,
@@ -208,6 +177,7 @@ fun CashScreen(
                 item(key = "cash-month-metrics") {
                     AnimatedVisibility(
                         visible = !scrollChrome.collapsed.value,
+                        modifier = Modifier,
                         enter = fadeIn() + expandVertically(),
                         exit = fadeOut() + shrinkVertically()
                     ) {
@@ -284,8 +254,66 @@ fun CashScreen(
                     }
                 }
             }
+            }
         }
 
+        CompositionLocalProvider(LocalMmGlassBackdrop provides pageGlassBackdrop) {
+            Box(
+                Modifier.fillMaxWidth().zIndex(3f)
+                    .onSizeChanged { headerHeightPx = it.height }
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().mmLiquidGlass(
+                        cornerRadius = 24.dp,
+                        intensity = 1.08f,
+                        blurMultiplier = 1.25f,
+                        edgeHighlight = false,
+                        tintOpacity = 0.82f
+                    )
+                ) {
+                    MoneyManagerTopBar(
+                        title = "Cash in hand",
+                        subtitle = "Live balance from your ledger",
+                        onBack = onBack,
+                        keepTitleOnCollapse = true,
+                        transparentChrome = true,
+                        actions = {
+                            state.primaryCashAccountId?.let { cashAccountId ->
+                                MmTopBarAction(
+                                    icon = Icons.Filled.Edit,
+                                    contentDescription = "Edit cash balance",
+                                    onClick = { onEditCash(cashAccountId) }
+                                )
+                            }
+                            MmTopBarAction(
+                                icon = Icons.Filled.Search,
+                                contentDescription = "Search cash",
+                                onClick = { showSearch = !showSearch }
+                            )
+                        },
+                        bottomContent = {
+                            if (showSearch) {
+                                Row(
+                                    Modifier.fillMaxWidth()
+                                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    MmSearchField(
+                                        value = query,
+                                        onValueChange = { query = it },
+                                        hint = "Search cash transactions",
+                                        glassField = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
+        CompositionLocalProvider(LocalMmGlassBackdrop provides pageGlassBackdrop) {
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -308,6 +336,7 @@ fun CashScreen(
                     modifier = Modifier.padding(vertical = MmSpacing.md).testTag("cash.overview")
                 )
             }
+        }
 
     }
 }

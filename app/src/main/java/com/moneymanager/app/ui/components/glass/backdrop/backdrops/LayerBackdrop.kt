@@ -74,6 +74,11 @@ class LayerBackdrop internal constructor(
         captureUnavailable = true
     }
 
+    /** A failed recording belongs to the previous attached render tree only. */
+    internal fun resetCaptureAvailability() {
+        captureUnavailable = false
+    }
+
     internal fun beginRecording() {
         recordingDepth += 1
         com.moneymanager.app.ui.components.glass.backdrop.BackdropCaptureState.begin()

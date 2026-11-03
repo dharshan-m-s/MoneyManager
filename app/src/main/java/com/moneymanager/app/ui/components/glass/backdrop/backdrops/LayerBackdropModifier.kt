@@ -63,7 +63,8 @@ private class LayerBackdropNode(
 
     override fun ContentDrawScope.draw() {
         if (size.width < 1f || size.height < 1f ||
-            backdrop.isRecording || backdrop.captureUnavailable
+            backdrop.isRecording || backdrop.captureUnavailable ||
+            com.moneymanager.app.ui.components.glass.backdrop.BackdropCaptureState.isCapturing
         ) {
             // Always keep normal page content visible when capture is unavailable or nested.
             drawContent()
@@ -94,11 +95,15 @@ private class LayerBackdropNode(
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
+            if (backdrop.layerCoordinates == null) {
+                backdrop.resetCaptureAvailability()
+            }
             backdrop.layerCoordinates = coordinates
         }
     }
 
     override fun onDetach() {
         backdrop.layerCoordinates = null
+        backdrop.resetCaptureAvailability()
     }
 }
