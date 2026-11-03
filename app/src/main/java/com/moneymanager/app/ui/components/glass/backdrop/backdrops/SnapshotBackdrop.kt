@@ -60,7 +60,7 @@ class SnapshotBackdrop internal constructor() : Backdrop {
     internal var autoRequests = 0
     internal var capturing = false
     /** True only during the synchronous source recording pass. */
-    internal var isCapturing: Boolean = false
+    internal var snapshotCaptureInProgress: Boolean = false
     internal var skipAutoCapture = false
     internal var lastAutoCaptureNanos = 0L
 
@@ -168,7 +168,7 @@ fun Modifier.snapshotBackdropSource(
             val height = (size.height * SNAPSHOT_SCALE).roundToInt().coerceAtLeast(1)
             val generation = backdrop.generation
             backdrop.capturing = true
-            backdrop.isCapturing = true
+            backdrop.snapshotCaptureInProgress = true
             try {
                 layer.record(size = IntSize(width, height)) {
                     scale(SNAPSHOT_SCALE, pivot = Offset.Zero) { this@drawWithContent.drawContent() }
@@ -182,7 +182,7 @@ fun Modifier.snapshotBackdropSource(
                 }
                 return@drawWithContent
             } finally {
-                backdrop.isCapturing = false
+                backdrop.snapshotCaptureInProgress = false
             }
             scope.launch {
                 try {

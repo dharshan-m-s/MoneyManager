@@ -400,7 +400,7 @@ private class DrawBackdropNode(
         // itself would create a page -> glass -> page RenderNode cycle. Omit the complete
         // node from the capture so the normal window pass can sample the pixels underneath.
         val isRecordingPage = (backdrop as? LayerBackdrop)?.isRecording == true
-        val isRecordingStill = (backdrop as? SnapshotBackdrop)?.isCapturing == true
+        val isRecordingStill = (backdrop as? SnapshotBackdrop)?.snapshotCaptureInProgress == true
 
         // Glass cannot be recorded into either backdrop it samples. This prevents feedback
         // from the previous still and prevents a page -> glass -> page RenderNode cycle.
