@@ -115,13 +115,15 @@ fun ReimbursementsScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
         ) {
-            item {
+            stickyHeader(key = "reimbursement-balance") {
                 MmBalancePanel(
                     label = "AMOUNT TO COLLECT",
                     value = MoneyFormat.rupeesNoDecimals(Money(owedTotal)),
                     caption = "Tap a transaction to review it, then mark it reimbursed when the money returns.",
                     tint = MmColors.warning,
-                    artworkKind = "income"
+                    artworkKind = "income",
+                    glass = true,
+                    modifier = Modifier.padding(vertical = MmSpacing.xs)
                 )
             }
 
