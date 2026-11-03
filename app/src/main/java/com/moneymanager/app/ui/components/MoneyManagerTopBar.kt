@@ -55,7 +55,7 @@ fun MoneyManagerTopBar(
     onNavigationClick: (() -> Unit)? = onBack,
     actions: @Composable RowScope.() -> Unit = {},
     compact: Boolean = false,
-    @Suppress("UNUSED_PARAMETER") glassChrome: Boolean = true,
+    glassChrome: Boolean = true,
     collapseProgress: State<Float>? = null,
     keepTitleOnCollapse: Boolean = false,
     hideNavigationOnCollapse: Boolean = false,
@@ -75,6 +75,9 @@ fun MoneyManagerTopBar(
                         )
                     } ?: Modifier.heightIn(min = if (compact) 56.dp else 74.dp).animateContentSize()
                 )
+                .then {
+                    if (glassChrome) it.mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.38f) else it
+                }
                 .padding(horizontal = MmSpacing.screen, vertical = if (compact) 2.dp else 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -145,10 +148,10 @@ fun MmTopBarAction(
 ) {
     Box {
         Surface(
-            modifier = Modifier.size(44.dp).clip(CircleShape),
+            modifier = Modifier.size(44.dp).mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.34f),
             shape = CircleShape,
-            color = MmColors.surfaceContainer,
-            border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.34f)),
+            color = androidx.compose.ui.graphics.Color.Transparent,
+            border = null,
             elevation = 0.dp
         ) {
             IconButton(onClick = onClick, modifier = Modifier.size(42.dp)) {
