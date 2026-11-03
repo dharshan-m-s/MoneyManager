@@ -111,7 +111,8 @@ fun isMmLiquidGlassSupported(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
 @Composable
 fun Modifier.mmLiquidGlass(
     cornerRadius: Dp = 30.dp,
-    intensity: Float = 1f
+    intensity: Float = 1f,
+    blurMultiplier: Float = 1f
 ): Modifier {
     val shape: CornerBasedShape = RoundedCornerShape(cornerRadius)
     val enabled = LocalMmGlassEnabled.current
@@ -140,7 +141,8 @@ fun Modifier.mmLiquidGlass(
     // Refraction must dominate the blur. The old 18dp blur softened the sampled page
     // before the lens shader ran, making the surface look like a frosted sheet.
     // All pixel-space parameters are scaled with the capture resolution.
-    val blurRadius = with(density) { MM_GLASS_BLUR_RADIUS_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
+    val safeBlurMultiplier = blurMultiplier.coerceIn(0.75f, 1.6f)
+    val blurRadius = with(density) { MM_GLASS_BLUR_RADIUS_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity * safeBlurMultiplier }
     val lensHeight = with(density) { 26.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
     val lensAmount = with(density) { MM_GLASS_REFRACTION_AMOUNT_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
 
