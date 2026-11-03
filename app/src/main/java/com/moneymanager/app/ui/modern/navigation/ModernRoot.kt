@@ -284,10 +284,9 @@ fun ModernRoot() {
     // NavHost below; the dock remains a true sibling and samples the finished page frame.
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
-                        // Record a subtle, living colour wash beneath the page so the floating dock
-                        // samples something richer than a flat black window background. Page chrome
-                        // samples this glass-free layer, which keeps the live page capture free of
-                        // a cyclic RenderNode dependency.
+                        // A subtle ambient page wash gives the floating dock and the
+                        // glass-free regions of selected controls a soft optical backdrop.
+                        // Sampled glass nodes are omitted from this capture by the recorder guard.
                         Box(Modifier.fillMaxSize().mmPageBackdrop())
                         CompositionLocalProvider(
                             // Selected chrome surfaces sample the same live page capture.

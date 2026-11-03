@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -87,6 +88,7 @@ import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.mmSharedElement
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.theme.MmColors
@@ -354,11 +356,22 @@ private fun AccountHeader(
                     pageSpacing = 12.dp
                 ) { page ->
                     if (page == 0) {
-                        MmWalletCard(
-                            account = account,
-                            modifier = Modifier.fillMaxWidth(),
-                            maskedNumberOverride = state.maskedCardNumber
-                        )
+                        // The sampled lens is a separate cradle behind the physical card.
+                        // MmWalletCard draws afterward, so its issuer artwork remains crisp
+                        // and is never blurred, tinted, refracted or clipped by the glass.
+                        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+                            Box(
+                                Modifier.fillMaxWidth()
+                                    .mmLiquidGlass(cornerRadius = 34.dp, intensity = 0.42f)
+                                    .padding(8.dp)
+                            ) {
+                                MmWalletCard(
+                                    account = account,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    maskedNumberOverride = state.maskedCardNumber
+                                )
+                            }
+                        }
                     } else {
                         CardBalancePage(
                             state = state,
