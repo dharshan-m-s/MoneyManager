@@ -74,6 +74,8 @@ import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberSnapshotBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.snapshotBackdropSource
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.StatusBarGlyphToneAndSystemBarTint
 import com.moneymanager.app.ui.components.mmBrandWash
@@ -266,32 +268,37 @@ fun ModernRoot() {
         }
     }
 
-    // Capture the page once. The same layer is exposed to page chrome, but sampled glass is
-    // disabled by default: only selected toolbars opt in. The vendored backdrop modifier omits
-    // glass nodes while this page copy is recording, so they sample the completed frame without
-    // recording themselves and creating a cyclic RenderNode graph. The floating dock remains a
-    // sibling of the capture and samples the finished page independently.
+    // Capture the page once for the floating dock and menus, which live outside this
+    // subtree and can safely sample the finished page.
     val glassBackdrop = rememberLayerBackdrop()
 
-    // Page chrome shares this live page capture. DrawBackdropModifier omits each sampled
-    // glass node while this layer is recording, leaving the pixels below it available to
-    // the normal window pass without creating a page -> glass -> page RenderNode cycle.
-    // Glass remains disabled by default; only deliberate chrome/control surfaces opt in.
+    // Page chrome cannot sample that same live layer: the page layer would contain the
+    // glass layer that samples it again (page -> glass -> page), and HWUI overflows its
+    // stack in RenderNode::prepareTreeImpl. Page chrome samples a still of the page instead.
+    // A still is an image, not a RenderNode reference, so every liquid-glass surface keeps
+    // its full blur/lens/tint treatment without closing the render graph. The source
+    // refreshes the still while the page is drawing (scroll, collapse, animations).
+    val pageGlassBackdrop = rememberSnapshotBackdrop()
 
     // Keep the floating controls outside both the page capture and the shared-transition
     // RenderNode. A full-screen shared-transition parent around the dock caused a visible
     // rectangular compositing region on some HWUI renderers. Shared elements are scoped to the
     // NavHost below; the dock remains a true sibling and samples the finished page frame.
     Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .layerBackdrop(glassBackdrop)
+                .snapshotBackdropSource(pageGlassBackdrop, autoCapture = true)
+        ) {
                         // A subtle ambient page wash gives the floating dock and the
                         // glass-free regions of selected controls a soft optical backdrop.
-                        // Sampled glass nodes are omitted from this capture by the recorder guard.
                         Box(Modifier.fillMaxSize().mmPageBackdrop())
                         CompositionLocalProvider(
-                            // Selected chrome surfaces sample the same live page capture.
-                            // The default stays off so ordinary cards and artwork are untouched.
-                            LocalMmGlassBackdrop provides glassBackdrop,
+                            // Page chrome samples the page still. The default stays off so
+                            // ordinary cards and artwork are untouched; surfaces that opt in
+                            // keep the same liquid-glass implementation as the dock.
+                            LocalMmGlassBackdrop provides pageGlassBackdrop,
                             LocalMmGlassEnabled provides false,
                             LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
                         ) {

@@ -54,6 +54,14 @@ class SnapshotBackdrop internal constructor() : Backdrop {
     /** Bumped by [release], so a still that lands after it is dropped. */
     internal var generation = 0
 
+    // Automatic capture state. These are intentionally plain counters: the source may
+    // request a new still from inside its draw pass, and a snapshot-state write there
+    // would invalidate the source again and keep the page redrawing while idle.
+    internal var autoRequests = 0
+    internal var capturing = false
+    internal var skipAutoCapture = false
+    internal var lastAutoCaptureNanos = 0L
+
     private var inverseLayerScope: InverseLayerScope? = null
 
     /** Takes a still of the source on its next frame. */
@@ -117,17 +125,40 @@ fun rememberSnapshotBackdrop(): SnapshotBackdrop = remember { SnapshotBackdrop()
  * Makes this what [backdrop] takes its stills of. Draws as if it weren't here,
  * except on the one frame after [SnapshotBackdrop.capture], when it also
  * records itself small and turns that into the picture.
+ *
+ * Page chrome can set [autoCapture] so the still follows content that changes
+ * while the page is drawing (scrolling, collapsing headers, animations). It is
+ * throttled and stops when the source stops drawing, which keeps a still-based
+ * backdrop close to the live page without turning an isolated glass surface into
+ * a page -> glass -> page RenderNode cycle.
  */
 @Composable
-fun Modifier.snapshotBackdropSource(backdrop: SnapshotBackdrop): Modifier {
+fun Modifier.snapshotBackdropSource(
+    backdrop: SnapshotBackdrop,
+    autoCapture: Boolean = false
+): Modifier {
     val graphicsContext = LocalGraphicsContext.current
     val scope = rememberCoroutineScope()
     return this
         .onGloballyPositioned { backdrop.sourceCoordinates = it }
         .drawWithContent {
             drawContent()
-            val request = backdrop.requests
-            if (request == backdrop.handled) return@drawWithContent
+
+            if (autoCapture) {
+                if (backdrop.skipAutoCapture) {
+                    backdrop.skipAutoCapture = false
+                } else {
+                    val now = System.nanoTime()
+                    val due = now - backdrop.lastAutoCaptureNanos >= AUTO_CAPTURE_INTERVAL_NS
+                    if (!backdrop.capturing && due) {
+                        backdrop.lastAutoCaptureNanos = now
+                        backdrop.autoRequests++
+                    }
+                }
+            }
+
+            val request = backdrop.requests + backdrop.autoRequests
+            if (request == backdrop.handled || backdrop.capturing) return@drawWithContent
             backdrop.handled = request
             if (size.width < 1f || size.height < 1f) return@drawWithContent
             val layer = graphicsContext.createGraphicsLayer()
@@ -137,12 +168,19 @@ fun Modifier.snapshotBackdropSource(backdrop: SnapshotBackdrop): Modifier {
                 scale(SNAPSHOT_SCALE, pivot = Offset.Zero) { this@drawWithContent.drawContent() }
             }
             val generation = backdrop.generation
+            backdrop.capturing = true
             scope.launch {
                 try {
                     // Only if nothing asked again, or let go, in the meantime.
                     val still = layer.toImageBitmap()
-                    if (backdrop.handled == request && backdrop.generation == generation) backdrop.image = still
+                    if (backdrop.handled == request && backdrop.generation == generation) {
+                        backdrop.image = still
+                        // The image update redraws the sampling surfaces. Do not let that
+                        // redraw immediately request another still while the page is idle.
+                        backdrop.skipAutoCapture = true
+                    }
                 } finally {
+                    backdrop.capturing = false
                     graphicsContext.releaseGraphicsLayer(layer)
                 }
             }
@@ -150,11 +188,13 @@ fun Modifier.snapshotBackdropSource(backdrop: SnapshotBackdrop): Modifier {
 }
 
 /**
- * The still's resolution against its source's. A quarter: the panels sampling
- * it draw their backdrop at a quarter before blurring it anyway, so more would
- * be detail thrown away.
+ * The still's resolution against its source's. Half resolution matches the resolution the
+ * glass effect records its own backdrop at, so blur and lens refraction keep the same detail.
  */
-private const val SNAPSHOT_SCALE = 0.25f
+private const val SNAPSHOT_SCALE = 0.5f
+
+/** Minimum gap between automatic captures; ~30 fps is enough for scrolling page chrome. */
+private const val AUTO_CAPTURE_INTERVAL_NS = 32_000_000L
 
 /** How far along the panel the scale is read over, in its own pixels. */
 private const val SCALE_PROBE_PX = 1000f

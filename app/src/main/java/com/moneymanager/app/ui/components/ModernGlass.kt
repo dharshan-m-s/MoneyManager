@@ -24,7 +24,9 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.MaterialTheme
+import com.moneymanager.app.ui.components.glass.backdrop.Backdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.LayerBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.SnapshotBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.drawBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.effects.blur
 import com.moneymanager.app.ui.components.glass.backdrop.effects.colorControls
@@ -37,7 +39,7 @@ import com.moneymanager.app.ui.theme.MmColors
  * Shared page recording sampled by floating glass controls. The layer is owned by ModernRoot;
  * components never capture screenshots or allocate their own full-window bitmaps.
  */
-val LocalMmGlassBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
+val LocalMmGlassBackdrop = staticCompositionLocalOf<Backdrop?> { null }
 val LocalMmGlassEnabled = staticCompositionLocalOf { true }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -126,7 +128,8 @@ fun Modifier.mmLiquidGlass(
         !enabled ||
         !isMmLiquidGlassSupported() ||
         backdrop == null ||
-        backdrop.captureUnavailable ||
+        (backdrop as? LayerBackdrop)?.captureUnavailable == true ||
+        (backdrop as? SnapshotBackdrop)?.hasStill == false ||
         !hardwareAccelerated
     ) {
         // Keep the dock readable without falling back to a solid, opaque sheet.
