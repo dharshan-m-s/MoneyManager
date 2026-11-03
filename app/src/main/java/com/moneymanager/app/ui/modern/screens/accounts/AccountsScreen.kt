@@ -227,6 +227,7 @@ fun AccountsScreen(
                 Modifier.fillMaxWidth()
                     .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
                     .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.34f)
+                    .scrollCollapse(scrollChrome.progress)
             ) {
                 AccountsTabs(selected = selectedTab, onSelect = {
                     selectedTab = it
@@ -236,20 +237,22 @@ fun AccountsScreen(
         }
 
         if (inactiveAccounts.isNotEmpty()) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
-                horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-            ) {
-                MmChip(
-                    label = "Active (${activeAccounts.size})",
-                    selected = !inactiveView,
-                    onClick = { showInactive = false }
-                )
-                MmChip(
-                    label = "Inactive (${inactiveAccounts.size})",
-                    selected = inactiveView,
-                    onClick = { showInactive = true }
-                )
+            AnimatedVisibility(visible = !scrollChrome.collapsed.value) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                ) {
+                    MmChip(
+                        label = "Active (${activeAccounts.size})",
+                        selected = !inactiveView,
+                        onClick = { showInactive = false }
+                    )
+                    MmChip(
+                        label = "Inactive (${inactiveAccounts.size})",
+                        selected = inactiveView,
+                        onClick = { showInactive = true }
+                    )
+                }
             }
         }
 
