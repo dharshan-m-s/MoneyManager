@@ -137,6 +137,8 @@ fun AccountsScreen(
     val scrollChrome = rememberScrollChromeState(collapseDistance = 132.dp)
     var accountsHeaderHeightPx by remember { mutableIntStateOf(0) }
     val accountsHeaderInset = with(androidx.compose.ui.platform.LocalDensity.current) { accountsHeaderHeightPx.toDp() }
+    var accountsOverviewHeightPx by remember { mutableIntStateOf(0) }
+    val accountsOverviewInset = with(androidx.compose.ui.platform.LocalDensity.current) { accountsOverviewHeightPx.toDp() }
     val tab = AccountsTab.entries[selectedTab]
     val filtered = accounts.filter { it.accountType in tab.types && !it.deleted }
     val visible = filtered.filter { account ->
