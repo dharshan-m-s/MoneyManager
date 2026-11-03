@@ -137,7 +137,7 @@ fun CategoryManagerScreen(
                 Row(
                     Modifier.fillMaxWidth()
                         .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.42f)
-                        .scrollCompactHeight(scrollChrome.progress, expandedHeight = 56.dp, compactHeight = 46.dp)
+                        .scrollCompactHeight(scrollChrome.progress, expandedHeight = 56.dp, compactHeight = 52.dp)
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
