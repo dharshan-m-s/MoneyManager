@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -52,7 +53,7 @@ import com.moneymanager.app.ui.theme.MmType
  * Lets a header draw above the scrolling viewport without consuming vertical layout space.
  * The header is measured normally; scrollable content reserves the measured height separately.
  */
-fun Modifier.overlayWithoutLayoutSpace(): Modifier = layout { measurable, constraints ->
+fun Modifier.overlayWithoutLayoutSpace(): Modifier = zIndex(1f).layout { measurable, constraints ->
     val placeable = measurable.measure(constraints.copy(minHeight = 0))
     layout(placeable.width, 0) {
         placeable.placeRelative(0, 0)
