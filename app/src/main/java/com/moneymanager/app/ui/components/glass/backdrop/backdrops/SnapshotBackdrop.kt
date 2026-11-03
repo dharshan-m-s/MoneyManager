@@ -121,7 +121,13 @@ class SnapshotBackdrop internal constructor() : Backdrop {
 }
 
 @Composable
-fun rememberSnapshotBackdrop(): SnapshotBackdrop = remember { SnapshotBackdrop() }
+/**
+ * A still belongs to one navigation entry, not to the lifetime of the app root.
+ * Keying it by the active back-stack entry prevents the first frame of a newly
+ * opened destination from sampling the previous destination's cached image.
+ */
+fun rememberSnapshotBackdrop(key: Any? = Unit): SnapshotBackdrop =
+    remember(key) { SnapshotBackdrop() }
 
 /**
  * Makes this what [backdrop] takes its stills of. Draws as if it weren't here,
