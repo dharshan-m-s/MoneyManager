@@ -135,6 +135,8 @@ fun CashScreen(
     val scrollChrome = rememberScrollChromeState()
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
+    var balancePanelHeightPx by remember { mutableIntStateOf(0) }
+    val balancePanelInset = with(LocalDensity.current) { balancePanelHeightPx.toDp() }
 
     val zone = ZoneId.of("Asia/Kolkata")
     val filtered = remember(state.transactions, query, state.categoryNames, state.accountNames) {
@@ -198,31 +200,12 @@ fun CashScreen(
                 Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
-                    top = headerInset + MmSpacing.md,
+                    top = headerInset + balancePanelInset + MmSpacing.lg,
                     end = MmSpacing.screen,
                     bottom = maxOf(112.dp, LocalDockContentPadding.current)
                 ),
                 verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)
             ) {
-                stickyHeader(key = "cash-balance") {
-                    MmBalancePanel(
-                        label = "Available now",
-                        value = MoneyFormat.rupeesNoDecimals(state.cashInHand),
-                        animatedValueMinorUnits = state.cashInHand.minorUnits,
-                        visualValues = state.monthTotals.toList()
-                            .sortedBy { it.first }
-                            .takeLast(6)
-                            .map { (_, totals) -> kotlin.math.abs(totals.incomeMinor) + kotlin.math.abs(totals.spendMinor) },
-                        visualLabel = "Monthly movement",
-                        caption = "Live ledger balance · updated when you record cash transactions",
-                        artworkKind = "cash",
-                        glass = true,
-                        compactProgress = scrollChrome.progress,
-                        modifier = Modifier
-                            .padding(vertical = if (scrollChrome.collapsed.value) MmSpacing.xs else MmSpacing.md)
-                            .animateContentSize()
-                    )
-                }
                 item(key = "cash-month-metrics") {
                     AnimatedVisibility(
                         visible = !scrollChrome.collapsed.value,
@@ -303,6 +286,29 @@ fun CashScreen(
                 }
             }
         }
+
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = MmSpacing.screen)
+                    .padding(top = headerInset + MmSpacing.md)
+                    .onSizeChanged { balancePanelHeightPx = it.height }
+            ) {
+                MmBalancePanel(
+                    label = "Available now",
+                    value = MoneyFormat.rupeesNoDecimals(state.cashInHand),
+                    animatedValueMinorUnits = state.cashInHand.minorUnits,
+                    visualValues = state.monthTotals.toList()
+                        .sortedBy { it.first }
+                        .takeLast(6)
+                        .map { (_, totals) -> kotlin.math.abs(totals.incomeMinor) + kotlin.math.abs(totals.spendMinor) },
+                    visualLabel = "Monthly movement",
+                    caption = "Live ledger balance · updated when you record cash transactions",
+                    artworkKind = "cash",
+                    glass = true,
+                    modifier = Modifier.padding(vertical = MmSpacing.md)
+                )
+            }
 
     }
 }
