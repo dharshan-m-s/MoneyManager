@@ -650,7 +650,6 @@ private fun AddAccountRow(
 private fun ModernAllAccountTypesBrowser(
     modifier: Modifier = Modifier,
     accounts: List<AccountEntity>,
-    headerContent: @Composable () -> Unit,
     onSelectType: (AccountType) -> Unit,
     onAddType: (AccountType) -> Unit,
     topInset: androidx.compose.ui.unit.Dp = 0.dp
@@ -665,9 +664,6 @@ private fun ModernAllAccountTypesBrowser(
         ),
         verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
     ) {
-        stickyHeader(key = "all-account-types-header") {
-            headerContent()
-        }
         items(AccountTypeCatalog.all) { info ->
             val type = info.type
             val list = accounts.filter { it.accountType == type && !it.deleted && !it.hide }
