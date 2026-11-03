@@ -104,9 +104,9 @@ fun IncomeScreen(
                     IncomeSummaryCard(
                         total = total,
                         transactionCount = rows.size,
+                        compactProgress = scrollChrome.progress.value,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(MmColors.background)
                             .padding(bottom = MmSpacing.xs)
                     )
                 }
@@ -126,6 +126,7 @@ fun IncomeScreen(
 private fun IncomeSummaryCard(
     total: Long,
     transactionCount: Int,
+    compactProgress: Float,
     modifier: Modifier = Modifier
 ) {
     MmBalancePanel(
@@ -134,6 +135,8 @@ private fun IncomeSummaryCard(
         caption = "$transactionCount recorded ${if (transactionCount == 1) "entry" else "entries"}",
         modifier = modifier,
         tint = MmColors.income,
-        artworkKind = "income"
+        artworkKind = "income",
+        glass = true,
+        compactProgress = compactProgress
     )
 }

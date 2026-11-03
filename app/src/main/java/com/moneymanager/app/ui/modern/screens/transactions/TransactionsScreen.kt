@@ -96,6 +96,7 @@ import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.components.scrollCompactField
+import com.moneymanager.app.ui.components.scrollCompactHeight
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.formatFullDate
 import com.moneymanager.app.ui.theme.MmColors
@@ -238,6 +239,7 @@ fun TransactionsScreen(
                 Modifier.fillMaxWidth()
                     .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
                     .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.52f)
+                    .scrollCompactHeight(scrollChrome.progress, expandedHeight = 58.dp, compactHeight = 48.dp)
                     .padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs)

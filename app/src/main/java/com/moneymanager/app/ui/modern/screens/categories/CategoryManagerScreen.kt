@@ -71,6 +71,7 @@ import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.components.scrollCompactField
+import com.moneymanager.app.ui.components.scrollCompactHeight
 import androidx.compose.foundation.lazy.itemsIndexed
 import com.moneymanager.app.ui.categories.CategoryManagerViewModel
 
@@ -110,13 +111,16 @@ fun CategoryManagerScreen(
             )
 
             CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-            Column(Modifier.padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed.value) MmSpacing.xs else MmSpacing.sm), verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)) {
+            Column(
+                Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 if (!selectionMode) {
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
                             .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.15f), MmColors.surfaceElevated, MmColors.surface)))
                             .border(1.dp, MmColors.accent.copy(alpha = 0.20f), RoundedCornerShape(23.dp))
-                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
                             .scrollCollapse(scrollChrome.progress),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -133,6 +137,7 @@ fun CategoryManagerScreen(
                 Row(
                     Modifier.fillMaxWidth()
                         .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.42f)
+                        .scrollCompactHeight(scrollChrome.progress, expandedHeight = 56.dp, compactHeight = 46.dp)
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
@@ -185,10 +190,10 @@ fun CategoryManagerScreen(
                     modifier = Modifier.nestedScroll(scrollChrome.connection),
                     contentPadding = PaddingValues(
                         start = MmSpacing.lg,
-                        end = MmSpacing.lg,
+                        end = MmSpacing.screen,
                         bottom = maxOf(96.dp, LocalDockContentPadding.current)
                     ),
-                    verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
+                    verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {
                     itemsIndexed(visible, key = { _, item -> item.id }) { index, category ->
                         CategoryRow(

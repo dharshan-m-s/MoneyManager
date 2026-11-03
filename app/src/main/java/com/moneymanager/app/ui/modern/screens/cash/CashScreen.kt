@@ -179,6 +179,8 @@ fun CashScreen(
                 visualLabel = "Monthly movement",
                 caption = "Live ledger balance · updated when you record cash transactions",
                 artworkKind = "cash",
+                glass = true,
+                compactProgress = scrollChrome.progress.value,
                 modifier = Modifier
                     .padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed.value) MmSpacing.xs else MmSpacing.md)
                     .animateContentSize()

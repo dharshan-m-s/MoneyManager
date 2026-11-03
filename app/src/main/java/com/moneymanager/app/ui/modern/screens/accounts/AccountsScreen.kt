@@ -389,7 +389,7 @@ private fun AccountsHeader(
             Modifier.fillMaxWidth()
                 .padding(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
                 .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.62f)
-                .scrollCollapse(collapseProgress)
+                .scrollCompactHeight(collapseProgress, expandedHeight = 58.dp, compactHeight = 48.dp)
                 .padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = MmSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -398,7 +398,11 @@ private fun AccountsHeader(
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MmColors.textPrimary)
                 }
             }
-            Column(Modifier.weight(1f).padding(start = if (showBack) MmSpacing.xs else 0.dp)) {
+            Column(
+                Modifier.weight(1f)
+                    .padding(start = if (showBack) MmSpacing.xs else 0.dp)
+                    .scrollCollapse(collapseProgress)
+            ) {
                 Text("Accounts", style = MmType.screenTitle, color = MmColors.textPrimary)
                 Text(
                     if (showingInactive) "Switched-off accounts" else "Manage all your accounts",

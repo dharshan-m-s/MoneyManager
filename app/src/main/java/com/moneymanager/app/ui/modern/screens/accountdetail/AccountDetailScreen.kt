@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.FloatingActionButton
@@ -41,6 +42,7 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -78,6 +80,7 @@ import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.formatFullDate
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.revealOnAppear
+import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.mmSharedElement
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.mmPageBackdrop
@@ -106,6 +109,7 @@ fun AccountDetailScreen(
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+    val scrollChrome = rememberScrollChromeState(collapseDistance = 104.dp)
 
     // One add control with an explicit choice, matching the dashboard and cash screens, so the
     // same gesture means the same thing everywhere and no white-on-light-green icon appears in
@@ -162,10 +166,16 @@ fun AccountDetailScreen(
             }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).mmPageBackdrop()) {
+        Column(
+            Modifier.fillMaxSize()
+                .padding(padding)
+                .nestedScroll(scrollChrome.connection)
+                .mmPageBackdrop()
+        ) {
             AccountHeader(
                 state = state,
-                compact = false,
+                compact = scrollChrome.collapsed.value,
+                collapseProgress = scrollChrome.progress,
                 onBack = onBack,
                 onEdit = {
                     account?.let { if (state.isCreditCard) onEditCreditCard(it.id) else onEditAccount(it.id) }
@@ -298,6 +308,7 @@ private fun AccountAddOption(
 private fun AccountHeader(
     state: AccountDetailUiState,
     compact: Boolean,
+    collapseProgress: State<Float>,
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onToggleSearch: () -> Unit
@@ -312,6 +323,7 @@ private fun AccountHeader(
             subtitle = if (isCreditCard) account?.nickname?.ifBlank { account.institutionName } else account?.institutionName,
             onBack = onBack,
             compact = compact,
+            collapseProgress = collapseProgress,
             actions = {
                 MmTopBarAction(Icons.Filled.Search, "Search this account", onToggleSearch)
                 MmTopBarAction(Icons.Filled.Edit, if (isCreditCard) "Edit credit card" else "Edit account", onEdit)

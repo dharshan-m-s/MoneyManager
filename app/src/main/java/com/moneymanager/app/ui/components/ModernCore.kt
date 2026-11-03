@@ -198,7 +198,7 @@ fun MmMetricCard(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Spacer(Modifier.height(MmSpacing.md))
+        Spacer(Modifier.height(contentGap))
         Text(
             value,
             style = MmType.amountTile,
@@ -224,17 +224,37 @@ fun MmBalancePanel(
     animatedValueMinorUnits: Long? = null,
     visualValues: List<Long> = emptyList(),
     visualLabel: String? = null,
-    artworkKind: String = "overview"
+    artworkKind: String = "overview",
+    glass: Boolean = false,
+    compactProgress: Float = 0f
 ) {
     val shape = RoundedCornerShape(28.dp)
     val maxVisual = visualValues.maxOfOrNull { kotlin.math.abs(it) }?.coerceAtLeast(1L) ?: 1L
+    val compact = compactProgress.coerceIn(0f, 1f)
+    val panelPadding by animateDpAsState(
+        targetValue = MmSpacing.xl - (8.dp * compact),
+        animationSpec = spring(dampingRatio = 0.86f, stiffness = 360f),
+        label = "balancePanelPadding"
+    )
+    val contentGap by animateDpAsState(
+        targetValue = MmSpacing.md - (6.dp * compact),
+        animationSpec = spring(dampingRatio = 0.86f, stiffness = 360f),
+        label = "balancePanelGap"
+    )
+    val artworkSize by animateDpAsState(
+        targetValue = 76.dp - (22.dp * compact),
+        animationSpec = spring(dampingRatio = 0.86f, stiffness = 360f),
+        label = "balancePanelArtwork"
+    )
     Column(
         modifier
             .fillMaxWidth()
+            .then(if (glass) Modifier.mmLiquidGlass(cornerRadius = 28.dp, intensity = 0.88f) else Modifier)
             .clip(shape)
-            .background(MmColors.surfaceContainer)
+            .background(if (glass) Color.Transparent else MmColors.surfaceContainer)
             .border(BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.32f)), shape)
-            .padding(MmSpacing.xl)
+            .padding(panelPadding)
+            .animateContentSize()
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -269,7 +289,7 @@ fun MmBalancePanel(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                if (!caption.isNullOrBlank()) {
+                if (!caption.isNullOrBlank() && compact < 0.72f) {
                     Spacer(Modifier.height(MmSpacing.sm))
                     Text(
                         caption,
@@ -288,9 +308,9 @@ fun MmBalancePanel(
                 FinanceArtwork(
                     kind = artworkKind,
                     tint = tint,
-                    modifier = Modifier.size(76.dp)
+                    modifier = Modifier.size(artworkSize)
                 )
-                if (!visualLabel.isNullOrBlank()) {
+                if (compact < 0.72f && !visualLabel.isNullOrBlank()) {
                     Text(
                         visualLabel.uppercase(),
                         style = MmType.caption.copy(fontSize = 8.sp, letterSpacing = 0.75.sp),
@@ -298,7 +318,7 @@ fun MmBalancePanel(
                         maxLines = 1
                     )
                 }
-                if (visualValues.isNotEmpty()) {
+                if (compact < 0.72f && visualValues.isNotEmpty()) {
                     Row(
                         Modifier.width(94.dp).height(42.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
