@@ -83,6 +83,7 @@ fun ReimbursementsScreen(
             subtitle = "${pending.size} pending",
             onBack = onBack,
             collapseProgress = scrollChrome.progress,
+            keepTitleOnCollapse = true,
             modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height },
             bottomContent = {
                 Row(

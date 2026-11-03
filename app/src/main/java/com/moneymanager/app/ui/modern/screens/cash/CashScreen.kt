@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -150,7 +151,7 @@ fun CashScreen(
     }.toSortedMap(compareByDescending { it }).toMutableMap()
     if (!grouped.containsKey(currentMonth)) grouped[currentMonth] = emptyList()
 
-    Box(Modifier.fillMaxSize().mmPageBackdrop()) {
+    Box(Modifier.fillMaxSize().mmPageBackdrop().testTag("screen.cash")) {
         Column(Modifier.fillMaxSize()) {
 
             MoneyManagerTopBar(
@@ -217,14 +218,14 @@ fun CashScreen(
                             CashMetric(
                                 icon = Icons.Filled.Add,
                                 amount = MoneyFormat.rupeesNoDecimals(state.monthIncome),
-                                label = "In this month",
+                                label = "Income",
                                 tint = MmColors.income,
                                 modifier = Modifier.weight(1f)
                             )
                             CashMetric(
                                 icon = Icons.Filled.Remove,
                                 amount = MoneyFormat.rupeesNoDecimals(state.monthSpend),
-                                label = "Out this month",
+                                label = "Spent",
                                 tint = MmColors.expense,
                                 modifier = Modifier.weight(1f)
                             )
@@ -233,7 +234,7 @@ fun CashScreen(
                                 amount = MoneyFormat.rupeesNoDecimals(
                                     Money(state.monthIncome.minorUnits - state.monthSpend.minorUnits)
                                 ),
-                                label = "Net this month",
+                                label = "Net",
                                 tint = if (state.monthIncome.minorUnits >= state.monthSpend.minorUnits) MmColors.income else MmColors.expense,
                                 modifier = Modifier.weight(1f)
                             )
@@ -304,7 +305,7 @@ fun CashScreen(
                     caption = "Live ledger balance · updated when you record cash transactions",
                     artworkKind = "cash",
                     glass = true,
-                    modifier = Modifier.padding(vertical = MmSpacing.md)
+                    modifier = Modifier.padding(vertical = MmSpacing.md).testTag("cash.overview")
                 )
             }
 

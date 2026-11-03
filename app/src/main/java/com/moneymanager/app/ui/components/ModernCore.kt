@@ -254,7 +254,20 @@ fun MmBalancePanel(
             .fillMaxWidth()
             .then(if (glass) Modifier.mmLiquidGlass(cornerRadius = 28.dp, intensity = 0.88f) else Modifier)
             .clip(shape)
-            .background(if (glass) Color.Transparent else MmColors.surfaceContainer)
+            .background(
+                Brush.verticalGradient(
+                    if (glass) {
+                        listOf(
+                            MmColors.surface.copy(alpha = 0.96f),
+                            MmColors.surfaceContainer.copy(alpha = 0.92f),
+                            MmColors.surfaceContainerHigh.copy(alpha = 0.96f)
+                        )
+                    } else {
+                        listOf(MmColors.surfaceContainer, MmColors.surfaceContainer)
+                    }
+                ),
+                shape
+            )
             .padding(panelPadding)
             .animateContentSize()
     ) {

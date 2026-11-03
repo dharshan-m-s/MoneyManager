@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -89,11 +90,12 @@ fun BudgetScreen(
         else -> MmColors.expense
     }
 
-    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+    Column(Modifier.fillMaxSize().background(MmColors.background).testTag("screen.budget")) {
         MoneyManagerTopBar(
             title = "Monthly budget",
             onBack = onClose,
             collapseProgress = scrollChrome.progress,
+            keepTitleOnCollapse = true,
             modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height }
         )
 
@@ -106,7 +108,7 @@ fun BudgetScreen(
                 .imePadding()
                 .padding(horizontal = MmSpacing.screen)
                 .padding(bottom = MmSpacing.xxl + LocalDockContentPadding.current),
-            verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
+            verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
         ) {
             MmCard(
                 contentPadding = PaddingValues(horizontal = MmSpacing.xl, vertical = MmSpacing.xl),
@@ -198,7 +200,7 @@ fun BudgetScreen(
                     SpendTrendChart(
                         trend = state.trend,
                         budgetMinorUnits = budget,
-                        modifier = Modifier.fillMaxWidth().height(150.dp)
+                        modifier = Modifier.fillMaxWidth().height(130.dp)
                     )
                     Spacer(Modifier.height(MmSpacing.sm))
                     Row(verticalAlignment = Alignment.CenterVertically) {

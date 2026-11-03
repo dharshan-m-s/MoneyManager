@@ -249,6 +249,7 @@ fun SpendSummaryScreen(
             subtitle = selectedPeriod?.label.orEmpty(),
             onBack = onBack,
             collapseProgress = scrollChrome.progress,
+            keepTitleOnCollapse = true,
             modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height }
         )
 

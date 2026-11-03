@@ -160,7 +160,10 @@ fun MoneyManagerTopBar(
                                     style = MmType.caption,
                                     color = MmColors.textSecondary,
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = if (keepTitleOnCollapse) {
+                                        collapseProgress?.let { Modifier.scrollCollapse(it) } ?: Modifier
+                                    } else Modifier
                                 )
                             }
                         }

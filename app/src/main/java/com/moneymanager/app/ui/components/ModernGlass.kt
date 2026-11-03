@@ -131,9 +131,10 @@ fun Modifier.mmLiquidGlass(
         (backdrop as? SnapshotBackdrop)?.hasStill == false ||
         !hardwareAccelerated
     ) {
-        // Keep the dock readable without falling back to a solid, opaque sheet.
+        // Unsupported or unavailable renderer paths keep an opaque, theme-tinted material.
+        // Translucency this low lets scrolling text bleed through stationary page chrome.
         return clip(shape)
-            .background(tint.copy(alpha = if (light) 0.10f else 0.045f), shape)
+            .background(tint.copy(alpha = if (light) 0.92f else 0.82f), shape)
             .border(0.55.dp, edge.copy(alpha = 0.72f), shape)
     }
 

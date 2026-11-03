@@ -26,6 +26,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,6 +70,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
@@ -173,7 +182,7 @@ fun AccountsScreen(
             }
     }
 
-    Column(Modifier.fillMaxSize().mmPageBackdrop()) {
+    Column(Modifier.fillMaxSize().mmPageBackdrop().testTag("screen.accounts")) {
         AccountsHeader(
             showingInactive = inactiveView,
             editMode = editMode,
@@ -208,7 +217,8 @@ fun AccountsScreen(
                         if (inactiveView) " · switched off" else "",
                     artworkKind = "account_${tab.label.lowercase()}",
                     glass = true,
-                    modifier = Modifier.padding(vertical = MmSpacing.md)
+                    compactProgress = scrollChrome.progress,
+                    modifier = Modifier.padding(vertical = MmSpacing.md).testTag("accounts.overview")
                 )
                 Box(
                     Modifier.fillMaxWidth()
@@ -341,15 +351,15 @@ fun AccountsScreen(
                     }
                 }
             }
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = MmSpacing.screen)
-                    .padding(top = accountsHeaderInset + MmSpacing.sm)
-                    .onSizeChanged { accountsOverviewHeightPx = it.height }
-            ) {
-                accountsStickyHeader()
-            }
+        }
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = MmSpacing.screen)
+                .padding(top = accountsHeaderInset + MmSpacing.sm)
+                .onSizeChanged { accountsOverviewHeightPx = it.height }
+        ) {
+            accountsStickyHeader()
         }
     }
 }
@@ -399,11 +409,16 @@ private fun AccountsHeader(
         Row(
             Modifier
                 .fillMaxWidth()
+                .scrollCompactHeight(
+                    progress = collapseProgress,
+                    expandedHeight = 74.dp,
+                    compactHeight = 54.dp
+                )
                 .padding(
                     start = if (showBack) MmSpacing.sm else MmSpacing.md,
                     end = MmSpacing.md,
-                    top = MmSpacing.sm,
-                    bottom = MmSpacing.xs
+                    top = MmSpacing.sm - (4.dp * collapseProgress.value.coerceIn(0f, 1f)),
+                    bottom = MmSpacing.xs - (4.dp * collapseProgress.value.coerceIn(0f, 1f))
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -421,7 +436,8 @@ private fun AccountsHeader(
                 Text(
                     if (showingInactive) "Switched-off accounts" else "Manage all your accounts",
                     style = MmType.caption,
-                    color = MmColors.textSecondary
+                    color = MmColors.textSecondary,
+                    modifier = Modifier.scrollCollapse(collapseProgress)
                 )
             }
             AccountsCircleAction(
@@ -437,23 +453,29 @@ private fun AccountsHeader(
                 active = editMode
             )
         }
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MmSpacing.sm, vertical = MmSpacing.xs),
-            verticalAlignment = Alignment.CenterVertically
+        AnimatedVisibility(
+            visible = collapseProgress.value < 0.88f,
+            enter = fadeIn(tween(140)) + expandVertically(tween(180)),
+            exit = fadeOut(tween(100)) + shrinkVertically(tween(180))
         ) {
-            MmSearchField(
-                value = query,
-                onValueChange = onQueryChange,
-                hint = "Search accounts",
-                glassField = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = MmSpacing.sm, vertical = MmSpacing.xs),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MmSearchField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    hint = "Search accounts",
+                    glassField = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
     }
+}
 }
 
 @Composable
@@ -484,7 +506,7 @@ private fun AccountsTabs(
     val allIndex = AccountsTab.entries.indexOf(AccountsTab.ALL)
     val selectedIndexInPrimary = primaryIndices.indexOf(selected)
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+        Modifier.fillMaxWidth().background(MmColors.background).horizontalScroll(rememberScrollState())
             .padding(horizontal = horizontalInset, vertical = MmSpacing.sm),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -497,6 +519,8 @@ private fun AccountsTabs(
                     .clip(RoundedCornerShape(999.dp))
                     .background(if (active) MmColors.accent.copy(alpha = 0.13f) else Color.Transparent)
                     .pressableClick { onSelect(primaryIndices[index]) }
+                    .semantics { this.selected = active }
+                    .testTag("accounts.tab.${tab.name.lowercase()}")
                     .padding(horizontal = 13.dp, vertical = 9.dp),
                 style = MmType.label,
                 color = if (active) MmColors.accent else MmColors.textSecondary,
@@ -511,6 +535,8 @@ private fun AccountsTabs(
                 .clip(RoundedCornerShape(999.dp))
                 .background(if (allSelected) MmColors.accent.copy(alpha = 0.13f) else Color.Transparent)
                 .pressableClick { onSelect(allIndex) }
+                .semantics { this.selected = allSelected }
+                .testTag("accounts.tab.all")
                 .padding(horizontal = 13.dp, vertical = 9.dp),
             style = MmType.label,
             color = if (allSelected) MmColors.accent else MmColors.textSecondary,

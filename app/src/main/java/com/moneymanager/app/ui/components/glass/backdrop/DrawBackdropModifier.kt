@@ -301,8 +301,8 @@ private class DrawBackdropNode(
 
     private var padding by mutableFloatStateOf(0f)
 
-    // Stop retrying a renderer path that failed for this node. The shared LayerBackdrop
-    // is also marked unavailable so the composable swaps to its non-sampled fallback.
+    // Stop retrying a renderer path that failed for this surface. A problem in one sampled
+    // glass layer must not disable the shared page recording for every other glass surface.
     var backdropDrawUnavailable: Boolean = false
 
     private val recordBackdropBlock: (DrawScope.() -> Unit) = {
@@ -358,10 +358,9 @@ private class DrawBackdropNode(
             } catch (_: RuntimeException) {
                 // Renderer failures while recording or compositing an individual glass
                 // surface must not take down the page or navigation. Stop sampling this
-                // node, invalidate the shared material, and let the normal content draw
-                // over its lightweight tint/highlight on the next composition.
+                // node and let its normal content draw over the lightweight tint/highlight.
+                // The source recording remains usable by other dock and overlay surfaces.
                 backdropDrawUnavailable = true
-                (backdrop as? LayerBackdrop)?.markCaptureUnavailable()
                 this@DrawBackdropNode.padding = 0f
                 try {
                     layer.renderEffect = null
@@ -407,16 +406,23 @@ private class DrawBackdropNode(
             updateEffects()
         }
 
-        // A glass surface can live inside the page it samples. Recording the glass node
-        // itself would create a page -> glass -> page RenderNode cycle. Omit the complete
-        // node from the capture so the normal window pass can sample the pixels underneath.
+        // A glass surface can live inside the page it samples. The entry snapshot must omit
+        // the complete surface subtree, otherwise its own labels are sampled back under the
+        // foreground and appear doubled. Other page content remains in the still. Live page
+        // recording can keep the children because these surfaces sample the separate still.
         val isRecordingPage = (backdrop as? LayerBackdrop)?.isRecording == true
         val isRecordingStill = (backdrop as? SnapshotBackdrop)?.snapshotCaptureInProgress == true
         val isAnyBackdropCapture = BackdropCaptureState.isCapturing
 
-        // Glass cannot be recorded into either backdrop it samples. This prevents feedback
-        // from the previous still and prevents a page -> glass -> page RenderNode cycle.
-        if (isRecordingPage || isRecordingStill || isAnyBackdropCapture) return
+        // This is an actual still capture, so exclude the entire sampled glass surface.
+        if (isRecordingStill) return
+
+        // Do not record a glass material into a live RenderNode layer. Keep its child content
+        // there; the live layer is used only by sibling dock and popup surfaces.
+        if (isRecordingPage || isAnyBackdropCapture) {
+            drawContent()
+            return
+        }
 
         onDrawBehind?.invoke(this)
         drawBackdropLayer()
@@ -491,10 +497,10 @@ private class DrawBackdropNode(
             observeEffects()
         } catch (_: RuntimeException) {
             // Some hardware-backed contexts can reject layer allocation. Keep the
-            // composable's normal content and fallback surface alive without sampling.
+            // composable's normal content and fallback surface alive without sampling. This
+            // failure belongs to this node; the shared backdrop may still work elsewhere.
             graphicsLayer = null
             backdropDrawUnavailable = true
-            (backdrop as? LayerBackdrop)?.markCaptureUnavailable()
         }
     }
 

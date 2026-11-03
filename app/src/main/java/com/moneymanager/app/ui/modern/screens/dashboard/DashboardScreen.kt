@@ -47,7 +47,6 @@ import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -67,6 +66,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -77,9 +77,6 @@ import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.reporting.TransactionDisplayClass
 import com.moneymanager.app.domain.reporting.TransactionDisplayClassifier
 import com.moneymanager.app.ui.components.MmAnimatedAmount
-import com.moneymanager.app.ui.components.mmGlassHighlight
-import com.moneymanager.app.ui.components.mmLiquidGlass
-import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.MmBottomSheet
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmMetricCard
@@ -311,32 +308,29 @@ fun DashboardScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MmColors.background)
-            .modernTopInsets(),
+            .modernTopInsets()
+            .testTag("screen.dashboard"),
         contentPadding = PaddingValues(
             bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.md
         )
     ) {
             item {
-                CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-                    BalanceHeroCard(
-                        state = state,
-                        hideAmounts = hideAmounts,
-                        onToggleVisibility = { homePreferences.setHideAmounts(!hideAmounts) },
-                        onOpenBreakdown = { onOpenBreakdown(DashboardBreakdownKind.NET_WORTH) },
-                        modifier = Modifier.revealOnAppear(index = 0)
-                    )
-                }
+                BalanceHeroCard(
+                    state = state,
+                    hideAmounts = hideAmounts,
+                    onToggleVisibility = { homePreferences.setHideAmounts(!hideAmounts) },
+                    onOpenBreakdown = { onOpenBreakdown(DashboardBreakdownKind.NET_WORTH) },
+                    modifier = Modifier.revealOnAppear(index = 0)
+                )
             }
 
             item {
-                CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-                    MonthSummaryCards(
-                        state = state,
-                        hideAmounts = hideAmounts,
-                        onOpenSpent = { onOpenBreakdown(DashboardBreakdownKind.SPENT) },
-                        onOpenIncome = { onOpenBreakdown(DashboardBreakdownKind.INCOME) }
-                    )
-                }
+                MonthSummaryCards(
+                    state = state,
+                    hideAmounts = hideAmounts,
+                    onOpenSpent = { onOpenBreakdown(DashboardBreakdownKind.SPENT) },
+                    onOpenIncome = { onOpenBreakdown(DashboardBreakdownKind.INCOME) }
+                )
             }
 
             item {
@@ -643,19 +637,18 @@ private fun BalanceHeroCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = MmSpacing.lg)
-            .mmLiquidGlass(cornerRadius = 32.dp, intensity = 0.88f)
             .clip(RoundedCornerShape(32.dp))
             .background(
                 Brush.linearGradient(
                     listOf(
-                        Color(0xFF6268D8).copy(alpha = 0.34f),
-                        Color(0xFF343A72).copy(alpha = 0.44f),
-                        Color(0xFF171D32).copy(alpha = 0.58f)
+                        Color(0xFF555BD1),
+                        Color(0xFF343B7A),
+                        Color(0xFF202743)
                     )
                 )
             )
-            .mmGlassHighlight(cornerRadius = 32.dp, intensity = 0.62f)
             .pressableClick(onClick = onOpenBreakdown)
+            .testTag("dashboard.balance")
     ) {
         Box(
             modifier = Modifier
@@ -831,14 +824,13 @@ private fun MonthSummaryCard(
     val shape = RoundedCornerShape(25.dp)
     Box(
         modifier.fillMaxWidth()
-            .mmLiquidGlass(cornerRadius = 25.dp, intensity = 0.52f)
             .clip(shape)
             .background(
                 Brush.linearGradient(
                     listOf(
-                        tint.copy(alpha = 0.15f),
-                        MmColors.surface.copy(alpha = 0.20f),
-                        MmColors.surfaceElevated.copy(alpha = 0.28f)
+                        MmColors.surfaceContainer,
+                        androidx.compose.ui.graphics.lerp(MmColors.surfaceContainerHigh, tint, 0.09f),
+                        MmColors.surfaceContainerHigh
                     )
                 )
             )

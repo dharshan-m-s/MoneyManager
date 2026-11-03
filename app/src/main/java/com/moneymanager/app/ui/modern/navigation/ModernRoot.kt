@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -56,6 +57,7 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material.MaterialTheme
@@ -219,7 +221,9 @@ fun ModernRoot() {
     val sheetAnimationScope = rememberCoroutineScope()
     var navHostHeightPx by remember { mutableIntStateOf(0) }
     val backStackEntry by navController.currentBackStackEntryAsState()
+    val visibleBackStackEntries by navController.visibleEntries.collectAsState()
     val currentRoute = backStackEntry?.destination?.route ?: Destination.Dashboard.route
+    val pageCaptureReady = visibleBackStackEntries.singleOrNull()?.id == backStackEntry?.id
     var overlay by remember { mutableStateOf(DockOverlay.NONE) }
     androidx.compose.runtime.LaunchedEffect(currentRoute) {
         overlay = DockOverlay.NONE
@@ -272,14 +276,9 @@ fun ModernRoot() {
     // sample this live layer of the finished page.
     val glassBackdrop = rememberLayerBackdrop()
 
-    // Page chrome cannot sample that same live layer: the page layer would contain the
-    // glass layer that samples it again (page -> glass -> page), and HWUI overflows its
-    // stack in RenderNode::prepareTreeImpl. Page chrome samples a still of the page instead.
-    // A still is an image, not a RenderNode reference, so every liquid-glass surface keeps
-    // its full blur/lens/tint treatment without closing the render graph. The source
-    // refreshes the still while the page is drawing (scroll, collapse, animations).
-    // A still belongs to one navigation entry. Never let a newly opened destination
-    // sample the previous page's cached image (especially after a cold-start capture).
+    // Page-owned surfaces sample a still, never the live RenderNode that contains them. Key
+    // each still by its navigation entry so returning to a destination cannot borrow another
+    // page's capture. This is the entry-keyed snapshot lifecycle introduced in beta history.
     val pageCaptureKey = backStackEntry?.id ?: currentRoute
     val pageGlassBackdrop = rememberSnapshotBackdrop(pageCaptureKey)
 
@@ -292,15 +291,17 @@ fun ModernRoot() {
             Modifier
                 .fillMaxSize()
                 .layerBackdrop(glassBackdrop)
-                .snapshotBackdropSource(pageGlassBackdrop, autoCapture = true)
+                // NavHost keeps the outgoing destination visible during its transition. Do not
+                // capture that mixed frame into the incoming entry's still; resume automatic
+                // capture once navigation exposes only the active entry.
+                .snapshotBackdropSource(pageGlassBackdrop, autoCapture = pageCaptureReady)
         ) {
                         // A subtle ambient page wash gives the floating dock and the
                         // glass-free regions of selected controls a soft optical backdrop.
                         Box(Modifier.fillMaxSize().mmPageBackdrop())
                         CompositionLocalProvider(
-                            // Selected page surfaces sample a still of the page. The default
-                            // stays off so ordinary cards are untouched; surfaces that opt in
-                            // keep the same liquid-glass implementation as the dock.
+                            // Page glass samples an entry-keyed still; sibling controls below
+                            // sample the completed live page layer. Neither source samples itself.
                             LocalMmGlassBackdrop provides pageGlassBackdrop,
                             LocalMmGlassEnabled provides false,
                             LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
@@ -423,7 +424,8 @@ fun ModernRoot() {
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(horizontal = MmSpacing.lg, vertical = 0.dp)
-                .padding(bottom = measuredDockHeight + 10.dp),
+                .padding(bottom = measuredDockHeight + 10.dp)
+                .testTag("overlay.more"),
             enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)) +
                 androidx.compose.animation.scaleIn(
                     initialScale = 0.92f,

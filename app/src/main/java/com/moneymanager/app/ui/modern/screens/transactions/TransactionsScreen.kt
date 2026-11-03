@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Icon
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.RadioButton
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
@@ -67,11 +68,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.zIndex
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.mmTopBarSurface
+import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.domain.model.Money
@@ -96,7 +99,7 @@ import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.modernTopInsets
 import com.moneymanager.app.ui.components.LocalDockContentPadding
-import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.components.scrollCompactField
@@ -112,6 +115,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.SnapshotBackdrop
 
 private val txnZone: ZoneId = ZoneId.of("Asia/Kolkata")
 
@@ -156,6 +160,7 @@ fun TransactionsScreen(
     viewModel: TransactionsViewModel = hiltViewModel()
 ) {
     val rows by viewModel.transactions.collectAsState()
+    val pageGlassBackdrop = LocalMmGlassBackdrop.current
     val categories by viewModel.categories.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
     val searchableCategories by viewModel.searchableCategories.collectAsState()
@@ -208,6 +213,12 @@ fun TransactionsScreen(
         }
     }
 
+    // Refresh the Activity still once its asynchronously loaded ledger is present. This keeps
+    // the pinned glass card from holding the initial empty-state frame under its blur.
+    LaunchedEffect(rows, pageGlassBackdrop) {
+        if (rows.isNotEmpty()) (pageGlassBackdrop as? SnapshotBackdrop)?.capture()
+    }
+
     // Honest "in view" totals: use the same FinancialSummary rules as the dashboard, so
     // transfers, card bill payments and Not-a-spend rows contribute to neither side and refunds
     // reduce spending instead of inflating income. Computed from the rows already on screen.
@@ -232,11 +243,15 @@ fun TransactionsScreen(
     }
 
     var headerHeightPx by remember { mutableStateOf(0) }
+    var summaryHeightPx by remember { mutableStateOf(0) }
     val headerInset = with(LocalDensity.current) {
         if (headerHeightPx > 0) headerHeightPx.toDp() else 250.dp
     }
+    val summaryHeight = with(LocalDensity.current) {
+        if (summaryHeightPx > 0) summaryHeightPx.toDp() else 220.dp
+    }
 
-    Column(Modifier.fillMaxSize().mmPageBackdrop()) {
+    Column(Modifier.fillMaxSize().mmPageBackdrop().testTag("screen.transactions")) {
         MoneyManagerTopBar(
             title = "Transactions",
             subtitle = "${visibleRows.size} of ${rows.size} transactions",
@@ -261,18 +276,24 @@ fun TransactionsScreen(
                 )
             },
             bottomContent = {
-                Row(
-                    Modifier.fillMaxWidth()
-                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
-                    verticalAlignment = Alignment.CenterVertically
+                AnimatedVisibility(
+                    visible = !scrollChrome.collapsed.value,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
                 ) {
-                    MmSearchField(
-                        value = query,
-                        onValueChange = { query = it },
-                        hint = "Search transactions",
-                        glassField = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MmSearchField(
+                            value = query,
+                            onValueChange = { query = it },
+                            hint = "Search transactions",
+                            glassField = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
                 AnimatedVisibility(
                     visible = !scrollChrome.collapsed.value,
@@ -342,50 +363,53 @@ fun TransactionsScreen(
                 modifier = Modifier.fillMaxSize().padding(top = headerInset)
             )
         } else {
-            LazyColumn(
-                modifier = Modifier.nestedScroll(scrollChrome.connection),
-                contentPadding = PaddingValues(
-                    top = headerInset,
-                    bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.md
-                )
-            ) {
-                item(key = "summary") {
-                    InViewSummary(
-                        income = viewTotals.first,
-                        expense = viewTotals.second
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
+                    contentPadding = PaddingValues(
+                        top = headerInset + summaryHeight + MmSpacing.sm,
+                        bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.md
                     )
-                }
-                grouped.forEach { (date, list) ->
-                    // Day movement follows the same classification as the summary: transfers
-                    // and Not-a-spend rows never move this number, and a refund reduces spend.
-                    val dayNet = list.sumOf { txn ->
-                        when {
-                            FinancialSummary.isIncomeRow(txn, accountById) ->
-                                FinancialSummary.incomeAmountMinor(txn)
-                            FinancialSummary.isSpendRow(txn, accountById) ->
-                                -FinancialSummary.spendAmountMinor(txn)
-                            else -> 0L
+                ) {
+                    grouped.forEach { (date, list) ->
+                        // Day movement follows the same classification as the summary: transfers
+                        // and Not-a-spend rows never move this number, and a refund reduces spend.
+                        val dayNet = list.sumOf { txn ->
+                            when {
+                                FinancialSummary.isIncomeRow(txn, accountById) ->
+                                    FinancialSummary.incomeAmountMinor(txn)
+                                FinancialSummary.isSpendRow(txn, accountById) ->
+                                    -FinancialSummary.spendAmountMinor(txn)
+                                else -> 0L
+                            }
                         }
-                    }
-                    item(key = "header-$date") {
-                        DayHeader(date = date, dayNet = dayNet)
-                    }
-                    itemsIndexed(list, key = { _, txn -> txn.id }) { index, txn ->
-                        val position = when {
-                            list.size == 1 -> MmGroupPosition.SINGLE
-                            index == 0 -> MmGroupPosition.TOP
-                            index == list.lastIndex -> MmGroupPosition.BOTTOM
-                            else -> MmGroupPosition.MIDDLE
+                        item(key = "header-$date") {
+                            DayHeader(date = date, dayNet = dayNet)
                         }
-                        MmTransactionRow(
-                            txn = txn,
-                            onClick = { onTransactionClick(txn.id) },
-                            showDivider = false,
-                            groupPosition = position
-                        )
+                        itemsIndexed(list, key = { _, txn -> txn.id }) { index, txn ->
+                            val position = when {
+                                list.size == 1 -> MmGroupPosition.SINGLE
+                                index == 0 -> MmGroupPosition.TOP
+                                index == list.lastIndex -> MmGroupPosition.BOTTOM
+                                else -> MmGroupPosition.MIDDLE
+                            }
+                            MmTransactionRow(
+                                txn = txn,
+                                onClick = { onTransactionClick(txn.id) },
+                                showDivider = false,
+                                groupPosition = position
+                            )
+                        }
+                        item(key = "gap-$date") { Spacer(Modifier.height(MmSpacing.sm)) }
                     }
-                    item(key = "gap-$date") { Spacer(Modifier.height(MmSpacing.sm)) }
                 }
+                InViewSummary(
+                    income = viewTotals.first,
+                    expense = viewTotals.second,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                        .padding(top = headerInset)
+                        .onSizeChanged { summaryHeightPx = it.height }
+                )
             }
         }
         }
@@ -466,7 +490,7 @@ private fun DayHeader(date: LocalDate, dayNet: Long) {
 
 /** Compact summary of what is currently visible, with no inferred trend. */
 @Composable
-private fun InViewSummary(income: Long, expense: Long) {
+private fun InViewSummary(income: Long, expense: Long, modifier: Modifier = Modifier) {
     val net = income - expense
     val netTint = if (net >= 0L) MmColors.income else MmColors.expense
     val safeIncome = income.coerceAtLeast(0L)
@@ -481,11 +505,25 @@ private fun InViewSummary(income: Long, expense: Long) {
     val incomeTint = MmColors.income
     val expenseTint = MmColors.expense
     val trackTint = MmColors.outline.copy(alpha = 0.26f)
+    val glassFill = if (MaterialTheme.colors.isLight) {
+        Brush.verticalGradient(
+            listOf(Color.White.copy(alpha = 0.76f), Color.White.copy(alpha = 0.70f), MmColors.surfaceContainer.copy(alpha = 0.66f))
+        )
+    } else {
+        Brush.verticalGradient(
+            listOf(Color(0xFFB9C9E8).copy(alpha = 0.72f), MmColors.surfaceContainer.copy(alpha = 0.70f), Color.Black.copy(alpha = 0.64f))
+        )
+    }
+    val glassShape = RoundedCornerShape(26.dp)
 
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
-            .clip(RoundedCornerShape(26.dp))
-            .background(MmColors.surfaceContainer)
+        modifier.fillMaxWidth().testTag("transactions.summary")
+            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
+            // Keep this fixed overlay tied to the Activity page and let the ledger stay clearly
+            // readable as it moves behind the translucent surface.
+            .clip(glassShape)
+            .background(glassFill, glassShape)
+            .mmGlassHighlight(cornerRadius = 26.dp, intensity = 0.72f)
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {

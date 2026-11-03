@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -199,6 +200,7 @@ private fun AddOrb(
     Box(
         modifier = modifier
             .size(52.dp)
+            .testTag("dock.add")
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(CircleShape)
             .background(
@@ -271,6 +273,7 @@ private fun DockItem(
     Column(
         modifier = modifier
             .fillMaxHeight()
+            .testTag("dock.${tab.name.lowercase()}")
             .padding(horizontal = 2.dp, vertical = 5.dp)
             .clip(RoundedCornerShape(24.dp))
             .pressableClick(haptic = true, onClick = onClick)

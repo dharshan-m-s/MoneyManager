@@ -92,6 +92,7 @@ import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.mmSharedElement
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -340,14 +341,13 @@ private fun AccountHeader(
 
     CompositionLocalProvider(LocalMmGlassEnabled provides (account != null)) {
         Column(
-            Modifier
-                .fillMaxWidth()
+            Modifier.fillMaxWidth()
                 .then(
                     if (account != null) {
                         Modifier.mmLiquidGlass(
-                            cornerRadius = 34.dp,
-                            intensity = 1.08f,
-                            blurMultiplier = 1.18f
+                            cornerRadius = 32.dp,
+                            intensity = 1.02f,
+                            blurMultiplier = 1.08f
                         )
                     } else Modifier
                 )
@@ -360,6 +360,7 @@ private fun AccountHeader(
                 compact = compact,
                 collapseProgress = collapseProgress,
                 keepTitleOnCollapse = true,
+                // The top bar is part of the single continuous glass panel around this header.
                 transparentChrome = account != null,
                 actions = {
                     MmTopBarAction(Icons.Filled.Search, "Search this account", onToggleSearch)
@@ -486,33 +487,59 @@ private fun CardBalancePage(
         AccountType.PREPAID_CARD -> Color(0xFF9A713B)
         else -> MmColors.accent
     }
+    val paymentCard = account.accountType == AccountType.CREDIT_CARD ||
+        account.accountType == AccountType.DEBIT_CARD ||
+        account.accountType == AccountType.PREPAID_CARD
+    val cardColors = when (account.accountType) {
+        AccountType.CREDIT_CARD -> listOf(Color(0xFF272C50), Color(0xFF555FAD), Color(0xFF202944))
+        AccountType.DEBIT_CARD -> listOf(Color(0xFF164D50), Color(0xFF258A84), Color(0xFF173D51))
+        AccountType.PREPAID_CARD -> listOf(Color(0xFF54412D), Color(0xFF9B7545), Color(0xFF443629))
+        else -> listOf(MmColors.surfaceContainer, MmColors.surfaceContainerHigh, MmColors.surfaceContainer)
+    }
+    val primaryOnCard = if (paymentCard) Color.White else MmColors.textPrimary
+    val secondaryOnCard = if (paymentCard) Color.White.copy(alpha = 0.76f) else MmColors.textSecondary
     val shape = RoundedCornerShape(25.dp)
 
-    Column(
+    Box(
         modifier.fillMaxWidth()
             .aspectRatio(1.64f)
             .clip(shape)
-            .background(MmColors.surfaceContainer)
-            .padding(horizontal = 21.dp, vertical = 18.dp)
+            .background(Brush.linearGradient(cardColors))
+            .then(if (paymentCard) Modifier.mmGlassHighlight(cornerRadius = 25.dp, intensity = 1.15f) else Modifier)
     ) {
+        if (paymentCard) {
+            Box(
+                Modifier.align(Alignment.TopEnd)
+                    .offset(x = 38.dp, y = (-42).dp)
+                    .size(176.dp)
+                    .background(Color.White.copy(alpha = 0.075f), CircleShape)
+            )
+            Box(
+                Modifier.align(Alignment.TopEnd)
+                    .offset(x = (-16).dp, y = (-88).dp)
+                    .size(136.dp)
+                    .background(Color.White.copy(alpha = 0.035f), CircleShape)
+            )
+        }
+        Column(Modifier.fillMaxSize().padding(horizontal = 21.dp, vertical = 18.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 if (creditCard) "CARD SUMMARY" else "ACCOUNT SUMMARY",
                 style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.1.sp),
-                color = MmColors.textSecondary,
+                color = secondaryOnCard,
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.weight(1f))
             MmPill(if (account.active) "Active" else "Inactive", tint = if (account.active) MmColors.income else MmColors.textSecondary, filled = true)
         }
         Spacer(Modifier.weight(1f))
-        Text(amountLabel, style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.1.sp), color = MmColors.textSecondary, fontWeight = FontWeight.Bold)
+        Text(amountLabel, style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.1.sp), color = secondaryOnCard, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(5.dp))
         MmAnimatedAmount(
             value = amount,
             formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
             style = MmType.amountHero,
-            color = MmColors.textPrimary
+            color = primaryOnCard
         )
         if (creditCard && limit != null) {
             Spacer(Modifier.height(MmSpacing.xs))
@@ -520,7 +547,7 @@ private fun CardBalancePage(
                 "Credit limit ${MoneyFormat.rupeesNoDecimals(Money(limit))}" +
                     (available?.let { "  ·  Available ${MoneyFormat.rupeesNoDecimals(Money(it))}" } ?: ""),
                 style = MmType.caption,
-                color = MmColors.textSecondary,
+                color = secondaryOnCard,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -529,14 +556,14 @@ private fun CardBalancePage(
             Text(
                 "Due ${formatFullDate(state.statementDueDateEpochMillis)}",
                 style = MmType.caption,
-                color = MmColors.textSecondary
+                color = secondaryOnCard
             )
         }
         Spacer(Modifier.weight(1f))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
-                Text(account.nickname.ifBlank { account.institutionName }, style = MmType.body, color = MmColors.textPrimary, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(account.institutionName, style = MmType.caption, color = MmColors.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(account.nickname.ifBlank { account.institutionName }, style = MmType.body, color = primaryOnCard, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(account.institutionName, style = MmType.caption, color = secondaryOnCard, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Text(
                 when (account.accountType) {
@@ -549,6 +576,7 @@ private fun CardBalancePage(
                 color = accent,
                 fontWeight = FontWeight.Bold
             )
+        }
         }
     }
 }

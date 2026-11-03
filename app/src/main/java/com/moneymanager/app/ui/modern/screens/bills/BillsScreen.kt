@@ -80,6 +80,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
@@ -169,12 +170,14 @@ fun BillsScreen(
             Modifier.fillMaxSize()
                 .mmPageBackdrop()
                 .padding(padding)
+                .testTag("screen.bills")
         ) {
             MoneyManagerTopBar(
                 title = "Bills & EMIs",
                 subtitle = "Track upcoming payments without duplicate transactions",
                 onBack = onBack,
                 collapseProgress = scrollChrome.progress,
+                keepTitleOnCollapse = true,
                 hideNavigationOnCollapse = true,
                 modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height },
                 actions = { BillAddAction(onAdd = onAddBiller) },
@@ -735,7 +738,10 @@ private fun BillCard(
     )
     val overdue = next != null && daysUntilDue < 0
     val paid = next == null && latestPaid != null
-    val partial = next != null && next.paidAmountMinorUnits in 1L until next.amountDueMinorUnits
+    val partialInstance = next?.takeIf {
+        it.paidAmountMinorUnits in 1L until it.amountDueMinorUnits
+    }
+    val partial = partialInstance != null
     val dateFormat = DateTimeFormatter.ofPattern("dd MMM")
     val zone = ZoneId.of("Asia/Kolkata")
 
@@ -768,9 +774,9 @@ private fun BillCard(
     val displayDate = if (paid) {
         val paidMillis = latestPaid.paidAtEpochMillis ?: dueMillis
         "Paid on: " + dateFormat.format(Instant.ofEpochMilli(paidMillis).atZone(zone))
-    } else if (partial && next != null) {
-        "Paid ${MoneyFormat.rupeesNoDecimals(Money(next.paidAmountMinorUnits))} of " +
-            "${MoneyFormat.rupeesNoDecimals(Money(next.amountDueMinorUnits))} • Due $dueDateStr"
+    } else if (partialInstance != null) {
+        "Paid ${MoneyFormat.rupeesNoDecimals(Money(partialInstance.paidAmountMinorUnits))} of " +
+            "${MoneyFormat.rupeesNoDecimals(Money(partialInstance.amountDueMinorUnits))} • Due $dueDateStr"
     } else {
         "Due on: $dueDateStr"
     }
@@ -872,21 +878,6 @@ private fun BillCard(
                 onClick = onMarkPaid,
                 icon = Icons.Filled.CheckCircle,
                 modifier = Modifier.fillMaxWidth()
-            )
-        } else if (next != null) {
-            // Still ahead of the payment window: say when the action appears instead of
-            // offering a button the user cannot use meaningfully yet.
-            Spacer(Modifier.height(MmSpacing.md))
-            val lead = BillPaymentWindow.leadDays(row.bill)
-            Text(
-                when {
-                    daysUntilDue <= 0L -> "Mark as paid available"
-                    else -> "Mark as paid appears " +
-                        "$lead day${if (lead == 1) "" else "s"} before the due date" +
-                        " (${daysUntilDue} to go)"
-                },
-                style = MmType.caption,
-                color = MmColors.textSecondary
             )
         }
     }
