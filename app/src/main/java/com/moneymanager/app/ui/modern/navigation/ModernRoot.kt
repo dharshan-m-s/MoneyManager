@@ -74,6 +74,8 @@ import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberSnapshotBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.snapshotBackdropSource
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.StatusBarGlyphToneAndSystemBarTint
 import com.moneymanager.app.ui.components.mmBrandWash
@@ -270,10 +272,13 @@ fun ModernRoot() {
     // sample this live layer of the finished page.
     val glassBackdrop = rememberLayerBackdrop()
 
-    // Page glass and the floating dock share one live page source. BackdropCaptureState
-    // suppresses all glass nodes while that source is recorded, so the source contains only
-    // real page content and never a previous glass frame. The visible glass pass then samples
-    // that completed layer: no feedback bitmap, stale frame, or page -> glass -> page cycle.
+    // Page chrome cannot sample that same live layer: the page layer would contain the
+    // glass layer that samples it again (page -> glass -> page), and HWUI overflows its
+    // stack in RenderNode::prepareTreeImpl. Page chrome samples a still of the page instead.
+    // A still is an image, not a RenderNode reference, so every liquid-glass surface keeps
+    // its full blur/lens/tint treatment without closing the render graph. The source
+    // refreshes the still while the page is drawing (scroll, collapse, animations).
+    val pageGlassBackdrop = rememberSnapshotBackdrop()
 
     // Keep the floating controls outside both the page capture and the shared-transition
     // RenderNode. A full-screen shared-transition parent around the dock caused a visible
@@ -284,14 +289,16 @@ fun ModernRoot() {
             Modifier
                 .fillMaxSize()
                 .layerBackdrop(glassBackdrop)
+                .snapshotBackdropSource(pageGlassBackdrop, autoCapture = true)
         ) {
                         // A subtle ambient page wash gives the floating dock and the
                         // glass-free regions of selected controls a soft optical backdrop.
                         Box(Modifier.fillMaxSize().mmPageBackdrop())
                         CompositionLocalProvider(
-                            // Selected page surfaces sample the same clean live page layer as
-                            // the dock. The default stays off so ordinary cards are untouched.
-                            LocalMmGlassBackdrop provides glassBackdrop,
+                            // Selected page surfaces sample a still of the page. The default
+                            // stays off so ordinary cards are untouched; surfaces that opt in
+                            // keep the same liquid-glass implementation as the dock.
+                            LocalMmGlassBackdrop provides pageGlassBackdrop,
                             LocalMmGlassEnabled provides false,
                             LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
                         ) {
