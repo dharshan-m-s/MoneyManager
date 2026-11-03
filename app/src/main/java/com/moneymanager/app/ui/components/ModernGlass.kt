@@ -92,8 +92,8 @@ fun Modifier.mmPageBackdrop(): Modifier {
 }
 
 internal const val MM_GLASS_BACKDROP_SCALE = 0.5f
-internal const val MM_GLASS_BLUR_RADIUS_DP = 5f
-internal const val MM_GLASS_REFRACTION_AMOUNT_DP = 34f
+internal const val MM_GLASS_BLUR_RADIUS_DP = 6f
+internal const val MM_GLASS_REFRACTION_AMOUNT_DP = 40f
 
 internal fun mmGlassBackdropScale(): Float = MM_GLASS_BACKDROP_SCALE
 internal fun mmGlassBlurRadiusDp(): Float = MM_GLASS_BLUR_RADIUS_DP
@@ -117,7 +117,7 @@ fun Modifier.mmLiquidGlass(
     val backdrop = LocalMmGlassBackdrop.current
     val light = MaterialTheme.colors.isLight
     val tint = if (light) Color(0xFFFDFEFF) else Color(0xFF111722)
-    val edge = if (light) Color.White.copy(alpha = 0.32f) else Color.White.copy(alpha = 0.075f)
+    val edge = if (light) Color.White.copy(alpha = 0.32f) else Color.White.copy(alpha = 0.09f)
     val safeIntensity = intensity.coerceIn(0.25f, 1.25f)
 
     if (!enabled || !isMmLiquidGlassSupported() || backdrop == null) {
@@ -132,7 +132,7 @@ fun Modifier.mmLiquidGlass(
     // before the lens shader ran, making the surface look like a frosted sheet.
     // All pixel-space parameters are scaled with the capture resolution.
     val blurRadius = with(density) { MM_GLASS_BLUR_RADIUS_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
-    val lensHeight = with(density) { 20.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
+    val lensHeight = with(density) { 22.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
     val lensAmount = with(density) { MM_GLASS_REFRACTION_AMOUNT_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
 
     // Clip before the backdrop draw as well as after it. Without the leading clip the
@@ -167,7 +167,7 @@ fun Modifier.mmLiquidGlass(
             // Draw the tint in the lens geometry itself. A full rectangular wash here can
             // leak outside the pill on renderers that do not preserve the backdrop layer clip.
             drawRoundRect(
-                color = tint.copy(alpha = if (light) 0.065f else 0.052f),
+                color = tint.copy(alpha = if (light) 0.075f else 0.065f),
                 cornerRadius = CornerRadius(cornerRadius.toPx())
             )
         },
