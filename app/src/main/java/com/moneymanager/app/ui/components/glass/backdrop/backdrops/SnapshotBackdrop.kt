@@ -175,6 +175,7 @@ fun Modifier.snapshotBackdropSource(
             val generation = backdrop.generation
             backdrop.capturing = true
             backdrop.snapshotCaptureInProgress = true
+            com.moneymanager.app.ui.components.glass.backdrop.BackdropCaptureState.begin()
             try {
                 layer.record(size = IntSize(width, height)) {
                     scale(SNAPSHOT_SCALE, pivot = Offset.Zero) { this@drawWithContent.drawContent() }
@@ -189,6 +190,7 @@ fun Modifier.snapshotBackdropSource(
                 return@drawWithContent
             } finally {
                 backdrop.snapshotCaptureInProgress = false
+                com.moneymanager.app.ui.components.glass.backdrop.BackdropCaptureState.end()
             }
             scope.launch {
                 try {
