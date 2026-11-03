@@ -91,7 +91,13 @@ fun Modifier.mmPageBackdrop(): Modifier {
     }
 }
 
-private const val BACKDROP_SCALE = 0.5f
+internal const val MM_GLASS_BACKDROP_SCALE = 0.5f
+internal const val MM_GLASS_BLUR_RADIUS_DP = 3.5f
+internal const val MM_GLASS_REFRACTION_AMOUNT_DP = 26f
+
+internal fun mmGlassBackdropScale(): Float = MM_GLASS_BACKDROP_SCALE
+internal fun mmGlassBlurRadiusDp(): Float = MM_GLASS_BLUR_RADIUS_DP
+internal fun mmGlassRefractionAmountDp(): Float = MM_GLASS_REFRACTION_AMOUNT_DP
 
 fun isMmLiquidGlassSupported(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
     sdkInt >= Build.VERSION_CODES.S
@@ -125,9 +131,9 @@ fun Modifier.mmLiquidGlass(
     // Refraction must dominate the blur. The old 18dp blur softened the sampled page
     // before the lens shader ran, making the surface look like a frosted sheet.
     // All pixel-space parameters are scaled with the capture resolution.
-    val blurRadius = with(density) { 3.5.dp.toPx() * BACKDROP_SCALE * safeIntensity }
-    val lensHeight = with(density) { 16.dp.toPx() * BACKDROP_SCALE * safeIntensity }
-    val lensAmount = with(density) { 26.dp.toPx() * BACKDROP_SCALE * safeIntensity }
+    val blurRadius = with(density) { MM_GLASS_BLUR_RADIUS_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
+    val lensHeight = with(density) { 16.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
+    val lensAmount = with(density) { MM_GLASS_REFRACTION_AMOUNT_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
 
     // Clip before the backdrop draw as well as after it. Without the leading clip the
     // sampled RenderNode can bleed into the dock's rectangular parent and look like a sheet.
@@ -165,7 +171,7 @@ fun Modifier.mmLiquidGlass(
                 cornerRadius = CornerRadius(cornerRadius.toPx())
             )
         },
-        backdropScale = BACKDROP_SCALE
+        backdropScale = MM_GLASS_BACKDROP_SCALE
     ).clip(shape)
         .border(0.8.dp, edge, shape)
 }
