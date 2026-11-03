@@ -72,11 +72,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
@@ -110,6 +113,7 @@ import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.LocalDockContentPadding
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneId
@@ -135,6 +139,8 @@ fun BillsScreen(
     val bills by viewModel.bills.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
     val scrollChrome = rememberScrollChromeState(collapseDistance = 112.dp)
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
     val visibleBills = remember(bills, query) {
         if (query.isBlank()) bills else bills.filter { row ->
             listOf(row.bill.billerName, row.bill.nickname, row.bill.accountReferenceId)
@@ -170,6 +176,7 @@ fun BillsScreen(
                 onBack = onBack,
                 collapseProgress = scrollChrome.progress,
                 hideNavigationOnCollapse = true,
+                modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height },
                 actions = { BillAddAction(onAdd = onAddBiller) },
                 bottomContent = {
                     Row(
@@ -197,12 +204,13 @@ fun BillsScreen(
                         "them here. Recurring payments found in imported statements appear automatically."
                     else "Try another biller name or clear your search.",
                     actionLabel = if (bills.isEmpty()) "Add a bill" else "Clear search",
-                    onAction = if (bills.isEmpty()) onAddBiller else ({ query = "" })
+                    onAction = if (bills.isEmpty()) onAddBiller else ({ query = "" }),
+                    modifier = Modifier.fillMaxSize().padding(top = headerInset)
                 )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
-                    contentPadding = PaddingValues(start = MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = maxOf(36.dp, LocalDockContentPadding.current)),
+                    contentPadding = PaddingValues(start = MmSpacing.lg, end = MmSpacing.lg, top = headerInset + MmSpacing.sm, bottom = maxOf(36.dp, LocalDockContentPadding.current)),
                     verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {
                     itemsIndexed(visibleBills, key = { _, row -> row.bill.id }) { index, row ->
