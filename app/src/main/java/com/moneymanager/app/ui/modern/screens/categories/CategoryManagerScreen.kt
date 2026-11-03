@@ -1,6 +1,10 @@
 package com.moneymanager.app.ui.modern.screens.categories
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -32,8 +36,7 @@ import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -44,6 +47,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -73,6 +77,7 @@ import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.components.scrollCompactField
 import com.moneymanager.app.ui.components.scrollCompactHeight
 import androidx.compose.foundation.lazy.itemsIndexed
+import kotlin.math.abs
 import com.moneymanager.app.ui.categories.CategoryManagerViewModel
 
 @Composable
@@ -99,6 +104,11 @@ fun CategoryManagerScreen(
     }
     val hiddenCount = remember(categories) { categories.count { !it.active } }
     val scrollChrome = rememberScrollChromeState()
+    val listState = rememberLazyListState()
+    val canReorder = !selectionMode && query.isBlank() && !showHidden
+    var draggedCategoryId by remember { mutableStateOf<Long?>(null) }
+    var dragStartY by remember { mutableFloatStateOf(0f) }
+    var dragCurrentY by remember { mutableFloatStateOf(0f) }
 
     Box(Modifier.fillMaxSize().background(MmColors.background)) {
         Column(Modifier.fillMaxSize()) {
@@ -110,33 +120,12 @@ fun CategoryManagerScreen(
                 collapseProgress = scrollChrome.progress
             )
 
-            CompositionLocalProvider(LocalMmGlassEnabled provides true) {
             Column(
                 Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                if (!selectionMode) {
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
-                            .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.15f), MmColors.surfaceElevated, MmColors.surface)))
-                            .border(1.dp, MmColors.accent.copy(alpha = 0.20f), RoundedCornerShape(23.dp))
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                            .scrollCollapse(scrollChrome.progress),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text("YOUR CATEGORY LIBRARY", style = MmType.caption.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp), color = MmColors.accent)
-                            Text("${categories.count { it.active }} active categories", style = MmType.sectionTitle, color = MmColors.textPrimary)
-                            Text("Organise the labels behind every transaction", style = MmType.caption, color = MmColors.textSecondary)
-                        }
-                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(MmColors.accent.copy(alpha = 0.13f)), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Filled.Category, contentDescription = null, tint = MmColors.accent, modifier = Modifier.size(21.dp))
-                        }
-                    }
-                }
                 Row(
                     Modifier.fillMaxWidth()
-                        .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.42f)
                         .scrollCompactHeight(scrollChrome.progress, expandedHeight = 56.dp, compactHeight = 52.dp)
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -147,7 +136,7 @@ fun CategoryManagerScreen(
                             value = query,
                             onValueChange = { query = it },
                             hint = "Search categories",
-                            glassField = true,
+                            glassField = false,
                             modifier = Modifier.scrollCompactField(scrollChrome.progress)
                         )
                     }
@@ -174,7 +163,6 @@ fun CategoryManagerScreen(
                     }
                 }
             }
-            }
 
             if (visible.isEmpty()) {
                 MmEmptyState(
@@ -187,6 +175,7 @@ fun CategoryManagerScreen(
                 )
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.nestedScroll(scrollChrome.connection),
                     contentPadding = PaddingValues(
                         start = MmSpacing.lg,
@@ -196,9 +185,45 @@ fun CategoryManagerScreen(
                     verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {
                     itemsIndexed(visible, key = { _, item -> item.id }) { index, category ->
+                        val dragModifier = if (canReorder) Modifier.pointerInput(category.id) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { pointerOffset ->
+                                    val item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == category.id }
+                                    if (item != null) {
+                                        draggedCategoryId = category.id
+                                        dragStartY = item.offset.toFloat() + pointerOffset.y
+                                        dragCurrentY = dragStartY
+                                    }
+                                },
+                                onDragEnd = {
+                                    val movingId = draggedCategoryId
+                                    if (movingId != null) {
+                                        val target = listState.layoutInfo.visibleItemsInfo.minByOrNull { item ->
+                                            abs(item.offset + item.size / 2f - dragCurrentY)
+                                        }
+                                        if (target != null) viewModel.moveToIndex(movingId, target.index)
+                                    }
+                                    draggedCategoryId = null
+                                },
+                                onDragCancel = { draggedCategoryId = null },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    if (draggedCategoryId == category.id) dragCurrentY += dragAmount.y
+                                }
+                            )
+                        } else Modifier
+                        val rowModifier = Modifier.revealOnAppear(index = index)
+                            .then(dragModifier)
+                            .graphicsLayer {
+                                val dragging = draggedCategoryId == category.id
+                                translationY = if (dragging) dragCurrentY - dragStartY else 0f
+                                scaleX = if (dragging) 1.015f else 1f
+                                scaleY = if (dragging) 1.015f else 1f
+                                shadowElevation = if (dragging) 9.dp.toPx() else 0f
+                            }
                         CategoryRow(
                             category = category,
-                            modifier = Modifier.revealOnAppear(index = index),
+                            modifier = rowModifier,
                             selectionMode = selectionMode,
                             onSelect = {
                                 if (category.name.equals("A/c to A/c", ignoreCase = true) && onTransferSelected != null) {
@@ -207,8 +232,6 @@ fun CategoryManagerScreen(
                                     onCategorySelected?.invoke(category.id)
                                 }
                             },
-                            onUp = { viewModel.moveUp(category.id) },
-                            onDown = { viewModel.moveDown(category.id) },
                             onEdit = { onEditCategory(category.id) },
                             onToggle = { viewModel.toggleActive(category, !category.active) },
                             onDelete = {
@@ -244,14 +267,13 @@ private fun CategoryRow(
     selectionMode: Boolean,
     modifier: Modifier = Modifier,
     onSelect: () -> Unit,
-    onUp: () -> Unit,
-    onDown: () -> Unit,
     onEdit: () -> Unit,
     onToggle: () -> Unit,
     onDelete: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     MmCard(
+        modifier = modifier,
         onClick = if (selectionMode && category.active) onSelect else onEdit,
         contentPadding = PaddingValues(horizontal = MmSpacing.md, vertical = MmSpacing.sm)
     ) {
@@ -277,12 +299,7 @@ private fun CategoryRow(
             if (selectionMode) {
                 Icon(Icons.Filled.ChevronRight, contentDescription = "Select ${category.name}", tint = MmColors.textTertiary)
             } else {
-                IconButton(onClick = onUp) {
-                    Icon(Icons.Filled.ArrowUpward, contentDescription = "Move up", tint = MmColors.textSecondary)
-                }
-                IconButton(onClick = onDown) {
-                    Icon(Icons.Filled.ArrowDownward, contentDescription = "Move down", tint = MmColors.textSecondary)
-                }
+                Icon(Icons.Filled.DragHandle, contentDescription = "Long press and drag to reorder", tint = MmColors.textTertiary, modifier = Modifier.padding(horizontal = 5.dp))
                 IconButton(onClick = onEdit) {
                     Icon(Icons.Filled.Edit, contentDescription = "Edit ${category.name}", tint = MmColors.accent)
                 }

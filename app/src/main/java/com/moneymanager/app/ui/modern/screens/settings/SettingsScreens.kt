@@ -476,7 +476,7 @@ fun SettingsScreen(
 
     Box(Modifier.fillMaxSize().background(MmColors.background)) {
         Column(Modifier.fillMaxSize()) {
-            MoneyManagerTopBar(title = "Settings", onBack = onBack, glassChrome = true, collapseProgress = scrollChrome.progress)
+            MoneyManagerTopBar(title = "Settings", onBack = onBack, glassChrome = true)
 
             Column(
                 Modifier

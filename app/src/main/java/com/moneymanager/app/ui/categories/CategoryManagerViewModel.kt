@@ -163,6 +163,19 @@ class CategoryManagerViewModel @Inject constructor(
         backupManager.scheduleAfterWrite()
     }
 
+    fun moveToIndex(id: Long, targetIndex: Int) {
+        viewModelScope.launch {
+            val list = dao.findActiveOrdered().toMutableList()
+            val currentIndex = list.indexOfFirst { it.id == id }
+            if (currentIndex < 0 || list.isEmpty()) return@launch
+            val moved = list.removeAt(currentIndex)
+            val safeTarget = targetIndex.coerceIn(0, list.size)
+            if (currentIndex == safeTarget) return@launch
+            list.add(safeTarget, moved)
+            reorder(list)
+        }
+    }
+
     fun moveUp(id: Long) = move(id, -1)
     fun moveDown(id: Long) = move(id, 1)
 
