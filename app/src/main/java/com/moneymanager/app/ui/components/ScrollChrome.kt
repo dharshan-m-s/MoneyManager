@@ -33,26 +33,29 @@ data class ScrollChromeState(
 @Composable
 fun rememberScrollChromeState(collapseDistance: Dp = 112.dp): ScrollChromeState {
     val rangePx = with(LocalDensity.current) { collapseDistance.toPx().coerceAtLeast(1f) }
-    var offsetPx by rememberSaveable { mutableFloatStateOf(0f) }
+    // Store normalized progress so density/orientation changes do not restore stale pixels.
+    var progressFraction by rememberSaveable { mutableFloatStateOf(0f) }
 
-    val progress = remember(rangePx) {
-        derivedStateOf { (offsetPx / rangePx).coerceIn(0f, 1f) }
+    val progress = remember {
+        derivedStateOf { progressFraction.coerceIn(0f, 1f) }
     }
     val collapsed = remember(progress) {
         derivedStateOf { progress.value >= 0.88f }
     }
     val connection = remember(rangePx) {
         object : NestedScrollConnection {
-            override fun onPostScroll(
-                consumed: Offset,
+            override fun onPreScroll(
                 available: Offset,
                 source: NestedScrollSource
             ): Offset {
-                if (consumed.y != 0f) {
-                    // Scrolling down consumes a negative Y delta; scrolling back up reduces it.
-                    offsetPx = (offsetPx - consumed.y).coerceIn(0f, rangePx)
+                // Collapse before the list moves; expand before the list reverses.
+                val previousOffset = progressFraction * rangePx
+                val nextOffset = (previousOffset - available.y).coerceIn(0f, rangePx)
+                val consumedY = previousOffset - nextOffset
+                if (consumedY != 0f) {
+                    progressFraction = (nextOffset / rangePx).coerceIn(0f, 1f)
                 }
-                return Offset.Zero
+                return Offset(x = 0f, y = consumedY)
             }
         }
     }
@@ -121,6 +124,7 @@ fun Modifier.scrollCompactHeight(
 fun Modifier.scrollCompactField(progress: State<Float>): Modifier =
     this.graphicsLayer {
         val fraction = progress.value.coerceIn(0f, 1f)
-        scaleX = 1f - 0.045f * fraction
-        scaleY = 1f - 0.12f * fraction
+        scaleX = 1f - 0.10f * fraction
+        scaleY = 1f - 0.14f * fraction
+        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
     }

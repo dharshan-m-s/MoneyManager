@@ -294,14 +294,19 @@ fun ModernRoot() {
                             LocalMmGlassEnabled provides false,
                             LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
                         ) {
+                            // Avoid a full-screen transformed RenderNode at rest; only create
+                            // the drag layer while a sheet is actively moving.
+                            val pageDragModifier = if (sheetDragOffset == 0f) Modifier else {
+                                Modifier.graphicsLayer {
+                                    translationY = sheetDragOffset
+                                    val travel = (navHostHeightPx * 0.9f).coerceAtLeast(1f)
+                                    alpha = 1f - (sheetDragOffset / travel).coerceIn(0f, 0.18f)
+                                }
+                            }
                             Box(
                                 Modifier.fillMaxSize()
                                     .onSizeChanged { navHostHeightPx = it.height }
-                                    .graphicsLayer {
-                                        translationY = sheetDragOffset
-                                        val travel = (navHostHeightPx * 0.9f).coerceAtLeast(1f)
-                                        alpha = 1f - (sheetDragOffset / travel).coerceIn(0f, 0.18f)
-                                    }
+                                    .then(pageDragModifier)
                             ) {
                                 SharedTransitionLayout {
                                     CompositionLocalProvider(
