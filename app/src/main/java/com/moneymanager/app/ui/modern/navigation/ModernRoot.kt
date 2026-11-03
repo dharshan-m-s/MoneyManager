@@ -278,7 +278,10 @@ fun ModernRoot() {
     // A still is an image, not a RenderNode reference, so every liquid-glass surface keeps
     // its full blur/lens/tint treatment without closing the render graph. The source
     // refreshes the still while the page is drawing (scroll, collapse, animations).
-    val pageGlassBackdrop = rememberSnapshotBackdrop()
+    // A still belongs to one navigation entry. Never let a newly opened destination
+    // sample the previous page's cached image (especially after a cold-start capture).
+    val pageCaptureKey = backStackEntry?.id ?: currentRoute
+    val pageGlassBackdrop = rememberSnapshotBackdrop(pageCaptureKey)
 
     // Keep the floating controls outside both the page capture and the shared-transition
     // RenderNode. A full-screen shared-transition parent around the dock caused a visible
