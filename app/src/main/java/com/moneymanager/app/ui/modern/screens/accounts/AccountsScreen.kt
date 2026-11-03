@@ -444,7 +444,7 @@ private fun AccountsHeader(
                 if (showingInactive) " · switched off" else "",
             artworkKind = "account_${tabLabel.lowercase()}",
             glass = true,
-            compactProgress = collapseProgress.value,
+            compactProgress = collapseProgress,
             modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
         )
     }

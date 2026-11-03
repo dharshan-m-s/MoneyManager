@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
@@ -226,11 +227,11 @@ fun MmBalancePanel(
     visualLabel: String? = null,
     artworkKind: String = "overview",
     glass: Boolean = false,
-    compactProgress: Float = 0f
+    compactProgress: State<Float>? = null
 ) {
     val shape = RoundedCornerShape(28.dp)
     val maxVisual = visualValues.maxOfOrNull { kotlin.math.abs(it) }?.coerceAtLeast(1L) ?: 1L
-    val compact = compactProgress.coerceIn(0f, 1f)
+    val compact = (compactProgress?.value ?: 0f).coerceIn(0f, 1f)
     val panelPadding by animateDpAsState(
         targetValue = MmSpacing.xl - (8.dp * compact),
         animationSpec = spring(dampingRatio = 0.86f, stiffness = 360f),

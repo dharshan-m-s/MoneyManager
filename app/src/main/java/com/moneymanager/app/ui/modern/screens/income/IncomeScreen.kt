@@ -104,7 +104,7 @@ fun IncomeScreen(
                     IncomeSummaryCard(
                         total = total,
                         transactionCount = rows.size,
-                        compactProgress = scrollChrome.progress.value,
+                        compactProgress = scrollChrome.progress,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = MmSpacing.xs)
@@ -126,7 +126,7 @@ fun IncomeScreen(
 private fun IncomeSummaryCard(
     total: Long,
     transactionCount: Int,
-    compactProgress: Float,
+    compactProgress: androidx.compose.runtime.State<Float>,
     modifier: Modifier = Modifier
 ) {
     MmBalancePanel(
