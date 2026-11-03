@@ -76,7 +76,6 @@ private class LayerBackdropNode(
         // The captured layer is never composited here, so the RenderNode graph stays acyclic.
         // Enter the shared guard before recording this live page layer.
         backdrop.beginRecording()
-        com.moneymanager.app.ui.components.glass.backdrop.BackdropCaptureState.begin()
         try {
             recordLayer(this@LayerBackdropNode, backdrop.graphicsLayer) {
                 backdrop.onDraw(this@draw)
