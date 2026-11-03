@@ -123,6 +123,7 @@ fun ReimbursementsScreen(
                     tint = MmColors.warning,
                     artworkKind = "income",
                     glass = true,
+                    compactProgress = scrollChrome.progress,
                     modifier = Modifier.padding(vertical = MmSpacing.xs)
                 )
             }
