@@ -36,10 +36,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -57,6 +60,7 @@ import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MmTopBarAction
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.MmTransactionRow
@@ -129,6 +133,8 @@ fun CashScreen(
     var query by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
     val scrollChrome = rememberScrollChromeState()
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
 
     val zone = ZoneId.of("Asia/Kolkata")
     val filtered = remember(state.transactions, query, state.categoryNames, state.accountNames) {
@@ -152,6 +158,9 @@ fun CashScreen(
                 collapseProgress = scrollChrome.progress,
                 compact = scrollChrome.collapsed.value,
                 keepTitleOnCollapse = true,
+                modifier = Modifier
+                    .overlayWithoutLayoutSpace()
+                    .onSizeChanged { headerHeightPx = it.height },
                 actions = {
                     state.primaryCashAccountId?.let { cashAccountId ->
                         MmTopBarAction(
@@ -189,6 +198,7 @@ fun CashScreen(
                 Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
+                    top = headerInset + MmSpacing.md,
                     end = MmSpacing.screen,
                     bottom = maxOf(112.dp, LocalDockContentPadding.current)
                 ),
