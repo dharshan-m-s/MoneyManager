@@ -224,22 +224,20 @@ fun AccountsScreen(
                     )
                 }
                 if (inactiveAccounts.isNotEmpty()) {
-                    AnimatedVisibility(visible = !scrollChrome.collapsed.value) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = MmSpacing.sm),
-                            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
-                        ) {
-                            MmChip(
-                                label = "Active (${activeAccounts.size})",
-                                selected = !inactiveView,
-                                onClick = { showInactive = false }
-                            )
-                            MmChip(
-                                label = "Inactive (${inactiveAccounts.size})",
-                                selected = inactiveView,
-                                onClick = { showInactive = true }
-                            )
-                        }
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = MmSpacing.sm),
+                        horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                    ) {
+                        MmChip(
+                            label = "Active (${activeAccounts.size})",
+                            selected = !inactiveView,
+                            onClick = { showInactive = false }
+                        )
+                        MmChip(
+                            label = "Inactive (${inactiveAccounts.size})",
+                            selected = inactiveView,
+                            onClick = { showInactive = true }
+                        )
                     }
                 }
             }
