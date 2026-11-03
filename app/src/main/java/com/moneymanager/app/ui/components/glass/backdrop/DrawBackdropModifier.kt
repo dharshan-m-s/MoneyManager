@@ -55,7 +55,7 @@ import com.moneymanager.app.ui.components.glass.backdrop.shadow.ShadowElement
  * a sibling dock records a live layer, so checking only the sampled backdrop misses feedback.
  */
 internal object BackdropCaptureState {
-    private var depth = 0
+    @Volatile private var depth = 0
     val isCapturing: Boolean get() = depth > 0
     @Synchronized fun begin() { depth += 1 }
     @Synchronized fun end() { depth = (depth - 1).coerceAtLeast(0) }
