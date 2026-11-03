@@ -506,7 +506,7 @@ private fun AccountRow(
         isCreditCard -> "Outstanding"
         else -> "Available balance"
     }
-    val issuer = account.institutionName.ifBlank { account.nickname }
+    val issuer = account.institutionName.orEmpty().ifBlank { account.nickname.orEmpty() }
     val masked = com.moneymanager.app.ui.components.maskedCardNumberFromSourceId(account.sourceAccountId)
     val secondary = listOfNotNull(
         issuer.takeIf { it.isNotBlank() && it != account.nickname },
