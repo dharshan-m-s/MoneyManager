@@ -27,9 +27,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -53,6 +57,7 @@ import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -68,6 +73,8 @@ fun BudgetScreen(
 ) {
     val state by viewModel.ui.collectAsState()
     val scrollChrome = rememberScrollChromeState(collapseDistance = 184.dp)
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
     LaunchedEffect(state.saved) { if (state.saved) onClose() }
 
     val spendThisMonth = state.trend.lastOrNull()?.amount ?: 0L
@@ -82,13 +89,19 @@ fun BudgetScreen(
     }
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
-        MoneyManagerTopBar(title = "Monthly budget", onBack = onClose, collapseProgress = scrollChrome.progress)
+        MoneyManagerTopBar(
+            title = "Monthly budget",
+            onBack = onClose,
+            collapseProgress = scrollChrome.progress,
+            modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height }
+        )
 
         Column(
             Modifier
                 .fillMaxSize()
                  .nestedScroll(scrollChrome.connection)
                 .verticalScroll(rememberScrollState())
+                .padding(top = headerInset)
                 .imePadding()
                 .padding(horizontal = MmSpacing.screen)
                 .padding(bottom = MmSpacing.xxl + LocalDockContentPadding.current),
