@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -27,6 +28,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,6 +44,7 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.scrollCompactField
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -63,6 +67,8 @@ fun ReimbursementsScreen(
     val pending by viewModel.pending.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
     val scrollChrome = rememberScrollChromeState(collapseDistance = 112.dp)
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
     val visiblePending = remember(pending, query) {
         if (query.isBlank()) pending else pending.filter { txn ->
             listOfNotNull(txn.merchantReceiverSender, txn.rawCategoryName, txn.notes)
@@ -77,6 +83,7 @@ fun ReimbursementsScreen(
             subtitle = "${pending.size} pending",
             onBack = onBack,
             collapseProgress = scrollChrome.progress,
+            modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height },
             bottomContent = {
                 Row(
                     Modifier.fillMaxWidth()
@@ -100,7 +107,7 @@ fun ReimbursementsScreen(
                 title = "Nothing owed to you",
                 message = "Mark a transaction as reimbursable when you add it and it will be " +
                     "tracked here until it is paid back.",
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize().padding(top = headerInset)
             )
             return@Column
         }
@@ -110,7 +117,7 @@ fun ReimbursementsScreen(
             contentPadding = PaddingValues(
                 start = MmSpacing.lg,
                 end = MmSpacing.lg,
-                top = MmSpacing.lg,
+                top = headerInset + MmSpacing.lg,
                 bottom = MmSpacing.xxl + LocalDockContentPadding.current
             ),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
