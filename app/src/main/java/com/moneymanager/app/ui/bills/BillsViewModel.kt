@@ -110,7 +110,7 @@ class BillsViewModel @Inject constructor(
         _paymentSearch.value = BillPaymentSearchState(
             billRow = row,
             loading = true,
-            recordAmount = Money(instance.amountDueMinorUnits).toBigDecimal()
+            recordAmount = Money((instance.amountDueMinorUnits - instance.paidAmountMinorUnits).coerceAtLeast(0L)).toBigDecimal()
                 .stripTrailingZeros().toPlainString(),
             recordDateEpochMillis = System.currentTimeMillis()
         )
@@ -232,9 +232,10 @@ class BillsViewModel @Inject constructor(
 
     /** Option B: record a genuine card payment (source account -> card outstanding). The
      *  amount may be partial; the occurrence only settles once allocations cover the due. */
-    fun recordPayment() {
+    fun recordPayment(settlementAdjustmentMinorUnits: Long = 0L) {
         val s = _paymentSearch.value
         val instance = s.billRow?.nextInstance ?: return
+        val bill = s.billRow?.bill ?: return
         val sourceId = s.recordSourceAccountId
         if (sourceId == null) {
             _paymentSearch.value = s.copy(error = "Choose the account the payment came from")
@@ -251,17 +252,29 @@ class BillsViewModel @Inject constructor(
         _paymentSearch.value = s.copy(saving = true, error = null)
         viewModelScope.launch {
             runCatching {
-                billRepository.recordCreditCardBillPayment(
-                    instanceId = instance.id,
-                    sourceAccountId = sourceId,
-                    amountMinorUnits = amount,
-                    occurredAtEpochMillis = s.recordDateEpochMillis,
-                    notes = s.recordNotes.ifBlank { null }
-                )
+                if (bill.linkedAccountId != null || bill.billerType == com.moneymanager.app.data.local.entity.BillerType.CREDIT_CARD) {
+                    billRepository.recordCreditCardBillPayment(
+                        instanceId = instance.id,
+                        sourceAccountId = sourceId,
+                        amountMinorUnits = amount,
+                        occurredAtEpochMillis = s.recordDateEpochMillis,
+                        notes = s.recordNotes.ifBlank { null },
+                        settlementAdjustmentMinorUnits = settlementAdjustmentMinorUnits
+                    )
+                } else {
+                    billRepository.recordOrdinaryBillPayment(
+                        instanceId = instance.id,
+                        sourceAccountId = sourceId,
+                        amountMinorUnits = amount,
+                        occurredAtEpochMillis = s.recordDateEpochMillis,
+                        notes = s.recordNotes.ifBlank { null },
+                        settlementAdjustmentMinorUnits = settlementAdjustmentMinorUnits
+                    )
+                }
             }.onSuccess {
                 val updated = billDao.findInstanceById(instance.id)
                 _paymentSearch.value = BillPaymentSearchState(
-                    message = updated?.let { state -> paymentMessage(state) } ?: "Payment recorded"
+                    message = updated?.let { state -> paymentMessage(state, settlementAdjustmentMinorUnits) } ?: "Payment recorded"
                 )
             }.onFailure {
                 _paymentSearch.value = _paymentSearch.value.copy(
@@ -279,15 +292,25 @@ class BillsViewModel @Inject constructor(
     fun markAsPaid(
         instance: BillInstanceEntity,
         paymentTransactionId: Long?,
-        amountMinorUnits: Long? = null
+        amountMinorUnits: Long? = null,
+        settlementAdjustmentMinorUnits: Long = 0L
     ) {
         val s = _paymentSearch.value
         if (s.saving) return
         _paymentSearch.value = s.copy(saving = true, error = null)
         viewModelScope.launch {
-            runCatching { billRepository.markAsPaid(instance, paymentTransactionId, amountMinorUnits) }
+            runCatching {
+                billRepository.markAsPaid(
+                    instance,
+                    paymentTransactionId,
+                    amountMinorUnits,
+                    settlementAdjustmentMinorUnits
+                )
+            }
                 .onSuccess { result ->
-                    _paymentSearch.value = BillPaymentSearchState(message = paymentMessage(result))
+                    _paymentSearch.value = BillPaymentSearchState(
+                        message = paymentMessage(result, settlementAdjustmentMinorUnits)
+                    )
                 }
                 .onFailure {
                     _paymentSearch.value = _paymentSearch.value.copy(
@@ -303,26 +326,6 @@ class BillsViewModel @Inject constructor(
         markAsPaid(instance, null, amountMinorUnits)
     }
     
-    /** Records a confirmed non-cash offer/discount separately from the real payment. */
-    fun applyDiscount(instance: BillInstanceEntity, amountMinorUnits: Long, reason: String) {
-        val s = _paymentSearch.value
-        if (s.saving) return
-        _paymentSearch.value = s.copy(saving = true, error = null)
-        viewModelScope.launch {
-            runCatching {
-                billRepository.applyBillDiscount(instance.id, amountMinorUnits, reason)
-            }.onSuccess { result ->
-                _paymentSearch.value = BillPaymentSearchState(message = paymentMessage(result))
-            }.onFailure {
-                _paymentSearch.value = _paymentSearch.value.copy(
-                    error = it.message ?: "Could not apply the discount",
-                    loading = false,
-                    saving = false
-                )
-            }
-        }
-    }
-
     /** Links a payment that has already been recorded against the card (the "payment detected"
      *  path). The money already moved and the card's outstanding already fell, so this only
      *  records that the bill occurrence is settled. */
@@ -330,14 +333,16 @@ class BillsViewModel @Inject constructor(
         // Automatic detected payment shortcut removed
     }
 
-    private fun paymentMessage(result: BillInstanceEntity): String {
+    private fun paymentMessage(result: BillInstanceEntity, adjustmentMinorUnits: Long = 0L): String {
         val remaining = (result.amountDueMinorUnits - result.paidAmountMinorUnits).coerceAtLeast(0L)
         val rupees = { minor: Long -> MoneyFormat.rupeesNoDecimals(Money(minor)) }
         return when {
+            adjustmentMinorUnits > 0L && result.paid ->
+                "Bill fully settled — ${rupees(adjustmentMinorUnits)} adjustment applied."
             result.paid && result.paidAmountMinorUnits > result.amountDueMinorUnits ->
                 "Bill settled - ${rupees(result.paidAmountMinorUnits - result.amountDueMinorUnits)} extra recorded"
-            result.paid -> "Bill marked as paid"
-            else -> "Part payment recorded - ${rupees(remaining)} still due"
+            result.paid -> "Payment recorded — bill fully settled."
+            else -> "Payment recorded — ${rupees(remaining)} still due."
         }
     }
 

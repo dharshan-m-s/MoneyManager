@@ -186,9 +186,6 @@ fun BillsScreen(
             onRecordDate = viewModel::setRecordDate,
             onRecordNotes = viewModel::setRecordNotes,
             onRecordPayment = viewModel::recordPayment,
-            onApplyDiscount = { amount, reason ->
-                pendingRow.nextInstance?.let { viewModel.applyDiscount(it, amount, reason) }
-            },
             onSearchOlder = { viewModel.searchOlderTransactions() },
             onDismiss = viewModel::clearPaymentSearch
         )
@@ -209,7 +206,6 @@ private fun BillPaymentDialog(
     onRecordDate: (Long) -> Unit,
     onRecordNotes: (String) -> Unit,
     onRecordPayment: () -> Unit,
-    onApplyDiscount: (Long, String) -> Unit,
     onSearchOlder: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
@@ -218,9 +214,6 @@ private fun BillPaymentDialog(
     var showRecordPayment by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
     var showCashPayment by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
     var cashAmount by remember(state.billRow?.bill?.id) { mutableStateOf("") }
-    var showDiscountForm by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
-    var discountAmount by remember(state.billRow?.bill?.id) { mutableStateOf("") }
-    var discountReason by remember(state.billRow?.bill?.id) { mutableStateOf("CRED instant discount") }
     var showAccountPicker by remember { mutableStateOf(false) }
     val selectedSource = state.accounts.firstOrNull { it.id == state.recordSourceAccountId }
     val occurrence = state.billRow?.nextInstance
@@ -441,36 +434,6 @@ private fun BillPaymentDialog(
                             enabled = !state.saving && state.recordSourceAccountId != null,
                             modifier = Modifier.fillMaxWidth().height(48.dp)
                         )
-                        TextButton(onClick = { showDiscountForm = !showDiscountForm }) {
-                            Text(if (showDiscountForm) "Hide discount" else "Add instant offer / discount")
-                        }
-                        if (showDiscountForm) {
-                            MmAmountField(
-                                value = discountAmount,
-                                onValueChange = { discountAmount = it },
-                                label = "Discount amount"
-                            )
-                            OutlinedTextField(
-                                value = discountReason,
-                                onValueChange = { discountReason = it },
-                                label = { Text("Offer / discount reason") },
-                                modifier = Modifier.fillMaxWidth().padding(top = MmSpacing.sm),
-                                singleLine = true
-                            )
-                            MmPrimaryButton(
-                                text = if (state.saving) "Applying…" else "Apply discount",
-                                onClick = {
-                                    val minor = runCatching {
-                                        Money.fromRupees(BigDecimal(discountAmount.trim())).minorUnits
-                                    }.getOrNull()
-                                    if (minor != null && minor > 0L && discountReason.isNotBlank()) {
-                                        onApplyDiscount(minor, discountReason)
-                                    }
-                                },
-                                enabled = !state.saving && discountAmount.isNotBlank() && discountReason.isNotBlank(),
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
-                            )
-                        }
                     }
                 }
 
@@ -568,7 +531,7 @@ private fun BillPaymentDialog(
                         )
                     } else {
                         MmSecondaryButton(
-                            text = if (isCreditCard) "Already recorded — settle by cash" else "Paid by Cash",
+                            text = "Paid by Cash",
                             onClick = {
                                 cashAmount = Money(remainingForCash).toBigDecimal().stripTrailingZeros().toPlainString()
                                 showCashPayment = true

@@ -171,10 +171,17 @@ data class BillInstanceEntity(
             parentColumns = ["id"],
             childColumns = ["transactionId"],
             onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = BillPaymentAllocationEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["paymentAllocationId"],
+            onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [
         Index("billInstanceId"),
+        Index("paymentAllocationId"),
         Index(value = ["transactionId"], unique = true)
     ]
 )
@@ -189,8 +196,10 @@ data class BillPaymentAllocationEntity(
     val amountMinorUnits: Long,
     val paidAtEpochMillis: Long,
     val note: String? = null,
-    /** Non-cash reduction such as a confirmed instant offer; never creates ledger movement. */
+    /** User-confirmed non-cash settlement adjustment; never creates ledger movement. */
     @ColumnInfo(defaultValue = "'PAYMENT'")
     val allocationType: BillPaymentAllocationType = BillPaymentAllocationType.PAYMENT,
+    /** Discount/settlement adjustment cascades with the payment that authorized closure. */
+    val paymentAllocationId: Long? = null,
     val createdAtEpochMillis: Long
 )

@@ -54,7 +54,9 @@ class BillRepository @Inject constructor(
     suspend fun markAsPaid(
         instance: BillInstanceEntity,
         paymentTransactionId: Long?,
-        amountMinorUnits: Long? = null
+        amountMinorUnits: Long? = null,
+        settlementAdjustmentMinorUnits: Long = 0L,
+        adjustmentNote: String? = null
     ): BillInstanceEntity {
         var settledBillId: Long? = null
         val updated = database.withTransaction {
@@ -196,6 +198,10 @@ class BillRepository @Inject constructor(
             } else if (amountMinorUnits != null) {
                 moneyMoved = amountMinorUnits
             }
+            val remainingAfterPayment = (remaining - moneyMoved.coerceAtMost(remaining)).coerceAtLeast(0L)
+            require(settlementAdjustmentMinorUnits in 0L..remainingAfterPayment) {
+                "The settlement adjustment must match an unpaid part of this bill"
+            }
             if (!(amountMinorUnits == 0L && remaining == 0L && paymentTransactionId == null)) {
                 require(moneyMoved > 0L) { "Enter a payment amount" }
             } else if (moneyMoved == 0L) {
@@ -213,7 +219,7 @@ class BillRepository @Inject constructor(
                 return@withTransaction newState
             }
 
-            billDao.insertAllocation(
+            val paymentAllocationId = billDao.insertAllocation(
                 BillPaymentAllocationEntity(
                     billInstanceId = current.id,
                     transactionId = effectivePaymentId,
@@ -222,54 +228,23 @@ class BillRepository @Inject constructor(
                     createdAtEpochMillis = System.currentTimeMillis()
                 )
             )
+            insertSettlementAdjustment(
+                instanceId = current.id,
+                paymentAllocationId = paymentAllocationId,
+                amountMinorUnits = settlementAdjustmentMinorUnits,
+                paidAtEpochMillis = paidAt,
+                note = adjustmentNote
+            )
             val newState = requireNotNull(syncInstancePaymentState(current.id))
             if (newState.paid) settledBillId = current.billId
+            if (settlementAdjustmentMinorUnits > 0L && cardId != null) {
+                accountingService.recalculateAccounts(setOf(cardId))
+            }
             newState
         }
         // Advance the schedule past the settled occurrence so the template's next due date
         // reflects the recurrence immediately, not at the next app start. Partial payments
         // leave the schedule alone - the occurrence is still owed.
-        settledBillId?.let { billRecurrenceService.reconcileBill(it) }
-        backupManager.scheduleAfterWrite()
-        return updated
-    }
-
-    /**
-     * Applies a confirmed non-cash discount (for example an instant CRED offer). It reduces
-     * the amount required to settle the bill but creates no transaction and no card-payment
-     * leg. The actual bank payment remains recorded at its real amount.
-     */
-    suspend fun applyBillDiscount(
-        instanceId: Long,
-        amountMinorUnits: Long,
-        reason: String
-    ): BillInstanceEntity {
-        require(amountMinorUnits > 0L) { "Enter a discount amount" }
-        require(reason.isNotBlank()) { "Enter the discount reason or offer reference" }
-        var settledBillId: Long? = null
-        val updated = database.withTransaction {
-            val current = requireNotNull(billDao.findInstanceById(instanceId)) {
-                "Bill occurrence no longer exists"
-            }
-            require(!current.paid) { "This bill is already fully settled" }
-            val remaining = (current.amountDueMinorUnits - current.paidAmountMinorUnits).coerceAtLeast(0L)
-            require(amountMinorUnits <= remaining) { "Discount cannot exceed the remaining bill amount" }
-            val now = System.currentTimeMillis()
-            billDao.insertAllocation(
-                BillPaymentAllocationEntity(
-                    billInstanceId = current.id,
-                    transactionId = null,
-                    amountMinorUnits = amountMinorUnits,
-                    paidAtEpochMillis = now,
-                    note = reason.trim(),
-                    allocationType = com.moneymanager.app.data.local.entity.BillPaymentAllocationType.DISCOUNT,
-                    createdAtEpochMillis = now
-                )
-            )
-            requireNotNull(syncInstancePaymentState(current.id)).also {
-                if (it.paid) settledBillId = current.billId
-            }
-        }
         settledBillId?.let { billRecurrenceService.reconcileBill(it) }
         backupManager.scheduleAfterWrite()
         return updated
@@ -291,7 +266,9 @@ class BillRepository @Inject constructor(
         sourceAccountId: Long,
         amountMinorUnits: Long,
         occurredAtEpochMillis: Long,
-        notes: String? = null
+        notes: String? = null,
+        settlementAdjustmentMinorUnits: Long = 0L,
+        adjustmentNote: String? = null
     ): Long {
         var settledBillId: Long? = null
         val result = database.withTransaction {
@@ -328,6 +305,10 @@ class BillRepository @Inject constructor(
                 remaining > 0L -> remaining
                 else -> throw IllegalArgumentException("Enter a payment amount")
             }
+            val remainingAfterPayment = (remaining - amount.coerceAtMost(remaining)).coerceAtLeast(0L)
+            require(settlementAdjustmentMinorUnits in 0L..remainingAfterPayment) {
+                "The settlement adjustment must match an unpaid part of this bill"
+            }
             val whenMillis = occurredAtEpochMillis.coerceAtLeast(0L)
 
             val outId = transactionDao.insert(
@@ -354,7 +335,7 @@ class BillRepository @Inject constructor(
                 requireNotNull(transactionDao.findById(outId)).copy(linkedTransferTransactionId = cardIdTxn)
             )
 
-            billDao.insertAllocation(
+            val paymentAllocationId = billDao.insertAllocation(
                 BillPaymentAllocationEntity(
                     billInstanceId = instance.id,
                     transactionId = cardIdTxn,
@@ -362,6 +343,13 @@ class BillRepository @Inject constructor(
                     paidAtEpochMillis = whenMillis,
                     createdAtEpochMillis = System.currentTimeMillis()
                 )
+            )
+            insertSettlementAdjustment(
+                instanceId = instance.id,
+                paymentAllocationId = paymentAllocationId,
+                amountMinorUnits = settlementAdjustmentMinorUnits,
+                paidAtEpochMillis = whenMillis,
+                note = adjustmentNote
             )
             val settled = requireNotNull(syncInstancePaymentState(instance.id))
             if (settled.paid) settledBillId = instance.billId
@@ -372,6 +360,117 @@ class BillRepository @Inject constructor(
         settledBillId?.let { billRecurrenceService.reconcileBill(it) }
         backupManager.scheduleAfterWrite()
         return result
+    }
+
+    /** Records a new ordinary bill payment as an actual expense on the chosen account. */
+    suspend fun recordOrdinaryBillPayment(
+        instanceId: Long,
+        sourceAccountId: Long,
+        amountMinorUnits: Long,
+        occurredAtEpochMillis: Long,
+        notes: String? = null,
+        settlementAdjustmentMinorUnits: Long = 0L,
+        adjustmentNote: String? = null
+    ): Long {
+        require(amountMinorUnits > 0L) { "Enter a payment amount" }
+        var settledBillId: Long? = null
+        val transactionId = database.withTransaction {
+            val instance = requireNotNull(billDao.findInstanceById(instanceId)) {
+                "Bill occurrence no longer exists"
+            }
+            require(!instance.paid) { "This bill is already fully settled" }
+            val bill = requireNotNull(billDao.findById(instance.billId)) { "Bill no longer exists" }
+            require(bill.linkedAccountId == null) { "Use the credit-card payment flow for this bill" }
+            val account = requireNotNull(accountDao.findById(sourceAccountId)) {
+                "Payment account no longer exists"
+            }
+            require(account.accountType != AccountType.CREDIT_CARD) {
+                "Choose a cash or bank account for this bill payment"
+            }
+            val remaining = (instance.amountDueMinorUnits - instance.paidAmountMinorUnits).coerceAtLeast(0L)
+            val remainingAfterPayment = (remaining - amountMinorUnits.coerceAtMost(remaining)).coerceAtLeast(0L)
+            require(settlementAdjustmentMinorUnits in 0L..remainingAfterPayment) {
+                "The settlement adjustment must match an unpaid part of this bill"
+            }
+            val whenMillis = occurredAtEpochMillis.coerceAtLeast(0L)
+            val paymentType = if (account.accountType == AccountType.CASH) PaymentType.CASH else PaymentType.ONLINE_TRANSFER
+            val now = System.currentTimeMillis()
+            val entity = TransactionEntity(
+                occurredAtEpochMillis = whenMillis,
+                rawDateString = "",
+                txnType = TxnType.DEBIT_TRANSACTION,
+                txnSubType = TxnSubType.EXPENSE,
+                txnKind = if (paymentType == PaymentType.CASH) TxnKind.CASH_SPEND else TxnKind.REGULAR,
+                paymentType = paymentType,
+                rawPaymentType = paymentType.raw,
+                businessPersonal = bill.businessPersonal,
+                merchantReceiverSender = bill.billerName,
+                categoryId = null,
+                rawCategoryName = bill.billerName,
+                accountId = account.id,
+                creditMinorUnits = 0L,
+                debitMinorUnits = amountMinorUnits,
+                balanceSnapshotMinorUnits = null,
+                outstandingSnapshotMinorUnits = null,
+                availableLimitSnapshotMinorUnits = null,
+                notes = notes?.trim()?.ifBlank { null } ?: "Payment for ${bill.billerName}",
+                reimbursable = false,
+                reimbursed = false,
+                isHistoricalImport = false,
+                dedupeFingerprint = stableFingerprint(
+                    listOf(account.id, amountMinorUnits, whenMillis, bill.billerName, instance.id)
+                ),
+                createdAtEpochMillis = now,
+                updatedAtEpochMillis = now
+            )
+            val id = transactionDao.insert(entity)
+            val allocationId = billDao.insertAllocation(
+                BillPaymentAllocationEntity(
+                    billInstanceId = instance.id,
+                    transactionId = id,
+                    amountMinorUnits = amountMinorUnits,
+                    paidAtEpochMillis = whenMillis,
+                    createdAtEpochMillis = now
+                )
+            )
+            insertSettlementAdjustment(
+                instanceId = instance.id,
+                paymentAllocationId = allocationId,
+                amountMinorUnits = settlementAdjustmentMinorUnits,
+                paidAtEpochMillis = whenMillis,
+                note = adjustmentNote
+            )
+            val updated = requireNotNull(syncInstancePaymentState(instance.id))
+            if (updated.paid) settledBillId = bill.id
+            accountingService.recalculateAccounts(setOf(account.id))
+            id
+        }
+        settledBillId?.let { billRecurrenceService.reconcileBill(it) }
+        backupManager.scheduleAfterWrite()
+        return transactionId
+    }
+
+    private suspend fun insertSettlementAdjustment(
+        instanceId: Long,
+        paymentAllocationId: Long,
+        amountMinorUnits: Long,
+        paidAtEpochMillis: Long,
+        note: String?
+    ) {
+        if (amountMinorUnits <= 0L) return
+        val now = System.currentTimeMillis()
+        billDao.insertAllocation(
+            BillPaymentAllocationEntity(
+                billInstanceId = instanceId,
+                transactionId = null,
+                amountMinorUnits = amountMinorUnits,
+                paidAtEpochMillis = paidAtEpochMillis,
+                note = note?.trim()?.ifBlank { null } ?: "Confirmed bill settlement adjustment",
+                allocationType = com.moneymanager.app.data.local.entity.BillPaymentAllocationType.DISCOUNT,
+                paymentAllocationId = paymentAllocationId,
+                createdAtEpochMillis = now
+            )
+        )
     }
 
     /**

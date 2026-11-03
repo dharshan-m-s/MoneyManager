@@ -106,6 +106,15 @@ interface BillDao {
     @Query("SELECT * FROM bills WHERE linkedAccountId = :accountId LIMIT 1")
     suspend fun findByLinkedAccountId(accountId: Long): BillEntity?
 
+    @Query(
+        "SELECT COALESCE(SUM(a.amountMinorUnits), 0) FROM bill_payment_allocations a " +
+            "INNER JOIN bill_instances bi ON bi.id = a.billInstanceId " +
+            "INNER JOIN bills b ON b.id = bi.billId " +
+            "WHERE b.linkedAccountId = :accountId AND a.allocationType = 'DISCOUNT' " +
+            "AND a.paidAtEpochMillis > :afterEpochMillis"
+    )
+    suspend fun sumSettlementAdjustmentsForAccount(accountId: Long, afterEpochMillis: Long): Long
+
     @Query("DELETE FROM bills WHERE id = :id")
     suspend fun deleteById(id: Long)
 

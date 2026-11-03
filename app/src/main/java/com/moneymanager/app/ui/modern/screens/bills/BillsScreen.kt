@@ -253,16 +253,11 @@ fun BillsScreen(
                 pendingRow.bill.linkedAccountId != null,
             state = paymentSearch,
             onSelectTransaction = viewModel::selectPaymentTransaction,
-            onPaidByCash = { amountMinorUnits ->
-                if (!paymentSearch.loading && !paymentSearch.saving) {
-                    viewModel.markAsPaid(pendingRow.nextInstance!!, null, amountMinorUnits)
-                }
-            },
-            onConfirm = {
+            onConfirm = { adjustmentMinorUnits ->
                 val transactionId = paymentSearch.selectedTransactionId
                 val instance = pendingRow.nextInstance
                 if (instance != null && transactionId != null && !paymentSearch.loading && !paymentSearch.saving) {
-                    viewModel.markAsPaid(instance, transactionId)
+                    viewModel.markAsPaid(instance, transactionId, settlementAdjustmentMinorUnits = adjustmentMinorUnits)
                 }
             },
             onRecordSource = viewModel::setRecordSourceAccount,
@@ -283,22 +278,20 @@ private fun BillPaymentDialog(
     isCreditCard: Boolean,
     state: BillPaymentSearchState,
     onSelectTransaction: (Long?) -> Unit,
-    onPaidByCash: (Long?) -> Unit,
-    onConfirm: () -> Unit,
+    onConfirm: (Long) -> Unit,
     onRecordSource: (Long) -> Unit,
     onRecordAmount: (String) -> Unit,
     onRecordDate: (Long) -> Unit,
     onRecordNotes: (String) -> Unit,
-    onRecordPayment: () -> Unit,
+    onRecordPayment: (Long) -> Unit,
     onSearchOlder: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var showRecent by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
     var recentQuery by remember(state.billRow?.bill?.id) { mutableStateOf("") }
     var showRecordPayment by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
-    var showCashPayment by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
-    var cashAmount by remember(state.billRow?.bill?.id) { mutableStateOf("") }
     var showAccountPicker by remember { mutableStateOf(false) }
+    var pendingSettlement by remember(state.billRow?.bill?.id) { mutableStateOf<PendingBillSettlement?>(null) }
     val selectedSource = state.accounts.firstOrNull { it.id == state.recordSourceAccountId }
     val occurrence = state.billRow?.nextInstance
     val paymentFormScroll = rememberScrollState()
@@ -336,6 +329,21 @@ private fun BillPaymentDialog(
                 .sortedWith(compareByDescending<Pair<BillPaymentCandidate, Int>> { it.second }
                     .thenByDescending { it.first.transaction.occurredAtEpochMillis })
                 .map { it.first }
+        }
+    }
+
+    fun requestSettlement(actualMinor: Long, remainingMinor: Long, billAmountMinor: Long, confirm: (Long) -> Unit) {
+        val difference = remainingMinor - actualMinor
+        if (actualMinor > 0L && difference > 0L) {
+            pendingSettlement = PendingBillSettlement(
+                billAmountMinorUnits = billAmountMinor,
+                actualPaymentMinorUnits = actualMinor,
+                differenceMinorUnits = difference,
+                keepPending = { confirm(0L) },
+                settleBill = { confirm(difference) }
+            )
+        } else {
+            confirm(0L)
         }
     }
 
@@ -492,12 +500,12 @@ private fun BillPaymentDialog(
 
                 }
 
-                if (isCreditCard && showRecordPayment) {
+                if (showRecordPayment) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)) {
                         Text("Record a new payment", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(
-                            "Creates a transfer from the source account and reduces the card " +
-                                "outstanding. It is not counted as ordinary spending.",
+                            if (isCreditCard) "Creates a transfer from the chosen account and reduces the card outstanding."
+                            else "Records the actual bill expense against the chosen cash or bank account.",
                             fontSize = 11.sp,
                             color = MmColors.textSecondary,
                             modifier = Modifier.padding(top = 2.dp, bottom = MmSpacing.sm)
@@ -527,7 +535,15 @@ private fun BillPaymentDialog(
                         Spacer(Modifier.height(MmSpacing.sm))
                         MmPrimaryButton(
                             text = if (state.saving) "Recording…" else "Record payment",
-                            onClick = onRecordPayment,
+                            onClick = {
+                                val actual = runCatching {
+                                    Money.fromRupees(BigDecimal(state.recordAmount.trim().ifBlank { "0" })).minorUnits
+                                }.getOrNull() ?: 0L
+                                val remaining = occurrence?.let {
+                                    (it.amountDueMinorUnits - it.paidAmountMinorUnits).coerceAtLeast(0L)
+                                } ?: 0L
+                                requestSettlement(actual, remaining, amount.minorUnits, onRecordPayment)
+                            },
                             enabled = !state.saving && state.recordSourceAccountId != null,
                             modifier = Modifier.fillMaxWidth().height(48.dp)
                         )
@@ -569,14 +585,12 @@ private fun BillPaymentDialog(
                 }
 
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    if (isCreditCard) {
-                        MmPrimaryButton(
-                            text = if (showRecordPayment) "Hide payment form" else "Record a new payment",
-                            onClick = { showRecordPayment = !showRecordPayment },
-                            icon = Icons.Filled.Payments,
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
-                        )
-                    }
+                    MmPrimaryButton(
+                        text = if (showRecordPayment) "Hide payment form" else "Record a payment",
+                        onClick = { showRecordPayment = !showRecordPayment },
+                        icon = Icons.Filled.Payments,
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    )
                     if (!showRecent) {
                         MmSecondaryButton(
                             text = "Choose from Recent Transactions",
@@ -590,59 +604,15 @@ private fun BillPaymentDialog(
                         }
                     }
 
-                    if (showCashPayment) {
-                        val cashMinor = runCatching {
-                            Money.fromRupees(BigDecimal(cashAmount.trim().ifBlank { "0" })).minorUnits
-                        }.getOrNull() ?: 0L
-                        Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                            MmAmountField(
-                                value = cashAmount,
-                                onValueChange = { cashAmount = it },
-                                label = "Amount paid now"
-                            )
-                            Spacer(Modifier.height(MmSpacing.sm))
-                            MmPrimaryButton(
-                                text = if (state.saving) "Recording…" else "Confirm cash payment",
-                                onClick = { onPaidByCash(cashMinor) },
-                                enabled = !state.saving && cashMinor > 0L,
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
-                            )
-                            TextButton(
-                                onClick = { showCashPayment = false },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Cancel", color = MmColors.textSecondary, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    } else {
-                    val remainingForCash = occurrence
-                        ?.let { (it.amountDueMinorUnits - it.paidAmountMinorUnits).coerceAtLeast(0L) }
-                        ?: 0L
-                    if (remainingForCash == 0L && occurrence != null && !occurrence.paid) {
-                        MmSecondaryButton(
-                            text = "Mark as Paid",
-                            onClick = { onPaidByCash(0L) },
-                            enabled = !state.saving,
-                            icon = Icons.Filled.Payments,
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp)
-                        )
-                    } else {
-                        MmSecondaryButton(
-                            text = if (isCreditCard) "Already recorded — settle by cash" else "Paid by Cash",
-                            onClick = {
-                                cashAmount = Money(remainingForCash).toBigDecimal().stripTrailingZeros().toPlainString()
-                                showCashPayment = true
-                            },
-                            enabled = !state.saving,
-                            icon = Icons.Filled.Payments,
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp)
-                        )
-                    }
-                    }
-
                     MmSecondaryButton(
                         text = "Link Selected Payment",
-                        onClick = onConfirm,
+                        onClick = {
+                            val actual = selectedTxn?.debitMinorUnits ?: 0L
+                            val remaining = occurrence?.let {
+                                (it.amountDueMinorUnits - it.paidAmountMinorUnits).coerceAtLeast(0L)
+                            } ?: 0L
+                            requestSettlement(actual, remaining, amount.minorUnits, onConfirm)
+                        },
                         enabled = !state.loading && !state.saving && state.selectedTransactionId != null,
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp)
                     )
@@ -667,6 +637,67 @@ private fun BillPaymentDialog(
                 showAccountPicker = false
             },
             onDismiss = { showAccountPicker = false }
+        )
+    }
+
+    pendingSettlement?.let { pending ->
+        AlertDialog(
+            onDismissRequest = { pendingSettlement = null },
+            title = { Text("Is there still an amount pending on this bill?", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)) {
+                    SettlementAmountRow("Original bill amount", pending.billAmountMinorUnits)
+                    SettlementAmountRow("Amount actually paid", pending.actualPaymentMinorUnits)
+                    SettlementAmountRow("Remaining difference", pending.differenceMinorUnits, MmColors.warning)
+                    Text(
+                        "Keep the difference due, or close the bill with a non-cash adjustment.",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingSettlement = null
+                    pending.keepPending()
+                }) { Text("Amount still pending", color = MmColors.accent) }
+            },
+            dismissButton = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { pendingSettlement = null }) {
+                        Text("Cancel", color = MmColors.textSecondary)
+                    }
+                    TextButton(onClick = {
+                        pendingSettlement = null
+                        pending.settleBill()
+                    }) { Text("Bill fully settled", color = MmColors.income) }
+                }
+            }
+        )
+    }
+}
+
+private data class PendingBillSettlement(
+    val billAmountMinorUnits: Long,
+    val actualPaymentMinorUnits: Long,
+    val differenceMinorUnits: Long,
+    val keepPending: () -> Unit,
+    val settleBill: () -> Unit
+)
+
+@Composable
+private fun SettlementAmountRow(
+    label: String,
+    amountMinorUnits: Long,
+    tint: androidx.compose.ui.graphics.Color = MmColors.textPrimary
+) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MmType.caption, color = MmColors.textSecondary)
+        Text(
+            MoneyFormat.rupeesNoDecimals(Money(amountMinorUnits)),
+            style = MmType.caption,
+            color = tint,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }

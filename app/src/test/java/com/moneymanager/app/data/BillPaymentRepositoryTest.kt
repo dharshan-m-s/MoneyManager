@@ -752,6 +752,126 @@ class BillPaymentRepositoryTest {
         assertEquals(2, db.transactionDao().findByAccount(cardId).size)
     }
 
+    @Test
+    fun ordinaryBillPaymentCanRemainPartialWithoutAnyAdjustment() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK, current = 100_000)
+        val billId = insertBill("Electricity", 25_000)
+        val instanceId = insertInstance(billId, 25_000)
+
+        repository.recordOrdinaryBillPayment(
+            instanceId, bankId, 24_000, at(18)
+        )
+
+        val instance = db.billDao().findInstanceById(instanceId)!!
+        assertFalse(instance.paid)
+        assertEquals(24_000L, instance.paidAmountMinorUnits)
+        assertEquals(1, db.billDao().findAllocationsForInstance(instanceId).size)
+        assertEquals(24_000L, db.transactionDao().findByAccount(bankId).single().debitMinorUnits)
+        assertEquals(76_000L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+        assertEquals(at(20), db.billDao().findById(billId)!!.nextDueDateEpochMillis)
+    }
+
+    @Test
+    fun ordinaryBillCanCloseWithSeparateNonCashAdjustment() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK, current = 100_000)
+        val billId = insertBill("Electricity", 25_000)
+        val instanceId = insertInstance(billId, 25_000)
+
+        repository.recordOrdinaryBillPayment(
+            instanceId = instanceId,
+            sourceAccountId = bankId,
+            amountMinorUnits = 24_000,
+            occurredAtEpochMillis = at(18),
+            settlementAdjustmentMinorUnits = 1_000,
+            adjustmentNote = "Provider waiver"
+        )
+
+        val instance = db.billDao().findInstanceById(instanceId)!!
+        val allocations = db.billDao().findAllocationsForInstance(instanceId)
+        assertTrue(instance.paid)
+        assertEquals(25_000L, instance.paidAmountMinorUnits)
+        assertEquals(24_000L, allocations.single { it.allocationType.name == "PAYMENT" }.amountMinorUnits)
+        assertEquals(1_000L, allocations.single { it.allocationType.name == "DISCOUNT" }.amountMinorUnits)
+        assertNotNull(allocations.single { it.allocationType.name == "DISCOUNT" }.paymentAllocationId)
+        assertEquals(1, db.transactionDao().findByAccount(bankId).size)
+        assertEquals(24_000L, db.transactionDao().findByAccount(bankId).single().debitMinorUnits)
+        assertEquals(76_000L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+    }
+
+    @Test
+    fun cardBillAdjustmentClearsFullOutstandingWithoutChangingActualBankDebit() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK, current = 100_000)
+        val cardId = insertAccount(AccountType.CREDIT_CARD, outstanding = 25_000)
+        val billId = insertBill("Card statement", 25_000, linkedAccountId = cardId)
+        val instanceId = insertInstance(billId, 25_000)
+
+        repository.recordCreditCardBillPayment(
+            instanceId = instanceId,
+            sourceAccountId = bankId,
+            amountMinorUnits = 24_000,
+            occurredAtEpochMillis = at(18),
+            settlementAdjustmentMinorUnits = 1_000,
+            adjustmentNote = "Issuer offer"
+        )
+
+        assertTrue(db.billDao().findInstanceById(instanceId)!!.paid)
+        assertEquals(76_000L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+        assertEquals(0L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
+        assertEquals(1, db.transactionDao().findByAccount(bankId).size)
+        assertEquals(24_000L, db.transactionDao().findByAccount(bankId).single().debitMinorUnits)
+        assertEquals(1, db.transactionDao().findByAccount(cardId).size)
+        assertEquals(24_000L, db.transactionDao().findByAccount(cardId).single().creditMinorUnits)
+    }
+
+    @Test
+    fun linkedPartialCardPaymentIsNotDuplicatedAndDeletingItRestoresOutstanding() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK, current = 100_000)
+        val cardId = insertAccount(AccountType.CREDIT_CARD, outstanding = 25_000)
+        val billId = insertBill("Card statement", 25_000, linkedAccountId = cardId)
+        val instanceId = insertInstance(billId, 25_000)
+        val existingPaymentId = bankExpense(bankId, 24_000, "existing-card-payment")
+        accounting.recalculateAccounts(setOf(bankId))
+
+        repository.markAsPaid(
+            db.billDao().findInstanceById(instanceId)!!,
+            existingPaymentId,
+            settlementAdjustmentMinorUnits = 1_000
+        )
+
+        assertEquals(1, db.transactionDao().findByAccount(bankId).size)
+        assertEquals(1, db.transactionDao().findByAccount(cardId).size)
+        assertEquals(24_000L, db.transactionDao().findByAccount(bankId).single().debitMinorUnits)
+        assertEquals(24_000L, db.transactionDao().findByAccount(cardId).single().creditMinorUnits)
+        assertEquals(0L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
+        assertTrue(db.billDao().findInstanceById(instanceId)!!.paid)
+
+        transactionRepository().deleteTransaction(existingPaymentId)
+
+        assertFalse(db.billDao().findInstanceById(instanceId)!!.paid)
+        assertEquals(0L, db.billDao().findInstanceById(instanceId)!!.paidAmountMinorUnits)
+        assertEquals(25_000L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
+        assertTrue(db.billDao().findAllocationsForInstance(instanceId).isEmpty())
+    }
+
+    @Test
+    fun deletingPaymentCascadesItsAdjustmentAndReopensBill() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK, current = 100_000)
+        val billId = insertBill("Rent", 25_000)
+        val instanceId = insertInstance(billId, 25_000)
+        val paymentId = repository.recordOrdinaryBillPayment(
+            instanceId, bankId, 24_000, at(18), settlementAdjustmentMinorUnits = 1_000
+        )
+        assertTrue(db.billDao().findInstanceById(instanceId)!!.paid)
+
+        transactionRepository().deleteTransaction(paymentId)
+
+        val reopened = db.billDao().findInstanceById(instanceId)!!
+        assertFalse(reopened.paid)
+        assertEquals(0L, reopened.paidAmountMinorUnits)
+        assertTrue(db.billDao().findAllocationsForInstance(instanceId).isEmpty())
+        assertEquals(100_000L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Credit-card outstanding updates directly from the ledger (no manual re-entry)
     // ---------------------------------------------------------------------------------------------

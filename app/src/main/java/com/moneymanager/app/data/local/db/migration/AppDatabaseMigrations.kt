@@ -297,6 +297,52 @@ object AppDatabaseMigrations {
         }
     }
 
+    /** Migration 14 -> 15: make a confirmed settlement adjustment follow the payment that
+     * authorized it. Removing that payment now cascades its adjustment too, preserving the
+     * bill's payment/closure history without touching existing allocations. */
+    val MIGRATION_14_15 = object : Migration(14, 15) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Rename the legacy table first. Creating the replacement while the old table
+            // exists makes SQLite bind the self-reference to the replacement's temporary
+            // name, which survives RENAME and fails Room's schema validation.
+            db.execSQL("ALTER TABLE `bill_payment_allocations` RENAME TO `bill_payment_allocations_old`")
+            db.execSQL(
+                "CREATE TABLE `bill_payment_allocations` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`billInstanceId` INTEGER NOT NULL, " +
+                    "`transactionId` INTEGER, " +
+                    "`amountMinorUnits` INTEGER NOT NULL, " +
+                    "`paidAtEpochMillis` INTEGER NOT NULL, " +
+                    "`note` TEXT, " +
+                    "`allocationType` TEXT NOT NULL DEFAULT 'PAYMENT', " +
+                    "`paymentAllocationId` INTEGER, " +
+                    "`createdAtEpochMillis` INTEGER NOT NULL, " +
+                    "FOREIGN KEY(`billInstanceId`) REFERENCES `bill_instances`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                    "FOREIGN KEY(`transactionId`) REFERENCES `transactions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                    "FOREIGN KEY(`paymentAllocationId`) REFERENCES `bill_payment_allocations`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+            )
+            db.execSQL(
+                "INSERT INTO `bill_payment_allocations` " +
+                    "(`id`, `billInstanceId`, `transactionId`, `amountMinorUnits`, `paidAtEpochMillis`, `note`, `allocationType`, `paymentAllocationId`, `createdAtEpochMillis`) " +
+                    "SELECT `id`, `billInstanceId`, `transactionId`, `amountMinorUnits`, `paidAtEpochMillis`, `note`, `allocationType`, NULL, `createdAtEpochMillis` " +
+                    "FROM `bill_payment_allocations_old`"
+            )
+            db.execSQL("DROP TABLE `bill_payment_allocations_old`")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_bill_payment_allocations_billInstanceId` " +
+                    "ON `bill_payment_allocations` (`billInstanceId`)"
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_bill_payment_allocations_transactionId` " +
+                    "ON `bill_payment_allocations` (`transactionId`)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_bill_payment_allocations_paymentAllocationId` " +
+                    "ON `bill_payment_allocations` (`paymentAllocationId`)"
+            )
+        }
+    }
+
     /**
      * Add new migrations above this line. Each migration must:
      * 1. Be backward-safe (can't drop columns used by older code)
@@ -317,12 +363,13 @@ object AppDatabaseMigrations {
         MIGRATION_10_11,
         MIGRATION_11_12,
         MIGRATION_12_13,
-        MIGRATION_13_14
+        MIGRATION_13_14,
+        MIGRATION_14_15
     )
 
     /**
      * Returns the latest database version. Used by DatabaseModule to set the version
      * parameter dynamically so it stays in sync with migrations.
      */
-    fun latestVersion(): Int = 14
+    fun latestVersion(): Int = 15
 }

@@ -30,4 +30,4 @@ internal fun MoneyManagerDatabase.creditCardBillingService(): CreditCardBillingS
     )
 
 internal fun MoneyManagerDatabase.accountingService(): AccountingService =
-    AccountingService(accountDao(), transactionDao(), creditCardBillingService())
+    AccountingService(accountDao(), transactionDao(), billDao(), creditCardBillingService())

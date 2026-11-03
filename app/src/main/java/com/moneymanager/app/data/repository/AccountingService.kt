@@ -1,6 +1,7 @@
 package com.moneymanager.app.data.repository
 
 import com.moneymanager.app.data.local.dao.AccountDao
+import com.moneymanager.app.data.local.dao.BillDao
 import com.moneymanager.app.data.local.dao.TransactionDao
 import com.moneymanager.app.data.local.entity.AccountBalanceSource
 import com.moneymanager.app.data.local.entity.AccountEntity
@@ -27,6 +28,7 @@ import javax.inject.Singleton
 class AccountingService @Inject constructor(
     private val accountDao: AccountDao,
     private val transactionDao: TransactionDao,
+    private val billDao: BillDao,
     private val creditCardBillingService: CreditCardBillingService
 ) {
 
@@ -165,10 +167,19 @@ class AccountingService @Inject constructor(
             checkpointAmount = account.outstandingMinorUnits
             checkpointAt = account.updatedAtEpochMillis
         }
-        val effectiveOutstanding = if (isCard) {
+        val billSettlementAdjustments = if (isCard) {
+            billDao.sumSettlementAdjustmentsForAccount(
+                account.id,
+                afterEpochMillis = checkpointAt ?: Long.MIN_VALUE
+            )
+        } else 0L
+        val baseEffectiveOutstanding = if (isCard) {
             if (checkpointAmount != null && checkpointWatermark != null) baseOutstanding
             else AccountingEngine.effectiveBalanceWithCheckpoint(baseOutstanding, checkoutAdjustment)
         } else account.outstandingMinorUnits
+        val effectiveOutstanding = if (baseEffectiveOutstanding != null) {
+            baseEffectiveOutstanding - billSettlementAdjustments
+        } else null
         // The limit the USER typed wins over the one the engine can derive from imported
         // statement snapshots - otherwise an imported card's limit could never be corrected.
         val creditLimit = if (isCard) {
