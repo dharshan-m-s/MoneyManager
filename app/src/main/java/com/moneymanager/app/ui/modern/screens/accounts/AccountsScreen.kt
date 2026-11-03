@@ -347,6 +347,7 @@ fun AccountsScreen(
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = MmSpacing.screen)
                     .padding(top = accountsHeaderInset + MmSpacing.sm)
                     .onSizeChanged { accountsOverviewHeightPx = it.height }
             ) {
