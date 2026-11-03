@@ -85,6 +85,7 @@ import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.components.scrollCompactField
+import com.moneymanager.app.ui.components.scrollCompactHeight
 import com.moneymanager.app.ui.components.MmWalletCard
 import com.moneymanager.app.ui.components.MmBankLogo
 import com.moneymanager.app.ui.components.MmAnimatedAmount
