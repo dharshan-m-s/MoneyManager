@@ -397,11 +397,6 @@ private fun AccountsHeader(
         Row(
             Modifier
                 .fillMaxWidth()
-                .scrollCompactHeight(
-                    collapseProgress,
-                    expandedHeight = 58.dp,
-                    compactHeight = 48.dp
-                )
                 .padding(
                     start = if (showBack) MmSpacing.sm else MmSpacing.md,
                     end = MmSpacing.md,
