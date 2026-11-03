@@ -1,6 +1,11 @@
 package com.moneymanager.app.ui.modern.screens.bills
 
 import com.moneymanager.app.ui.theme.MmColors
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
@@ -163,58 +168,39 @@ fun BillsScreen(
                 subtitle = "Track upcoming payments without duplicate transactions",
                 onBack = onBack,
                 collapseProgress = scrollChrome.progress,
+                hideNavigationOnCollapse = true,
                 actions = {
-                    // The empty state already has a full-width "Add a bill" action.
-                    // Once bills exist, use a labelled contextual action instead of a
-                    // second unexplained plus icon that can be confused with adding a transaction.
                     if (bills.isNotEmpty()) {
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(MmColors.accent.copy(alpha = 0.10f))
-                                .border(
-                                    0.7.dp,
-                                    MmColors.accent.copy(alpha = 0.18f),
-                                    RoundedCornerShape(18.dp)
-                                )
-                                .pressableClick(onClick = onAddBiller)
-                                .padding(horizontal = 12.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                Icons.Filled.Add,
-                                contentDescription = null,
-                                tint = MmColors.accent,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                "Add bill",
-                                color = MmColors.accent,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1
-                            )
-                        }
+                        AnimatedVisibility(
+                            visible = !scrollChrome.collapsed.value,
+                            enter = fadeIn() + expandHorizontally(),
+                            exit = fadeOut() + shrinkHorizontally()
+                        ) { BillAddAction(onAdd = onAddBiller) }
                     }
                 }
             )
 
-            CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-                Row(
-                    Modifier.fillMaxWidth()
-                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                        .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.48f)
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
+                    .scrollCompactField(scrollChrome.progress),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+            ) {
+                Box(Modifier.weight(1f)) {
                     MmSearchField(
                         value = query,
                         onValueChange = { query = it },
                         hint = "Search bills",
-                        glassField = true,
-                        modifier = Modifier.scrollCompactField(scrollChrome.progress)
+                        glassField = false
                     )
+                }
+                if (bills.isNotEmpty()) {
+                    AnimatedVisibility(
+                        visible = scrollChrome.collapsed.value,
+                        enter = fadeIn() + expandHorizontally(),
+                        exit = fadeOut() + shrinkHorizontally()
+                    ) { BillAddAction(onAdd = onAddBiller) }
                 }
             }
 
@@ -925,6 +911,21 @@ private fun BillCard(
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirmation = false }) { Text("Cancel") } }
         )
+    }
+}
+
+@Composable
+private fun BillAddAction(onAdd: () -> Unit) {
+    Row(
+        modifier = Modifier.clip(RoundedCornerShape(16.dp))
+            .background(MmColors.accent.copy(alpha = 0.11f))
+            .pressableClick(onClick = onAdd)
+            .padding(horizontal = 11.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Icon(Icons.Filled.Add, contentDescription = null, tint = MmColors.accent, modifier = Modifier.size(16.dp))
+        Text("Add bill", color = MmColors.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 

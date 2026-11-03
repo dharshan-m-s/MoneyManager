@@ -151,7 +151,6 @@ fun CashScreen(
                 title = "Cash in hand",
                 subtitle = "Live balance from your ledger",
                 onBack = onBack,
-                collapseProgress = scrollChrome.progress,
                 actions = {
                     state.primaryCashAccountId?.let { cashAccountId ->
                         MmTopBarAction(
@@ -179,7 +178,7 @@ fun CashScreen(
                 visualLabel = "Monthly movement",
                 caption = "Live ledger balance · updated when you record cash transactions",
                 artworkKind = "cash",
-                glass = true,
+                glass = false,
                 compactProgress = scrollChrome.progress,
                 modifier = Modifier
                     .padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed.value) MmSpacing.xs else MmSpacing.md)
@@ -360,25 +359,26 @@ private fun CashMonthHeader(
  * Month-end cash rollover marker. Previously drawn on a fixed pale-yellow background, which
  * became a bright block in dark mode; it now uses the themed warning tint on the surface colour.
  */
+
 @Composable
 private fun CashForwardRow(amount: Money) {
-    MmCard(contentPadding = PaddingValues(MmSpacing.md)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MmIconBadge(icon = Icons.Filled.ArrowUpward, tint = MmColors.warning, size = 36.dp)
-            Spacer(Modifier.width(MmSpacing.md))
-            Column(Modifier.weight(1f)) {
-                Text("Forwarded cash balance", style = MmType.body, color = MmColors.textPrimary)
-                Text(
-                    "Carried into the next month by your statement",
-                    style = MmType.caption,
-                    color = MmColors.textSecondary
-                )
-            }
-            Text(
-                MoneyFormat.rupeesNoDecimals(amount.abs()),
-                style = MmType.amountRow,
-                color = MmColors.textPrimary
-            )
+    Row(
+        Modifier.fillMaxWidth()
+            .padding(bottom = MmSpacing.sm)
+            .clip(RoundedCornerShape(17.dp))
+            .background(MmColors.surfaceContainer)
+            .padding(horizontal = 13.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        MmIconBadge(icon = Icons.Filled.ArrowUpward, tint = MmColors.warning, size = 34.dp)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Forwarded cash balance", style = MmType.body, color = MmColors.textPrimary, maxLines = 1)
+            Text("Carried into the next month", style = MmType.caption, color = MmColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        Spacer(Modifier.width(10.dp))
+        Text(MoneyFormat.rupeesNoDecimals(amount.abs()), style = MmType.amountRow, color = MmColors.textPrimary, maxLines = 1, softWrap = false)
     }
+}
+
 }
