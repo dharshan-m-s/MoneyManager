@@ -169,6 +169,7 @@ fun BillsScreen(
                 onBack = onBack,
                 collapseProgress = scrollChrome.progress,
                 hideNavigationOnCollapse = true,
+                collapseToolbarCompletely = true,
                 actions = {
                     if (bills.isNotEmpty()) {
                         AnimatedVisibility(

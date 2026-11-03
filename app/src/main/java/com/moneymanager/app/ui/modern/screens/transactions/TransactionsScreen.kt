@@ -234,6 +234,7 @@ fun TransactionsScreen(
             subtitle = "${visibleRows.size} of ${rows.size} transactions",
             collapseProgress = scrollChrome.progress,
             glassChrome = true,
+            collapseToolbarCompletely = true,
             actions = {
                 AnimatedVisibility(
                     visible = !scrollChrome.collapsed.value,

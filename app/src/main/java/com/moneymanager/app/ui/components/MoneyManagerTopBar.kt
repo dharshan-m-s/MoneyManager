@@ -58,22 +58,22 @@ fun MoneyManagerTopBar(
     @Suppress("UNUSED_PARAMETER") glassChrome: Boolean = true,
     collapseProgress: State<Float>? = null,
     keepTitleOnCollapse: Boolean = false,
-    hideNavigationOnCollapse: Boolean = false
+    hideNavigationOnCollapse: Boolean = false,
+    collapseToolbarCompletely: Boolean = false
 ) {
     Column(Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .modernTopInsets()
-                .heightIn(min = if (compact) 56.dp else 74.dp)
                 .then(
                     collapseProgress?.let {
                         Modifier.scrollCompactHeight(
                             progress = it,
                             expandedHeight = if (compact) 56.dp else 74.dp,
-                            compactHeight = 54.dp
+                            compactHeight = if (collapseToolbarCompletely) 0.dp else 54.dp
                         )
-                    } ?: Modifier.animateContentSize()
+                    } ?: Modifier.heightIn(min = if (compact) 56.dp else 74.dp).animateContentSize()
                 )
                 .padding(horizontal = MmSpacing.screen, vertical = if (compact) 2.dp else 5.dp),
             verticalAlignment = Alignment.CenterVertically
