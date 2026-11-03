@@ -510,7 +510,7 @@ private fun AccountRow(
     val masked = com.moneymanager.app.ui.components.maskedCardNumberFromSourceId(account.sourceAccountId)
     val secondary = listOfNotNull(
         issuer.takeIf { it.isNotBlank() && it != account.nickname },
-        masked.takeIf { it.isNotBlank() },
+        masked?.takeIf { it.isNotBlank() },
         subtitle
     ).joinToString(" · ")
     val tint = when (account.accountType) {

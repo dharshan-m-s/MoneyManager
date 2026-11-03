@@ -380,5 +380,3 @@ private fun CashForwardRow(amount: Money) {
         Text(MoneyFormat.rupeesNoDecimals(amount.abs()), style = MmType.amountRow, color = MmColors.textPrimary, maxLines = 1, softWrap = false)
     }
 }
-
-}
