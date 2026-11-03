@@ -50,7 +50,17 @@ import com.moneymanager.app.ui.components.glass.backdrop.shadow.InnerShadowEleme
 import com.moneymanager.app.ui.components.glass.backdrop.shadow.Shadow
 import com.moneymanager.app.ui.components.glass.backdrop.shadow.ShadowElement
 
-// Glass backdrop drawing is guarded at the shared capture boundary.
+/**
+ * Shared guard for all backdrop recordings in this window. A page may sample a still while
+ * a sibling dock records a live layer, so checking only the sampled backdrop misses feedback.
+ */
+internal object BackdropCaptureState {
+    private var depth = 0
+    val isCapturing: Boolean get() = depth > 0
+    @Synchronized fun begin() { depth += 1 }
+    @Synchronized fun end() { depth = (depth - 1).coerceAtLeast(0) }
+}
+
 private val DefaultHighlight = { Highlight.Default }
 private val DefaultShadow = { Shadow.Default }
 private val DefaultOnDrawBackdrop: DrawScope.(DrawScope.() -> Unit) -> Unit = { it() }
@@ -402,10 +412,11 @@ private class DrawBackdropNode(
         // node from the capture so the normal window pass can sample the pixels underneath.
         val isRecordingPage = (backdrop as? LayerBackdrop)?.isRecording == true
         val isRecordingStill = (backdrop as? SnapshotBackdrop)?.snapshotCaptureInProgress == true
+        val isAnyBackdropCapture = BackdropCaptureState.isCapturing
 
         // Glass cannot be recorded into either backdrop it samples. This prevents feedback
         // from the previous still and prevents a page -> glass -> page RenderNode cycle.
-        if (isRecordingPage || isRecordingStill) return
+        if (isRecordingPage || isRecordingStill || isAnyBackdropCapture) return
 
         onDrawBehind?.invoke(this)
         drawBackdropLayer()
