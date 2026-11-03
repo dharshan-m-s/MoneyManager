@@ -192,13 +192,19 @@ fun AccountsScreen(
             Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            MmSearchField(
-                value = query,
-                onValueChange = { query = it },
-                hint = "Search accounts",
-                glassField = false,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Box(
+                Modifier.fillMaxWidth()
+                    .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.42f)
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            ) {
+                MmSearchField(
+                    value = query,
+                    onValueChange = { query = it },
+                    hint = "Search accounts",
+                    glassField = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
 
         Box(
