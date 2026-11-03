@@ -91,7 +91,7 @@ fun Modifier.mmPageBackdrop(): Modifier {
     }
 }
 
-private const val BACKDROP_SCALE = 0.33f
+private const val BACKDROP_SCALE = 0.5f
 
 fun isMmLiquidGlassSupported(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
     sdkInt >= Build.VERSION_CODES.S
@@ -122,9 +122,12 @@ fun Modifier.mmLiquidGlass(
     }
 
     val density = LocalDensity.current
-    val blurRadius = with(density) { 18.dp.toPx() * BACKDROP_SCALE * safeIntensity }
-    val lensHeight = with(density) { 20.dp.toPx() * BACKDROP_SCALE * safeIntensity }
-    val lensAmount = with(density) { 12.dp.toPx() * BACKDROP_SCALE * safeIntensity }
+    // Refraction must dominate the blur. The old 18dp blur softened the sampled page
+    // before the lens shader ran, making the surface look like a frosted sheet.
+    // All pixel-space parameters are scaled with the capture resolution.
+    val blurRadius = with(density) { 3.5.dp.toPx() * BACKDROP_SCALE * safeIntensity }
+    val lensHeight = with(density) { 16.dp.toPx() * BACKDROP_SCALE * safeIntensity }
+    val lensAmount = with(density) { 26.dp.toPx() * BACKDROP_SCALE * safeIntensity }
 
     // Clip before the backdrop draw as well as after it. Without the leading clip the
     // sampled RenderNode can bleed into the dock's rectangular parent and look like a sheet.
@@ -132,14 +135,17 @@ fun Modifier.mmLiquidGlass(
         backdrop = backdrop,
         shape = { shape },
         effects = {
-            colorControls(saturation = 1.0f + (0.18f * safeIntensity))
+            colorControls(saturation = 1.0f + (0.12f * safeIntensity))
+            // A small base blur gives the glass depth while preserving page detail.
             blur(blurRadius)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 lens(
                     refractionHeight = lensHeight,
                     refractionAmount = lensAmount,
                     depthEffect = true,
-                    chromaticAberration = true
+                    // A single-sample lens is sharper and cheaper than seven chromatic
+                    // samples; the edge highlight provides the spectral glass cue.
+                    chromaticAberration = false
                 )
             }
         },
@@ -155,7 +161,7 @@ fun Modifier.mmLiquidGlass(
             // Draw the tint in the lens geometry itself. A full rectangular wash here can
             // leak outside the pill on renderers that do not preserve the backdrop layer clip.
             drawRoundRect(
-                color = tint.copy(alpha = if (light) 0.06f else 0.035f),
+                color = tint.copy(alpha = if (light) 0.035f else 0.022f),
                 cornerRadius = CornerRadius(cornerRadius.toPx())
             )
         },

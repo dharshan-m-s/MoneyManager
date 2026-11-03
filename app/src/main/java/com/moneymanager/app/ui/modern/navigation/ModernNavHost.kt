@@ -2,13 +2,6 @@ package com.moneymanager.app.ui.modern.navigation
 
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -62,21 +55,6 @@ import com.moneymanager.app.data.local.entity.BillerType
 
 // Switching between primary sections should feel like changing workspaces, not
 // pushing another page onto a stack. Detail flows retain the directional motion.
-private val SECTION_ROUTES = setOf(
-    Destination.Dashboard.route,
-    Destination.Transactions.route,
-    Destination.Accounts.route,
-    Destination.Bills.route,
-    Destination.Cash.route,
-    Destination.Income.route,
-    Destination.SpendSummary.route,
-    Destination.Budget.route,
-    Destination.Categories.route,
-    Destination.Reimbursements.route,
-    Destination.PersonalLoan.route,
-    Destination.Settings.route
-)
-
 private val SHEET_ROUTES = setOf(
     Destination.AddTransaction.route,
     Destination.Transfer.route,
@@ -137,94 +115,13 @@ fun ModernNavHost(
         // for the floating dock. Its material overlays live page pixels; only scrollable content
         // receives bottom clearance.
         modifier = modifier,
-        enterTransition = {
-            val targetRoute = targetState.destination.route.orEmpty()
-            val sheetFlow = SHEET_ROUTES.any { targetRoute.startsWith(it.substringBefore("?").substringBefore("/{")) }
-            val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
-                targetState.destination.route in SECTION_ROUTES
-            if (sheetFlow) {
-                fadeIn(tween(180)) + slideInVertically(
-                    initialOffsetY = { height -> height / 7 },
-                    animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f)
-                )
-            } else if (sectionSwitch) {
-                fadeIn(animationSpec = tween(170)) +
-                    scaleIn(initialScale = 0.985f, animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f))
-            } else {
-                fadeIn(animationSpec = tween(170)) +
-                    scaleIn(initialScale = 0.985f, animationSpec = spring(dampingRatio = 0.88f, stiffness = 440f)) +
-                    slideInHorizontally(
-                        initialOffsetX = { width -> width / 14 },
-                        animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f)
-                    )
-            }
-        },
-        exitTransition = {
-            val targetRoute = targetState.destination.route.orEmpty()
-            val sheetFlow = SHEET_ROUTES.any { targetRoute.startsWith(it.substringBefore("?").substringBefore("/{")) }
-            val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
-                targetState.destination.route in SECTION_ROUTES
-            if (sheetFlow) {
-                fadeOut(tween(140)) + slideOutVertically(
-                    targetOffsetY = { height -> -height / 24 },
-                    animationSpec = spring(dampingRatio = 0.9f, stiffness = 440f)
-                )
-            } else if (sectionSwitch) {
-                fadeOut(animationSpec = tween(130)) +
-                    scaleOut(targetScale = 0.992f, animationSpec = spring(dampingRatio = 0.94f, stiffness = 500f))
-            } else {
-                fadeOut(animationSpec = tween(130)) +
-                    scaleOut(targetScale = 0.992f, animationSpec = spring(dampingRatio = 0.92f, stiffness = 480f)) +
-                    slideOutHorizontally(
-                        targetOffsetX = { width -> -width / 28 },
-                        animationSpec = spring(dampingRatio = 0.92f, stiffness = 460f)
-                    )
-            }
-        },
-        popEnterTransition = {
-            val initialRoute = initialState.destination.route.orEmpty()
-            val sheetFlow = SHEET_ROUTES.any { initialRoute.startsWith(it.substringBefore("?").substringBefore("/{")) }
-            val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
-                targetState.destination.route in SECTION_ROUTES
-            if (sheetFlow) {
-                fadeIn(tween(180)) + slideInVertically(
-                    initialOffsetY = { height -> -height / 24 },
-                    animationSpec = spring(dampingRatio = 0.86f, stiffness = 400f)
-                )
-            } else if (sectionSwitch) {
-                fadeIn(animationSpec = tween(170)) +
-                    scaleIn(initialScale = 0.985f, animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f))
-            } else {
-                fadeIn(animationSpec = tween(170)) +
-                    scaleIn(initialScale = 0.985f, animationSpec = spring(dampingRatio = 0.88f, stiffness = 440f)) +
-                    slideInHorizontally(
-                        initialOffsetX = { width -> -width / 28 },
-                        animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f)
-                    )
-            }
-        },
-        popExitTransition = {
-            val initialRoute = initialState.destination.route.orEmpty()
-            val sheetFlow = SHEET_ROUTES.any { initialRoute.startsWith(it.substringBefore("?").substringBefore("/{")) }
-            val sectionSwitch = initialState.destination.route in SECTION_ROUTES &&
-                targetState.destination.route in SECTION_ROUTES
-            if (sheetFlow) {
-                fadeOut(tween(140)) + slideOutVertically(
-                    targetOffsetY = { height -> height / 7 },
-                    animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f)
-                )
-            } else if (sectionSwitch) {
-                fadeOut(animationSpec = tween(130)) +
-                    scaleOut(targetScale = 0.992f, animationSpec = spring(dampingRatio = 0.94f, stiffness = 500f))
-            } else {
-                fadeOut(animationSpec = tween(130)) +
-                    scaleOut(targetScale = 0.992f, animationSpec = spring(dampingRatio = 0.92f, stiffness = 480f)) +
-                    slideOutHorizontally(
-                        targetOffsetX = { width -> width / 14 },
-                        animationSpec = spring(dampingRatio = 0.92f, stiffness = 460f)
-                    )
-            }
-        }
+        // Keep navigation changes intentionally shallow. The page is also recorded once
+        // for Liquid Glass; stacked scale/shared-element RenderNodes during a destination
+        // switch are unnecessary and have caused HWUI prepareTree recursion on some devices.
+        enterTransition = { fadeIn(tween(160)) },
+        exitTransition = { fadeOut(tween(120)) },
+        popEnterTransition = { fadeIn(tween(160)) },
+        popExitTransition = { fadeOut(tween(120)) }
     ) {
 
         composable(Destination.Dashboard.route) {

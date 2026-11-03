@@ -33,8 +33,6 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.runtime.Composable
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.CompositionLocalProvider
@@ -74,7 +72,6 @@ import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
-import com.moneymanager.app.ui.components.LocalMmSharedTransitionScope
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.moneymanager.app.ui.components.LocalDockContentPadding
@@ -108,7 +105,6 @@ private val DOCK_ROUTES = setOf(
     Destination.Settings.route
 )
 
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ModernRoot() {
     val context = LocalContext.current
@@ -308,21 +304,19 @@ fun ModernRoot() {
                                     .onSizeChanged { navHostHeightPx = it.height }
                                     .then(pageDragModifier)
                             ) {
-                                SharedTransitionLayout {
-                                    CompositionLocalProvider(
-                                        LocalMmSharedTransitionScope provides this
-                                    ) {
-                                        ModernNavHost(
-                                            navController = navController,
-                                            onOpenMore = {
-                                                overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .then(if (dockVisible) Modifier else Modifier.navigationBarsPadding())
-                                        )
-                                    }
-                                }
+                                // Keep the destination tree out of the shared-transition container.
+                                // Shared-element RenderNodes nested inside the live backdrop
+                                // capture can form HWUI prepareTree recursion during navigation.
+                                // Route changes use lightweight fade transitions instead.
+                                ModernNavHost(
+                                    navController = navController,
+                                    onOpenMore = {
+                                        overlay = if (overlay == DockOverlay.MORE) DockOverlay.NONE else DockOverlay.MORE
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .then(if (dockVisible) Modifier else Modifier.navigationBarsPadding())
+                                )
                             }
                         }
                     }

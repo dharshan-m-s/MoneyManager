@@ -70,14 +70,19 @@ private class LayerBackdropNode(
 
         if (size.width < 1f || size.height < 1f) return
 
-        // Mark the capture as in progress. Glass nodes are omitted from this copy so they
-        // can sample the actual page pixels beneath them in the normal window pass. The flag
-        // is cleared in a finally block so an aborted recording cannot poison later frames.
+        // Never start a nested capture for the same source. This protects the page -> glass
+        // -> page dependency even if HWUI/Compose re-enters this modifier while recording.
+        if (backdrop.isRecording || backdrop.captureUnavailable) return
+
         backdrop.beginRecording()
         try {
             recordLayer(this@LayerBackdropNode, backdrop.graphicsLayer) {
                 backdrop.onDraw(this@draw)
             }
+        } catch (_: RuntimeException) {
+            // GPU/renderer-specific capture failures should disable the effect, not take down
+            // navigation or selection. The page itself was already drawn above.
+            backdrop.markCaptureUnavailable()
         } finally {
             backdrop.endRecording()
         }

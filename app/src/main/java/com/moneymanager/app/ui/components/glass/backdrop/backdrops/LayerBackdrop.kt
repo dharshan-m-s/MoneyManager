@@ -59,15 +59,27 @@ class LayerBackdrop internal constructor(
      * from this capture; the normal window pass renders it against the completed page
      * recording. This leaves the actual pixels beneath each glass surface available.
      */
-    internal var isRecording: Boolean = false
+    // Use a depth counter rather than a Boolean: nested/re-entrant draw callbacks must
+    // not clear the guard while an outer page capture is still active.
+    private var recordingDepth: Int = 0
+    internal val isRecording: Boolean
+        get() = recordingDepth > 0
+
+    // A renderer exception while recording disables further sampling for this instance.
+    // Glass can still draw its children and its lightweight surface treatment.
+    internal var captureUnavailable: Boolean = false
         private set
 
+    internal fun markCaptureUnavailable() {
+        captureUnavailable = true
+    }
+
     internal fun beginRecording() {
-        isRecording = true
+        recordingDepth += 1
     }
 
     internal fun endRecording() {
-        isRecording = false
+        if (recordingDepth > 0) recordingDepth -= 1
     }
 
     private var inverseLayerScope: InverseLayerScope? = null
@@ -78,7 +90,7 @@ class LayerBackdrop internal constructor(
         layerBlock: (GraphicsLayerScope.() -> Unit)?
     ) {
         // Never draw this layer into itself. See [isRecording].
-        if (isRecording) return
+        if (isRecording || captureUnavailable) return
         val coordinates = coordinates ?: return
         val layerCoordinates = layerCoordinates ?: return
         withTransform({
