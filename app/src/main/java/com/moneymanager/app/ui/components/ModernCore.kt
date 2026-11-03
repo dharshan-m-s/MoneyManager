@@ -198,7 +198,7 @@ fun MmMetricCard(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Spacer(Modifier.height(contentGap))
+        Spacer(Modifier.height(MmSpacing.md))
         Text(
             value,
             style = MmType.amountTile,
@@ -266,7 +266,7 @@ fun MmBalancePanel(
             Spacer(Modifier.width(MmSpacing.sm))
             Text(label, style = MmType.label, color = MmColors.textSecondary, maxLines = 1)
         }
-        Spacer(Modifier.height(MmSpacing.md))
+        Spacer(Modifier.height(contentGap))
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically

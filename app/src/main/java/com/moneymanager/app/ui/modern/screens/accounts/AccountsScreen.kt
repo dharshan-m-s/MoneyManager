@@ -439,9 +439,9 @@ private fun AccountsHeader(
             caption = "$count ${if (count == 1) "account" else "accounts"} · $tabLabel" +
                 if (showingInactive) " · switched off" else "",
             artworkKind = "account_${tabLabel.lowercase()}",
-            modifier = Modifier
-                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
-                .scrollCollapse(collapseProgress)
+            glass = true,
+            compactProgress = collapseProgress.value,
+            modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
         )
     }
 }
