@@ -372,6 +372,7 @@ private fun AccountsHeader(
         Row(
             Modifier.fillMaxWidth()
                 .scrollCompactHeight(collapseProgress, expandedHeight = 58.dp, compactHeight = 48.dp)
+                .mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.36f)
                 .padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = MmSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -434,9 +435,12 @@ private fun AccountsCircleAction(
     active: Boolean = false
 ) {
     Surface(
-        modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onClick),
+        modifier = Modifier.size(40.dp)
+            .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.30f)
+            .clickable(onClick = onClick),
         shape = CircleShape,
-        color = if (active) MmColors.accentFill.copy(alpha = 0.88f) else MmColors.surfaceContainer,
+        color = if (active) MmColors.accentFill.copy(alpha = 0.72f) else Color.Transparent,
+        border = null,
         elevation = 0.dp
     ) {
         Box(contentAlignment = Alignment.Center) {
