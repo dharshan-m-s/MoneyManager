@@ -377,15 +377,19 @@ private fun AccountsHeader(
     onHeaderHeightChanged: (Int) -> Unit = {}
 ) {
     CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-        Column(
+        Box(
             Modifier
                 .fillMaxWidth()
-                .mmLiquidGlass(cornerRadius = 24.dp, intensity = 1.08f, blurMultiplier = 1.4f)
-                .modernTopInsets()
-                .padding(horizontal = MmSpacing.sm)
                 .overlayWithoutLayoutSpace()
                 .onSizeChanged { onHeaderHeightChanged(it.height) }
         ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .mmLiquidGlass(cornerRadius = 24.dp, intensity = 1.08f, blurMultiplier = 1.4f)
+                    .modernTopInsets()
+                    .padding(horizontal = MmSpacing.sm)
+            ) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -445,6 +449,7 @@ private fun AccountsHeader(
                 glassField = true,
                 modifier = Modifier.fillMaxWidth()
             )
+            }
         }
     }
     }

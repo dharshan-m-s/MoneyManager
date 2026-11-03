@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.CompositionLocalProvider
@@ -75,8 +74,6 @@ import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
-import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberSnapshotBackdrop
-import com.moneymanager.app.ui.components.glass.backdrop.backdrops.snapshotBackdropSource
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.StatusBarGlyphToneAndSystemBarTint
 import com.moneymanager.app.ui.components.mmBrandWash
@@ -220,8 +217,6 @@ fun ModernRoot() {
     val sheetAnimationScope = rememberCoroutineScope()
     var navHostHeightPx by remember { mutableIntStateOf(0) }
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val visibleEntries by navController.visibleEntries.collectAsState()
-    val pageGlassReady = visibleEntries.size <= 1 && visibleEntries.lastOrNull()?.id == backStackEntry?.id
     val currentRoute = backStackEntry?.destination?.route ?: Destination.Dashboard.route
     var overlay by remember { mutableStateOf(DockOverlay.NONE) }
     androidx.compose.runtime.LaunchedEffect(currentRoute) {
@@ -271,21 +266,11 @@ fun ModernRoot() {
         }
     }
 
-    // Capture the page once for the floating dock and menus, which live outside this
-    // subtree and can safely sample the finished page.
+    // One guarded live page layer is shared by in-page Liquid Glass and the floating dock.
+    // DrawBackdropNode omits each glass node while this layer is recorded, so the layer
+    // contains only the current destination's real content and cannot sample itself.
+    // Unlike a second bitmap snapshot, it stays frame-accurate while the user scrolls.
     val glassBackdrop = rememberLayerBackdrop()
-
-    // Page chrome cannot sample that same live layer: the page layer would contain the
-    // glass layer that samples it again (page -> glass -> page), and HWUI overflows its
-    // stack in RenderNode::prepareTreeImpl. Page chrome samples a still of the page instead.
-    // A still is an image, not a RenderNode reference, so every liquid-glass surface keeps
-    // its full blur/lens/tint treatment without closing the render graph. The source
-    // refreshes the still while the page is drawing (scroll, collapse, animations).
-    // Each back-stack entry owns an independent still: no old-route pixels can leak into
-    // the first frame of the next destination.
-    val pageGlassBackdrop = key(backStackEntry?.id ?: currentRoute) {
-        rememberSnapshotBackdrop()
-    }
 
     // Keep the floating controls outside both the page capture and the shared-transition
     // RenderNode. A full-screen shared-transition parent around the dock caused a visible
@@ -296,7 +281,6 @@ fun ModernRoot() {
             Modifier
                 .fillMaxSize()
                 .layerBackdrop(glassBackdrop)
-                .snapshotBackdropSource(pageGlassBackdrop, autoCapture = pageGlassReady)
         ) {
                         // A subtle ambient page wash gives the floating dock and the
                         // glass-free regions of selected controls a soft optical backdrop.
@@ -305,7 +289,7 @@ fun ModernRoot() {
                             // Page chrome samples the page still. The default stays off so
                             // ordinary cards and artwork are untouched; surfaces that opt in
                             // keep the same liquid-glass implementation as the dock.
-                            LocalMmGlassBackdrop provides pageGlassBackdrop,
+                            LocalMmGlassBackdrop provides glassBackdrop,
                             LocalMmGlassEnabled provides false,
                             LocalDockContentPadding provides if (dockVisible) dockContentReservation else 0.dp
                         ) {
