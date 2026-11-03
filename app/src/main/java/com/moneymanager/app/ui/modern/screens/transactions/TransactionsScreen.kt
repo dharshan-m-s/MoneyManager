@@ -262,13 +262,17 @@ fun TransactionsScreen(
             Row(
                 Modifier.fillMaxWidth()
                     .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                    .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.52f)
-                    .scrollCompactHeight(scrollChrome.progress, expandedHeight = 58.dp, compactHeight = 48.dp)
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                    .scrollCompactHeight(scrollChrome.progress, expandedHeight = 58.dp, compactHeight = 48.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs)
+                horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
             ) {
-                Box(Modifier.weight(1f)) {
+                // The search field owns its own glass surface. Sort and filter stay as
+                // independent sibling controls outside the capsule in the compact toolbar.
+                Box(
+                    Modifier.weight(1f)
+                        .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.56f)
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
                     MmSearchField(
                         value = query,
                         onValueChange = { query = it },
