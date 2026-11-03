@@ -219,6 +219,8 @@ fun ModernRoot() {
     val sheetAnimationScope = rememberCoroutineScope()
     var navHostHeightPx by remember { mutableIntStateOf(0) }
     val backStackEntry by navController.currentBackStackEntryAsState()
+    val visibleEntries by navController.visibleEntries.collectAsState()
+    val pageGlassReady = visibleEntries.size <= 1 && visibleEntries.lastOrNull()?.id == backStackEntry?.id
     val currentRoute = backStackEntry?.destination?.route ?: Destination.Dashboard.route
     var overlay by remember { mutableStateOf(DockOverlay.NONE) }
     androidx.compose.runtime.LaunchedEffect(currentRoute) {
@@ -293,7 +295,7 @@ fun ModernRoot() {
             Modifier
                 .fillMaxSize()
                 .layerBackdrop(glassBackdrop)
-                .snapshotBackdropSource(pageGlassBackdrop, autoCapture = true)
+                .snapshotBackdropSource(pageGlassBackdrop, autoCapture = pageGlassReady)
         ) {
                         // A subtle ambient page wash gives the floating dock and the
                         // glass-free regions of selected controls a soft optical backdrop.
