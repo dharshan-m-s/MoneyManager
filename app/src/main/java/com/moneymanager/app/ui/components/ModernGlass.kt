@@ -92,8 +92,8 @@ fun Modifier.mmPageBackdrop(): Modifier {
 }
 
 internal const val MM_GLASS_BACKDROP_SCALE = 0.5f
-internal const val MM_GLASS_BLUR_RADIUS_DP = 6f
-internal const val MM_GLASS_REFRACTION_AMOUNT_DP = 40f
+internal const val MM_GLASS_BLUR_RADIUS_DP = 7f
+internal const val MM_GLASS_REFRACTION_AMOUNT_DP = 48f
 
 internal fun mmGlassBackdropScale(): Float = MM_GLASS_BACKDROP_SCALE
 internal fun mmGlassBlurRadiusDp(): Float = MM_GLASS_BLUR_RADIUS_DP
@@ -132,7 +132,7 @@ fun Modifier.mmLiquidGlass(
     // before the lens shader ran, making the surface look like a frosted sheet.
     // All pixel-space parameters are scaled with the capture resolution.
     val blurRadius = with(density) { MM_GLASS_BLUR_RADIUS_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
-    val lensHeight = with(density) { 22.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
+    val lensHeight = with(density) { 26.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
     val lensAmount = with(density) { MM_GLASS_REFRACTION_AMOUNT_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
 
     // Clip before the backdrop draw as well as after it. Without the leading clip the
@@ -155,19 +155,36 @@ fun Modifier.mmLiquidGlass(
                 )
             }
         },
-        highlight = { Highlight(width = 0.55.dp, blurRadius = 0.45.dp, alpha = 0.34f) },
+        highlight = { Highlight(width = 0.8.dp, blurRadius = 0.65.dp, alpha = 0.44f) },
         shadow = {
             Shadow(
-                radius = 22.dp,
-                offset = androidx.compose.ui.unit.DpOffset(0.dp, 7.dp),
-                color = Color.Black.copy(alpha = if (light) 0.10f else 0.16f)
+                radius = 27.dp,
+                offset = androidx.compose.ui.unit.DpOffset(0.dp, 9.dp),
+                color = Color.Black.copy(alpha = if (light) 0.12f else 0.19f)
             )
         },
         onDrawSurface = {
             // Draw the tint in the lens geometry itself. A full rectangular wash here can
             // leak outside the pill on renderers that do not preserve the backdrop layer clip.
+            // A restrained vertical optical tint adds body to the lens without hiding
+            // the sampled page. The upper specular band and darker lower falloff create
+            // depth; both are drawn inside the rounded glass geometry.
             drawRoundRect(
-                color = tint.copy(alpha = if (light) 0.075f else 0.065f),
+                brush = Brush.verticalGradient(
+                    colors = if (light) {
+                        listOf(
+                            Color.White.copy(alpha = 0.105f),
+                            tint.copy(alpha = 0.045f),
+                            Color(0xFF64748B).copy(alpha = 0.055f)
+                        )
+                    } else {
+                        listOf(
+                            Color(0xFFB9C9E8).copy(alpha = 0.085f),
+                            tint.copy(alpha = 0.055f),
+                            Color.Black.copy(alpha = 0.105f)
+                        )
+                    }
+                ),
                 cornerRadius = CornerRadius(cornerRadius.toPx())
             )
         },
