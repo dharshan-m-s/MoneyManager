@@ -81,11 +81,12 @@ fun MoneyManagerTopBar(
         ) {
             if (onNavigationClick != null) {
                 Surface(
-                    modifier = Modifier.size(44.dp).clip(CircleShape)
+                    modifier = Modifier.size(44.dp)
+                        .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.34f)
                         .then(if (hideNavigationOnCollapse) collapseProgress?.let { Modifier.scrollCollapse(it) } ?: Modifier else Modifier),
                     shape = CircleShape,
-                    color = MmColors.surfaceContainer,
-                    border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.34f)),
+                    color = androidx.compose.ui.graphics.Color.Transparent,
+                    border = null,
                     elevation = 0.dp
                 ) {
                     IconButton(onClick = onNavigationClick) {
