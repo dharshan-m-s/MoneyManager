@@ -44,8 +44,9 @@ import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 
 /**
- * Shared navigation chrome. The toolbar owns an opaque gradient surface and never samples
- * the destination backdrop; page content stays responsible for its cards and scrolling.
+ * Shared stationary navigation chrome. By default the complete top strip is a Liquid Glass
+ * surface that samples the active destination; callers may set [transparentChrome] when the
+ * toolbar is part of a larger, continuous glass hero.
  */
 /**
  * Lets a header draw above the scrolling viewport without consuming vertical layout space.
