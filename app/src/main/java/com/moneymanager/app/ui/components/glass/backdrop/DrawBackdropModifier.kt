@@ -50,6 +50,7 @@ import com.moneymanager.app.ui.components.glass.backdrop.shadow.InnerShadowEleme
 import com.moneymanager.app.ui.components.glass.backdrop.shadow.Shadow
 import com.moneymanager.app.ui.components.glass.backdrop.shadow.ShadowElement
 
+// Glass backdrop drawing is guarded at the shared capture boundary.
 private val DefaultHighlight = { Highlight.Default }
 private val DefaultShadow = { Shadow.Default }
 private val DefaultOnDrawBackdrop: DrawScope.(DrawScope.() -> Unit) -> Unit = { it() }
