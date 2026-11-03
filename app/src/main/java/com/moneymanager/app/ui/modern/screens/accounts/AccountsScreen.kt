@@ -265,7 +265,7 @@ fun AccountsScreen(
             )
         } else {
             LazyColumn(
-                modifier = Modifier.weight(1f).nestedScroll(scrollChrome.connection),
+                modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
                     top = accountsHeaderInset + MmSpacing.sm + accountsOverviewInset + MmSpacing.md,
