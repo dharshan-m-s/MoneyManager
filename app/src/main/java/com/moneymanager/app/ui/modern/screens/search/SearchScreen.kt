@@ -19,7 +19,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -31,6 +34,7 @@ import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.MmTransactionRow
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -52,11 +56,14 @@ fun SearchScreen(
     val query by viewModel.query.collectAsState()
     val results by viewModel.results.collectAsState()
     val focusRequester = remember { FocusRequester() }
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
             title = "Search",
             onBack = onBack,
+            modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height },
             bottomContent = {
                 Column(
                     Modifier.fillMaxWidth()
@@ -87,20 +94,21 @@ fun SearchScreen(
                 icon = Icons.Filled.Search,
                 title = "Search your ledger",
                 message = "Search by merchant, bank, category, note or amount — for example, 5000.",
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize().padding(top = headerInset)
             )
 
             results.isEmpty() -> MmEmptyState(
                 icon = Icons.Filled.Search,
                 title = "No matches for \u201C$query\u201D",
                 message = "Try a shorter word, or check the spelling.",
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize().padding(top = headerInset)
             )
 
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = MmSpacing.lg,
+                    top = headerInset,
                     end = MmSpacing.lg,
                     bottom = MmSpacing.xxl
                 ),
