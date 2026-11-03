@@ -89,6 +89,7 @@ import com.moneymanager.app.ui.components.MmBankLogo
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmBalancePanel
 import com.moneymanager.app.ui.components.mmGlassHighlight
+import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.MmChip
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmIconBadge
@@ -365,13 +366,14 @@ private fun AccountsHeader(
     onToggleEdit: () -> Unit,
     showBack: Boolean = true
 ) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .mmTopBarSurface(cornerRadius = 24.dp)
-            .modernTopInsets()
-            .padding(horizontal = MmSpacing.sm)
-    ) {
+    CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .mmLiquidGlass(cornerRadius = 24.dp, intensity = 1.08f, blurMultiplier = 1.4f)
+                .modernTopInsets()
+                .padding(horizontal = MmSpacing.sm)
+        ) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -432,6 +434,7 @@ private fun AccountsHeader(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
     }
 }
 
