@@ -35,12 +35,15 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -63,6 +66,7 @@ import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.income.IncomeViewModel
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -103,12 +107,15 @@ fun IncomeScreen(
     }
     val total = filteredRows.sumOf { it.creditMinorUnits - it.debitMinorUnits }
     val scrollChrome = rememberScrollChromeState()
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
 
     Column(Modifier.fillMaxSize().mmPageBackdrop()) {
         MoneyManagerTopBar(
             title = "Income",
             subtitle = "${filteredRows.size} transactions · ${periodLabels[periodFilter]}",
             onBack = onBack,
+            modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height },
             actions = {
                 MmTopBarAction(Icons.Filled.Search, "Search income", { searchOpen = !searchOpen; if (!searchOpen) query = "" })
                 Box {
@@ -159,7 +166,7 @@ fun IncomeScreen(
                 title = if (rows.isEmpty()) "No income recorded yet" else "No matching income",
                 message = if (rows.isEmpty()) "Income you add or import appears here, newest first."
                 else "Try another search or choose a wider date range.",
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize().padding(top = headerInset)
             )
         } else {
             LazyColumn(
@@ -167,7 +174,7 @@ fun IncomeScreen(
                 contentPadding = PaddingValues(
                     start = MmSpacing.lg,
                     end = MmSpacing.lg,
-                    top = MmSpacing.sm,
+                    top = headerInset + MmSpacing.sm,
                     bottom = MmSpacing.xxl + LocalDockContentPadding.current
                 ),
                 verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
