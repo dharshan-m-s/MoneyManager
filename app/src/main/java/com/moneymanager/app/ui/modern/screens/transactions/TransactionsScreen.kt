@@ -17,7 +17,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -71,9 +70,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.zIndex
 import com.moneymanager.app.ui.components.MmAnimatedAmount
-import com.moneymanager.app.ui.components.mmGlassHighlight
-import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.mmPageBackdrop
+import com.moneymanager.app.ui.components.mmTopBarSurface
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.domain.model.Money
@@ -352,12 +350,10 @@ fun TransactionsScreen(
                 )
             ) {
                 item(key = "summary") {
-                    CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-                        InViewSummary(
-                            income = viewTotals.first,
-                            expense = viewTotals.second
-                        )
-                    }
+                    InViewSummary(
+                        income = viewTotals.first,
+                        expense = viewTotals.second
+                    )
                 }
                 grouped.forEach { (date, list) ->
                     // Day movement follows the same classification as the summary: transfers
@@ -488,9 +484,8 @@ private fun InViewSummary(income: Long, expense: Long) {
 
     Column(
         Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
-            .mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.46f)
             .clip(RoundedCornerShape(26.dp))
-            .background(Color.Transparent)
+            .background(MmColors.surfaceContainer)
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -592,18 +587,7 @@ private fun TransactionsHeader(
             .fillMaxWidth()
             .modernTopInsets()
             .padding(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        MmColors.accent.copy(alpha = 0.13f),
-                        MmColors.surface.copy(alpha = 0.10f),
-                        Color.White.copy(alpha = 0.025f)
-                    )
-                ),
-                RoundedCornerShape(24.dp)
-            )
-            .clip(RoundedCornerShape(24.dp))
-            .mmGlassHighlight(cornerRadius = 24.dp, intensity = 0.82f)
+            .mmTopBarSurface(cornerRadius = 24.dp)
             .padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = MmSpacing.sm),
         verticalAlignment = Alignment.CenterVertically
     ) {

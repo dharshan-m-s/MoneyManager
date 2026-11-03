@@ -26,7 +26,6 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,8 +43,8 @@ import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 
 /**
- * Floating page chrome. Content owns the background; the header stays visually light so page
- * context remains visible instead of placing every screen under another opaque toolbar.
+ * Shared navigation chrome. The toolbar owns an opaque gradient surface and never samples
+ * the destination backdrop; page content stays responsible for its cards and scrolling.
  */
 /**
  * Lets a header draw above the scrolling viewport without consuming vertical layout space.
@@ -76,21 +75,13 @@ fun MoneyManagerTopBar(
     bottomContent: @Composable ColumnScope.() -> Unit = {}
 ) {
     Column(modifier.fillMaxWidth()) {
-        CompositionLocalProvider(LocalMmGlassEnabled provides glassChrome) {
-            // The material belongs to the whole toolbar, not to a small capsule around
-            // the title row. Optional search/filter content is placed inside this same rail.
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (glassChrome) Modifier.mmLiquidGlass(
-                            cornerRadius = 24.dp,
-                            intensity = 0.54f
-                        ) else Modifier
-                    )
-                    .modernTopInsets()
-                    .padding(horizontal = MmSpacing.sm)
-            ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .mmTopBarSurface(accentStrength = if (glassChrome) 1f else 0.72f)
+                .modernTopInsets()
+                .padding(horizontal = MmSpacing.sm)
+        ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -166,8 +157,7 @@ fun MoneyManagerTopBar(
                         content = actions
                     )
                 }
-                bottomContent()
-            }
+            bottomContent()
         }
     }
 }

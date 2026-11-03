@@ -1,8 +1,7 @@
 package com.moneymanager.app.ui.modern.navigation
 
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -118,10 +117,11 @@ fun ModernNavHost(
         // Keep navigation changes intentionally shallow. The page is also recorded once
         // for Liquid Glass; stacked scale/shared-element RenderNodes during a destination
         // switch are unnecessary and have caused HWUI prepareTree recursion on some devices.
-        enterTransition = { fadeIn(tween(160)) },
-        exitTransition = { fadeOut(tween(120)) },
-        popEnterTransition = { fadeIn(tween(160)) },
-        popExitTransition = { fadeOut(tween(120)) }
+        // No outgoing page is blended into the next destination's captured glass backdrop.
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None }
     ) {
 
         composable(Destination.Dashboard.route) {

@@ -61,39 +61,37 @@ fun Modifier.mmSharedElement(key: String): Modifier {
 }
 
 /** A quiet ambient page wash gives transparent glass a real, stable visual backdrop. */
+/**
+ * Every destination owns a clean, opaque canvas. Liquid Glass samples only this destination's
+ * content; it never borrows a previous screen's colour wash or bitmap.
+ */
 @Composable
-fun Modifier.mmPageBackdrop(): Modifier {
-    val light = MaterialTheme.colors.isLight
-    val background = MmColors.background
-    val accent = MmColors.accent
-    val income = MmColors.income
-    return drawBehind {
-        drawRect(background)
-        val firstAlpha = if (light) 0.105f else 0.17f
-        val secondAlpha = if (light) 0.045f else 0.085f
-        val firstCenter = Offset(size.width * 0.08f, size.height * 0.08f)
-        val secondCenter = Offset(size.width * 0.96f, size.height * 0.78f)
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(accent.copy(alpha = firstAlpha), Color.Transparent),
-                center = firstCenter,
-                radius = size.maxDimension * 0.78f
-            ),
-            radius = size.maxDimension * 0.78f,
-            center = firstCenter
-        )
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(income.copy(alpha = secondAlpha), Color.Transparent),
-                center = secondCenter,
-                radius = size.maxDimension * 0.62f
-            ),
-            radius = size.maxDimension * 0.62f,
-            center = secondCenter
-        )
-    }
-}
+fun Modifier.mmPageBackdrop(): Modifier = background(MmColors.background)
 
+/** Opaque theme gradient for navigation chrome. It never samples or reveals a prior page. */
+@Composable
+fun Modifier.mmTopBarSurface(
+    cornerRadius: Dp = 24.dp,
+    accentStrength: Float = 1f
+): Modifier {
+    val light = MaterialTheme.colors.isLight
+    val strength = accentStrength.coerceIn(0f, 1.25f)
+    val base = MmColors.surfaceContainer
+    val top = androidx.compose.ui.graphics.lerp(
+        base, MmColors.accent, if (light) 0.055f * strength else 0.17f * strength
+    )
+    val middle = androidx.compose.ui.graphics.lerp(
+        base, MmColors.background, if (light) 0.025f else 0.12f
+    )
+    val bottom = androidx.compose.ui.graphics.lerp(
+        base, MmColors.accent, if (light) 0.02f * strength else 0.055f * strength
+    )
+    val shape = RoundedCornerShape(cornerRadius)
+    val rim = if (light) MmColors.outline.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.09f)
+    return clip(shape)
+        .background(Brush.verticalGradient(listOf(top, middle, bottom)), shape)
+        .border(0.8.dp, rim, shape)
+}
 internal const val MM_GLASS_BACKDROP_SCALE = 0.5f
 internal const val MM_GLASS_BLUR_RADIUS_DP = 7f
 internal const val MM_GLASS_REFRACTION_AMOUNT_DP = 48f

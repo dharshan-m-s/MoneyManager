@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.FloatingActionButton
@@ -60,6 +61,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -173,102 +175,117 @@ fun AccountDetailScreen(
             }
         }
     ) { padding ->
-        Column(
+        var accountHeaderHeightPx by remember { mutableIntStateOf(0) }
+        val accountHeaderTopPadding = with(androidx.compose.ui.platform.LocalDensity.current) {
+            if (accountHeaderHeightPx > 0) accountHeaderHeightPx.toDp()
+            else if (account == null) 112.dp else 360.dp
+        }
+        Box(
             Modifier.fillMaxSize()
                 .padding(padding)
                 .nestedScroll(scrollChrome.connection)
                 .mmPageBackdrop()
         ) {
-            AccountHeader(
-                state = state,
-                compact = scrollChrome.collapsed.value,
-                collapseProgress = scrollChrome.progress,
-                onBack = onBack,
-                onEdit = {
-                    account?.let { if (state.isCreditCard) onEditCreditCard(it.id) else onEditAccount(it.id) }
-                },
-                onToggleSearch = { searchOpen = !searchOpen; if (!searchOpen) query = "" },
-                searchOpen = searchOpen,
-                query = query,
-                onQueryChange = { query = it }
-            )
-
-            if (state.isCreditCard) {
-                CreditCardTabs(selected = tab, onSelect = { tab = it })
-            }
-
-
-            val matches: (List<TransactionEntity>) -> List<TransactionEntity> = { list ->
-                if (query.isBlank()) list else list.filter { txn ->
-                    val haystack = listOfNotNull(
-                        txn.merchantReceiverSender, txn.rawCategoryName, txn.notes, txn.rawPaymentType
-                    ).joinToString(" ")
-                    haystack.contains(query.trim(), ignoreCase = true)
+            Box(Modifier.fillMaxSize()) {
+                val matches: (List<TransactionEntity>) -> List<TransactionEntity> = { list ->
+                    if (query.isBlank()) list else list.filter { txn ->
+                        val haystack = listOfNotNull(
+                            txn.merchantReceiverSender, txn.rawCategoryName, txn.notes, txn.rawPaymentType
+                        ).joinToString(" ")
+                        haystack.contains(query.trim(), ignoreCase = true)
+                    }
+                }
+                when {
+                    account == null -> MmEmptyState(
+                        icon = Icons.Filled.AccountBalance,
+                        title = "Account unavailable",
+                        message = "This account could not be loaded.",
+                        modifier = Modifier.fillMaxSize().padding(top = accountHeaderTopPadding)
+                    )
+                    state.isCreditCard && tab == 0 -> CurrentCycleList(
+                        state = state,
+                        onTransactionClick = onTransactionClick,
+                        matches = matches,
+                        topPadding = accountHeaderTopPadding
+                    )
+                    state.isCreditCard && tab == 1 -> GroupedList(
+                        groups = state.monthGroups.map { group ->
+                            PeriodView(
+                                label = group.label,
+                                income = Money(group.income),
+                                expense = Money(group.expense),
+                                transactions = matches(group.transactions)
+                            )
+                        },
+                        incomeLabel = "Payments",
+                        expenseLabel = "Spending",
+                        onTransactionClick = onTransactionClick,
+                        canLoadMore = state.canLoadMore,
+                        onLoadMore = viewModel::loadMore,
+                        emptyMessage = "No transactions recorded for this card yet.",
+                        topPadding = accountHeaderTopPadding
+                    )
+                    state.isCreditCard -> GroupedList(
+                        groups = state.cycleGroups.map { cycle ->
+                            PeriodView(
+                                label = cycle.label,
+                                badge = if (cycle.isCurrent) "Current" else null,
+                                income = Money(cycle.income),
+                                expense = Money(cycle.expense),
+                                transactions = matches(cycle.transactions)
+                            )
+                        },
+                        incomeLabel = "Payments",
+                        expenseLabel = "Spending",
+                        onTransactionClick = onTransactionClick,
+                        canLoadMore = state.canLoadMore,
+                        onLoadMore = viewModel::loadMore,
+                        emptyMessage = "No billing cycles recorded for this card yet.",
+                        topPadding = accountHeaderTopPadding
+                    )
+                    else -> GroupedList(
+                        groups = state.monthGroups.map { group ->
+                            PeriodView(
+                                label = group.label,
+                                income = Money(group.income),
+                                expense = Money(group.expense),
+                                transactions = matches(group.transactions)
+                            )
+                        },
+                        incomeLabel = "In",
+                        expenseLabel = "Out",
+                        onTransactionClick = onTransactionClick,
+                        canLoadMore = state.canLoadMore,
+                        onLoadMore = viewModel::loadMore,
+                        emptyMessage = "No transactions for this account yet.",
+                        topPadding = accountHeaderTopPadding
+                    )
                 }
             }
 
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-            when {
-                account == null -> MmEmptyState(
-                    icon = Icons.Filled.AccountBalance,
-                    title = "Account unavailable",
-                    message = "This account could not be loaded."
-                )
-                state.isCreditCard && tab == 0 -> CurrentCycleList(
+            Column(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .zIndex(1f)
+                    .onSizeChanged { accountHeaderHeightPx = it.height }
+            ) {
+                AccountHeader(
                     state = state,
-                    onTransactionClick = onTransactionClick,
-                    matches = matches
-                )
-                state.isCreditCard && tab == 1 -> GroupedList(
-                    groups = state.monthGroups.map { group ->
-                        PeriodView(
-                            label = group.label,
-                            income = Money(group.income),
-                            expense = Money(group.expense),
-                            transactions = matches(group.transactions)
-                        )
+                    compact = scrollChrome.collapsed.value,
+                    collapseProgress = scrollChrome.progress,
+                    onBack = onBack,
+                    onEdit = {
+                        account?.let { if (state.isCreditCard) onEditCreditCard(it.id) else onEditAccount(it.id) }
                     },
-                    incomeLabel = "Payments",
-                    expenseLabel = "Spending",
-                    onTransactionClick = onTransactionClick,
-                    canLoadMore = state.canLoadMore,
-                    onLoadMore = viewModel::loadMore,
-                    emptyMessage = "No transactions recorded for this card yet."
+                    onToggleSearch = { searchOpen = !searchOpen; if (!searchOpen) query = "" },
+                    searchOpen = searchOpen,
+                    query = query,
+                    onQueryChange = { query = it }
                 )
-                state.isCreditCard -> GroupedList(
-                    groups = state.cycleGroups.map { cycle ->
-                        PeriodView(
-                            label = cycle.label,
-                            badge = if (cycle.isCurrent) "Current" else null,
-                            income = Money(cycle.income),
-                            expense = Money(cycle.expense),
-                            transactions = matches(cycle.transactions)
-                        )
-                    },
-                    incomeLabel = "Payments",
-                    expenseLabel = "Spending",
-                    onTransactionClick = onTransactionClick,
-                    canLoadMore = state.canLoadMore,
-                    onLoadMore = viewModel::loadMore,
-                    emptyMessage = "No billing cycles recorded for this card yet."
-                )
-                else -> GroupedList(
-                    groups = state.monthGroups.map { group ->
-                        PeriodView(
-                            label = group.label,
-                            income = Money(group.income),
-                            expense = Money(group.expense),
-                            transactions = matches(group.transactions)
-                        )
-                    },
-                    incomeLabel = "In",
-                    expenseLabel = "Out",
-                    onTransactionClick = onTransactionClick,
-                    canLoadMore = state.canLoadMore,
-                    onLoadMore = viewModel::loadMore,
-                    emptyMessage = "No transactions for this account yet."
-                )
-            }
+                if (state.isCreditCard) {
+                    CreditCardTabs(selected = tab, onSelect = { tab = it })
+                }
             }
         }
     }
@@ -459,8 +476,8 @@ private fun AccountGlassFrame(
     CompositionLocalProvider(LocalMmGlassEnabled provides true) {
         Box(
             modifier.fillMaxWidth()
-                .mmLiquidGlass(cornerRadius = 34.dp, intensity = 0.42f)
-                .padding(8.dp)
+                .mmLiquidGlass(cornerRadius = 34.dp, intensity = 0.82f)
+                .padding(16.dp)
         ) {
             content()
         }
@@ -489,17 +506,8 @@ private fun CardBalancePage(
     Column(
         modifier.fillMaxWidth()
             .aspectRatio(1.64f)
-            .mmLiquidGlass(cornerRadius = 25.dp, intensity = 0.66f)
             .clip(shape)
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        accent.copy(alpha = if (androidx.compose.material.MaterialTheme.colors.isLight) 0.20f else 0.28f),
-                        MmColors.surfaceContainer.copy(alpha = 0.34f),
-                        MmColors.surface.copy(alpha = 0.24f)
-                    )
-                )
-            )
+            .background(MmColors.surfaceContainer)
             .padding(horizontal = 21.dp, vertical = 18.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -614,7 +622,8 @@ private fun CreditCardTabs(selected: Int, onSelect: (Int) -> Unit) {
 private fun CurrentCycleList(
     state: AccountDetailUiState,
     onTransactionClick: (Long) -> Unit,
-    matches: (List<TransactionEntity>) -> List<TransactionEntity>
+    matches: (List<TransactionEntity>) -> List<TransactionEntity>,
+    topPadding: androidx.compose.ui.unit.Dp = 0.dp
 ) {
     val cycle = state.currentCycle
     val visible = cycle?.let { matches(it.transactions) }.orEmpty()
@@ -623,11 +632,15 @@ private fun CurrentCycleList(
             icon = Icons.AutoMirrored.Filled.ReceiptLong,
             title = "Nothing this cycle yet",
             message = cycle?.let { "No transactions between ${it.label} so far." }
-                ?: "This card has no billing cycle configured."
+                ?: "This card has no billing cycle configured.",
+            modifier = Modifier.fillMaxSize().padding(top = topPadding)
         )
         return
     }
-    LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = topPadding, bottom = 96.dp)
+    ) {
         item {
             CycleSummaryCard(
                 label = "${cycle.label} • Current",
@@ -661,18 +674,23 @@ private fun GroupedList(
     onTransactionClick: (Long) -> Unit,
     canLoadMore: Boolean,
     onLoadMore: () -> Unit,
-    emptyMessage: String
+    emptyMessage: String,
+    topPadding: androidx.compose.ui.unit.Dp = 0.dp
 ) {
     val nonEmpty = groups.filter { it.transactions.isNotEmpty() }
     if (nonEmpty.isEmpty()) {
         MmEmptyState(
             icon = Icons.AutoMirrored.Filled.ReceiptLong,
             title = "No transactions yet",
-            message = emptyMessage
+            message = emptyMessage,
+            modifier = Modifier.fillMaxSize().padding(top = topPadding)
         )
         return
     }
-    LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = topPadding, bottom = 96.dp)
+    ) {
         nonEmpty.forEachIndexed { index, group ->
             item(key = "header-${group.label}-$index") {
                 PeriodHeaderBlock(

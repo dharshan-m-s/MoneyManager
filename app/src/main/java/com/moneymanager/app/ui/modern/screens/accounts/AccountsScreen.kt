@@ -50,7 +50,6 @@ import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -80,7 +79,6 @@ import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.reporting.FinancialSummary
 import com.moneymanager.app.ui.accounts.AccountsTab
 import com.moneymanager.app.ui.accounts.AccountsViewModel
-import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.scrollCollapse
@@ -91,7 +89,6 @@ import com.moneymanager.app.ui.components.MmBankLogo
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmBalancePanel
 import com.moneymanager.app.ui.components.mmGlassHighlight
-import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.MmChip
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmIconBadge
@@ -102,6 +99,7 @@ import com.moneymanager.app.ui.components.modernTopInsets
 import com.moneymanager.app.ui.components.LocalDockContentPadding
 import com.moneymanager.app.ui.components.mmSharedElement
 import com.moneymanager.app.ui.components.mmPageBackdrop
+import com.moneymanager.app.ui.components.mmTopBarSurface
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.pressScale
 import com.moneymanager.app.ui.components.revealOnAppear
@@ -168,17 +166,6 @@ fun AccountsScreen(
 
     Column(Modifier.fillMaxSize().mmPageBackdrop()) {
         AccountsHeader(
-            tabLabel = tab.label,
-            isCreditCard = tab == AccountsTab.CREDIT_CARDS,
-            count = shown.size,
-            total = Money(total),
-            visualValues = shown.map { account ->
-                if (account.accountType == AccountType.CREDIT_CARD) {
-                    account.outstandingMinorUnits ?: 0L
-                } else {
-                    account.currentBalanceMinorUnits
-                }
-            }.sorted(),
             showingInactive = inactiveView,
             editMode = editMode,
             collapseProgress = scrollChrome.progress,
@@ -190,34 +177,62 @@ fun AccountsScreen(
             showBack = false
         )
 
-
-        Box(
-            Modifier.fillMaxWidth()
-                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                .scrollCollapse(scrollChrome.progress)
-        ) {
-            AccountsTabs(selected = selectedTab, onSelect = {
-                selectedTab = it
-                showInactive = false
-            })
-        }
-
-        if (inactiveAccounts.isNotEmpty()) {
-            AnimatedVisibility(visible = !scrollChrome.collapsed.value) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
-                    horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+        val accountsStickyHeader: @Composable () -> Unit = {
+            Column(Modifier.fillMaxWidth()) {
+                MmBalancePanel(
+                    label = when {
+                        showingInactive && tab == AccountsTab.CREDIT_CARDS -> "Inactive outstanding"
+                        showingInactive -> "Inactive balance"
+                        tab == AccountsTab.CREDIT_CARDS -> "Total outstanding"
+                        else -> "Total balance"
+                    },
+                    value = MoneyFormat.rupeesNoDecimals(Money(total)),
+                    animatedValueMinorUnits = total,
+                    visualValues = shown.map { account ->
+                        if (account.accountType == AccountType.CREDIT_CARD) {
+                            account.outstandingMinorUnits ?: 0L
+                        } else account.currentBalanceMinorUnits
+                    }.sorted(),
+                    visualLabel = "Account mix",
+                    caption = "${shown.size} ${if (shown.size == 1) "account" else "accounts"} · ${tab.label}" +
+                        if (showingInactive) " · switched off" else "",
+                    artworkKind = "account_${tab.label.lowercase()}",
+                    glass = true,
+                    compactProgress = scrollChrome.progress,
+                    modifier = Modifier.padding(vertical = MmSpacing.md)
+                )
+                Box(
+                    Modifier.fillMaxWidth()
+                        .padding(vertical = MmSpacing.xs)
+                        .scrollCollapse(scrollChrome.progress)
                 ) {
-                    MmChip(
-                        label = "Active (${activeAccounts.size})",
-                        selected = !inactiveView,
-                        onClick = { showInactive = false }
+                    AccountsTabs(
+                        selected = selectedTab,
+                        onSelect = {
+                            selectedTab = it
+                            showInactive = false
+                        },
+                        horizontalInset = 0.dp
                     )
-                    MmChip(
-                        label = "Inactive (${inactiveAccounts.size})",
-                        selected = inactiveView,
-                        onClick = { showInactive = true }
-                    )
+                }
+                if (inactiveAccounts.isNotEmpty()) {
+                    AnimatedVisibility(visible = !scrollChrome.collapsed.value) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = MmSpacing.sm),
+                            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                        ) {
+                            MmChip(
+                                label = "Active (${activeAccounts.size})",
+                                selected = !inactiveView,
+                                onClick = { showInactive = false }
+                            )
+                            MmChip(
+                                label = "Inactive (${inactiveAccounts.size})",
+                                selected = inactiveView,
+                                onClick = { showInactive = true }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -226,6 +241,7 @@ fun AccountsScreen(
             ModernAllAccountTypesBrowser(
                 modifier = Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 accounts = accounts,
+                headerContent = accountsStickyHeader,
                 onSelectType = { type ->
                     selectedTab = AccountsTab.entries.indexOf(AccountsTab.forType(type))
                     showInactive = false
@@ -237,87 +253,87 @@ fun AccountsScreen(
                     }
                 }
             )
-        } else if (shown.isEmpty() && tab != AccountsTab.ALL) {
-            val hasInactive = inactiveAccounts.isNotEmpty()
-            val emptyTitle: String
-            val emptyMessage: String
-            val emptyActionLabel: String?
-            val emptyAction: (() -> Unit)?
-            if (inactiveView) {
-                emptyTitle = "No inactive accounts"
-                emptyMessage = "Accounts you switch off are kept here, out of your live list."
-                emptyActionLabel = null
-                emptyAction = null
-            } else if (hasInactive) {
-                emptyTitle = "No active accounts"
-                emptyMessage = "Your ${inactiveAccounts.size} switched-off " +
-                        "${if (inactiveAccounts.size == 1) "account is" else "accounts are"} " +
-                        "in the Inactive view."
-                emptyActionLabel = "Show inactive"
-                emptyAction = { showInactive = true }
-            } else {
-                emptyTitle = "No ${tab.label.lowercase()} yet"
-                emptyMessage = when (tab) {
-                    AccountsTab.CREDIT_CARDS -> "Add a card to track outstanding, limits and billing cycles."
-                    AccountsTab.DEBIT_CARDS -> "Add a debit card to track spending from your bank account."
-                    AccountsTab.LOANS -> "Add a loan to keep track of what is left to pay."
-                    AccountsTab.WALLETS -> "Add a wallet to track balances."
-                    AccountsTab.PREPAID_CARDS -> "Add a prepaid card to track its balance."
-                    AccountsTab.BANK -> "Add a bank account to track your balance and transactions."
-                    AccountsTab.CASH -> "Add or manage your cash account."
-                    AccountsTab.INVESTMENTS -> "Add an investment account to track it here."
-                    AccountsTab.ALL -> "No accounts found for this selection."
-                }
-                emptyActionLabel = when (tab) {
-                    AccountsTab.CREDIT_CARDS -> "Add credit card"
-                    else -> "Add account"
-                }
-                emptyAction = when (tab) {
-                    AccountsTab.CREDIT_CARDS -> onAddCreditCard
-                    else -> onAddAccount
-                }
-            }
-            MmEmptyState(
-                icon = tab.icon,
-                title = emptyTitle,
-                message = emptyMessage,
-                actionLabel = emptyActionLabel,
-                onAction = emptyAction
-            )
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
                     start = MmSpacing.screen,
                     end = MmSpacing.screen,
-                    top = MmSpacing.sm,
                     bottom = LocalDockContentPadding.current.takeIf { it > 0.dp } ?: MmSpacing.xl
                 ),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                itemsIndexed(shown, key = { _, account -> account.id }) { index, account ->
-                    AccountRow(
-                account = account,
-                modifier = Modifier.revealOnAppear(index = index),
-                isCreditCard = account.accountType == AccountType.CREDIT_CARD,
-                editMode = editMode,
-                showTopDivider = index > 0,
-                onClick = { onAccountClick(account.id) },
-                        onEdit = {
-                            if (account.accountType == AccountType.CREDIT_CARD) onEditCreditCard(account.id)
-                            else onEditAccount(account.id)
-                        }
-                    )
+                stickyHeader(key = "accounts-overview") {
+                    accountsStickyHeader()
                 }
-                if (showInlineAdd) {
-                if (!editMode) {
-                    item {
-                        AddAccountRow(
-                            label = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account",
-                            onClick = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                if (shown.isEmpty() && tab != AccountsTab.ALL) {
+                    item(key = "accounts-empty") {
+                        val hasInactive = inactiveAccounts.isNotEmpty()
+                        val emptyTitle: String
+                        val emptyMessage: String
+                        val emptyActionLabel: String?
+                        val emptyAction: (() -> Unit)?
+                        if (inactiveView) {
+                            emptyTitle = "No inactive accounts"
+                            emptyMessage = "Accounts you switch off are kept here, out of your live list."
+                            emptyActionLabel = null
+                            emptyAction = null
+                        } else if (hasInactive) {
+                            emptyTitle = "No active accounts"
+                            emptyMessage = "Your ${inactiveAccounts.size} switched-off " +
+                                "${if (inactiveAccounts.size == 1) "account is" else "accounts are"} " +
+                                "in the Inactive view."
+                            emptyActionLabel = "Show inactive"
+                            emptyAction = { showInactive = true }
+                        } else {
+                            emptyTitle = "No ${tab.label.lowercase()} yet"
+                            emptyMessage = when (tab) {
+                                AccountsTab.CREDIT_CARDS -> "Add a card to track outstanding, limits and billing cycles."
+                                AccountsTab.DEBIT_CARDS -> "Add a debit card to track spending from a bank account."
+                                AccountsTab.LOANS -> "Add a loan to keep track of what is left to pay."
+                                AccountsTab.WALLETS -> "Add a wallet to track balances."
+                                AccountsTab.PREPAID_CARDS -> "Add a prepaid card to track its balance."
+                                AccountsTab.BANK -> "Add a bank account to track your balance and transactions."
+                                AccountsTab.CASH -> "Add or manage your cash account."
+                                AccountsTab.INVESTMENTS -> "Add an investment account to track it here."
+                                AccountsTab.ALL -> "No accounts found for this selection."
+                            }
+                            emptyActionLabel = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account"
+                            emptyAction = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                        }
+                        MmEmptyState(
+                            icon = tab.icon,
+                            title = emptyTitle,
+                            message = emptyMessage,
+                            actionLabel = emptyActionLabel,
+                            onAction = emptyAction
                         )
                     }
-                }
+                } else {
+                    itemsIndexed(shown, key = { _, account -> account.id }) { index, account ->
+                        AccountRow(
+                            account = account,
+                            modifier = Modifier.revealOnAppear(index = index),
+                            isCreditCard = account.accountType == AccountType.CREDIT_CARD,
+                            editMode = editMode,
+                            showTopDivider = index > 0,
+                            onClick = { onAccountClick(account.id) },
+                            onEdit = {
+                                if (account.accountType == AccountType.CREDIT_CARD) onEditCreditCard(account.id)
+                                else onEditAccount(account.id)
+                            }
+                        )
+                    }
+                    if (showInlineAdd && !editMode) {
+                        item(key = "add-account") {
+                            Box(Modifier.padding(horizontal = MmSpacing.sm)) {
+                                AddAccountRow(
+                                    label = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account",
+                                    onClick = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -339,11 +355,6 @@ private val AccountsTab.icon: ImageVector
 
 @Composable
 private fun AccountsHeader(
-    tabLabel: String,
-    isCreditCard: Boolean,
-    count: Int,
-    total: Money,
-    visualValues: List<Long>,
     showingInactive: Boolean,
     editMode: Boolean,
     collapseProgress: State<Float>,
@@ -354,95 +365,74 @@ private fun AccountsHeader(
     onToggleEdit: () -> Unit,
     showBack: Boolean = true
 ) {
-    CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-        Column(
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .mmTopBarSurface(cornerRadius = 24.dp)
+            .modernTopInsets()
+            .padding(horizontal = MmSpacing.sm)
+    ) {
+        Row(
             Modifier
                 .fillMaxWidth()
-                .mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.54f)
-                .modernTopInsets()
-                .padding(horizontal = MmSpacing.sm)
+                .scrollCompactHeight(
+                    collapseProgress,
+                    expandedHeight = 58.dp,
+                    compactHeight = 48.dp
+                )
+                .padding(
+                    start = if (showBack) MmSpacing.sm else MmSpacing.md,
+                    end = MmSpacing.md,
+                    top = MmSpacing.sm,
+                    bottom = MmSpacing.xs
+                ),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
+            if (showBack) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MmColors.textPrimary)
+                }
+            }
+            Column(
                 Modifier
-                    .fillMaxWidth()
-                    .scrollCompactHeight(
-                        collapseProgress,
-                        expandedHeight = 58.dp,
-                        compactHeight = 48.dp
-                    )
-                    .padding(
-                        start = if (showBack) MmSpacing.sm else MmSpacing.md,
-                        end = MmSpacing.md,
-                        top = MmSpacing.sm,
-                        bottom = MmSpacing.xs
-                    ),
-                verticalAlignment = Alignment.CenterVertically
+                    .weight(1f)
+                    .padding(start = if (showBack) MmSpacing.xs else 0.dp)
             ) {
-                if (showBack) {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MmColors.textPrimary)
-                    }
-                }
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .padding(start = if (showBack) MmSpacing.xs else 0.dp)
-                ) {
-                    Text("Accounts", style = MmType.screenTitle, color = MmColors.textPrimary)
-                    Text(
-                        if (showingInactive) "Switched-off accounts" else "Manage all your accounts",
-                        style = MmType.caption,
-                        color = MmColors.textSecondary
-                    )
-                }
-                AccountsCircleAction(
-                    icon = Icons.Filled.Settings,
-                    contentDescription = "Account settings",
-                    onClick = onSettings
-                )
-                Spacer(Modifier.width(MmSpacing.xs))
-                AccountsCircleAction(
-                    icon = if (editMode) Icons.Filled.Done else Icons.Filled.Edit,
-                    contentDescription = if (editMode) "Done editing" else "Edit accounts",
-                    onClick = onToggleEdit,
-                    active = editMode
+                Text("Accounts", style = MmType.screenTitle, color = MmColors.textPrimary)
+                Text(
+                    if (showingInactive) "Switched-off accounts" else "Manage all your accounts",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary
                 )
             }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = MmSpacing.sm, vertical = MmSpacing.xs),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MmSearchField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    hint = "Search accounts",
-                    glassField = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            AccountsCircleAction(
+                icon = Icons.Filled.Settings,
+                contentDescription = "Account settings",
+                onClick = onSettings
+            )
+            Spacer(Modifier.width(MmSpacing.xs))
+            AccountsCircleAction(
+                icon = if (editMode) Icons.Filled.Done else Icons.Filled.Edit,
+                contentDescription = if (editMode) "Done editing" else "Edit accounts",
+                onClick = onToggleEdit,
+                active = editMode
+            )
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = MmSpacing.sm, vertical = MmSpacing.xs),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MmSearchField(
+                value = query,
+                onValueChange = onQueryChange,
+                hint = "Search accounts",
+                glassField = true,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
-
-    MmBalancePanel(
-        label = when {
-            showingInactive && isCreditCard -> "Inactive outstanding"
-            showingInactive -> "Inactive balance"
-            isCreditCard -> "Total outstanding"
-            else -> "Total balance"
-        },
-        value = MoneyFormat.rupeesNoDecimals(total),
-        animatedValueMinorUnits = total.minorUnits,
-        visualValues = visualValues,
-        visualLabel = "Account mix",
-        caption = "$count ${if (count == 1) "account" else "accounts"} · $tabLabel" +
-            if (showingInactive) " · switched off" else "",
-        artworkKind = "account_${tabLabel.lowercase()}",
-        glass = true,
-        compactProgress = collapseProgress,
-        modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
-    )
 }
 
 @Composable
@@ -463,14 +453,18 @@ private fun AccountsCircleAction(
 }
 
 @Composable
-private fun AccountsTabs(selected: Int, onSelect: (Int) -> Unit) {
+private fun AccountsTabs(
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    horizontalInset: androidx.compose.ui.unit.Dp = MmSpacing.screen
+) {
     val primary = AccountsTab.primary
     val primaryIndices = primary.map { AccountsTab.entries.indexOf(it) }
     val allIndex = AccountsTab.entries.indexOf(AccountsTab.ALL)
     val selectedIndexInPrimary = primaryIndices.indexOf(selected)
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-            .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
+            .padding(horizontal = horizontalInset, vertical = MmSpacing.sm),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -636,6 +630,7 @@ private fun AddAccountRow(
 private fun ModernAllAccountTypesBrowser(
     modifier: Modifier = Modifier,
     accounts: List<AccountEntity>,
+    headerContent: @Composable () -> Unit,
     onSelectType: (AccountType) -> Unit,
     onAddType: (AccountType) -> Unit
 ) {
@@ -649,6 +644,9 @@ private fun ModernAllAccountTypesBrowser(
         ),
         verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
     ) {
+        stickyHeader(key = "all-account-types-header") {
+            headerContent()
+        }
         items(AccountTypeCatalog.all) { info ->
             val type = info.type
             val list = accounts.filter { it.accountType == type && !it.deleted && !it.hide }

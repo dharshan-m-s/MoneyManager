@@ -528,7 +528,8 @@ fun MmSearchField(
         colors = if (glassField) {
             TextFieldDefaults.outlinedTextFieldColors(
                 textColor = MmColors.textPrimary,
-                backgroundColor = Color.Transparent,
+                // Inset field tint is independent of the page backdrop.
+                backgroundColor = MmColors.surface.copy(alpha = 0.72f),
                 cursorColor = MmColors.accent,
                 focusedBorderColor = MmColors.accent.copy(alpha = 0.40f),
                 unfocusedBorderColor = Color.Transparent,

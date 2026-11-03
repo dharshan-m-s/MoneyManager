@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.LayerBackdrop
+import com.moneymanager.app.ui.components.glass.backdrop.backdrops.SnapshotBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.highlight.Highlight
 import com.moneymanager.app.ui.components.glass.backdrop.highlight.HighlightElement
 import com.moneymanager.app.ui.components.glass.backdrop.internal.ShapeProvider
@@ -399,11 +400,11 @@ private class DrawBackdropNode(
         // itself would create a page -> glass -> page RenderNode cycle. Omit the complete
         // node from the capture so the normal window pass can sample the pixels underneath.
         val isRecordingPage = (backdrop as? LayerBackdrop)?.isRecording == true
+        val isRecordingStill = (backdrop as? SnapshotBackdrop)?.isCapturing == true
 
-        // Omit this glass node completely from the page recording. This leaves the pixels
-        // underneath it available to the on-screen pass, without a page -> glass -> page
-        // RenderNode cycle. The regular window draw always runs with isRecordingPage=false.
-        if (isRecordingPage) return
+        // Glass cannot be recorded into either backdrop it samples. This prevents feedback
+        // from the previous still and prevents a page -> glass -> page RenderNode cycle.
+        if (isRecordingPage || isRecordingStill) return
 
         onDrawBehind?.invoke(this)
         drawBackdropLayer()

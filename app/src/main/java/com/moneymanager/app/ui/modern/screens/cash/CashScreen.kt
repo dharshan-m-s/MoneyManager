@@ -185,61 +185,6 @@ fun CashScreen(
                 }
             )
 
-            MmBalancePanel(
-                label = "Available now",
-                value = MoneyFormat.rupeesNoDecimals(state.cashInHand),
-                animatedValueMinorUnits = state.cashInHand.minorUnits,
-                visualValues = state.monthTotals.toList()
-                    .sortedBy { it.first }
-                    .takeLast(6)
-                    .map { (_, totals) -> kotlin.math.abs(totals.incomeMinor) + kotlin.math.abs(totals.spendMinor) },
-                visualLabel = "Monthly movement",
-                caption = "Live ledger balance · updated when you record cash transactions",
-                artworkKind = "cash",
-                glass = true,
-                compactProgress = scrollChrome.progress,
-                modifier = Modifier
-                    .padding(horizontal = MmSpacing.screen, vertical = if (scrollChrome.collapsed.value) MmSpacing.xs else MmSpacing.md)
-                    .animateContentSize()
-            )
-
-
-
-            AnimatedVisibility(
-                visible = !scrollChrome.collapsed.value,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md),
-                horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)
-            ) {
-                CashMetric(
-                    icon = Icons.Filled.Add,
-                    amount = MoneyFormat.rupeesNoDecimals(state.monthIncome),
-                    label = "In this month",
-                    tint = MmColors.income,
-                    modifier = Modifier.weight(1f)
-                )
-                CashMetric(
-                    icon = Icons.Filled.Remove,
-                    amount = MoneyFormat.rupeesNoDecimals(state.monthSpend),
-                    label = "Out this month",
-                    tint = MmColors.expense,
-                    modifier = Modifier.weight(1f)
-                )
-                CashMetric(
-                    icon = Icons.Filled.Wallet,
-                    amount = MoneyFormat.rupeesNoDecimals(
-                        Money(state.monthIncome.minorUnits - state.monthSpend.minorUnits)
-                    ),
-                    label = "Net this month",
-                    tint = if (state.monthIncome.minorUnits >= state.monthSpend.minorUnits) MmColors.income else MmColors.expense,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            }
-
             LazyColumn(
                 Modifier.weight(1f).nestedScroll(scrollChrome.connection),
                 contentPadding = PaddingValues(
@@ -249,6 +194,61 @@ fun CashScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)
             ) {
+                stickyHeader(key = "cash-balance") {
+                    MmBalancePanel(
+                        label = "Available now",
+                        value = MoneyFormat.rupeesNoDecimals(state.cashInHand),
+                        animatedValueMinorUnits = state.cashInHand.minorUnits,
+                        visualValues = state.monthTotals.toList()
+                            .sortedBy { it.first }
+                            .takeLast(6)
+                            .map { (_, totals) -> kotlin.math.abs(totals.incomeMinor) + kotlin.math.abs(totals.spendMinor) },
+                        visualLabel = "Monthly movement",
+                        caption = "Live ledger balance · updated when you record cash transactions",
+                        artworkKind = "cash",
+                        glass = true,
+                        compactProgress = scrollChrome.progress,
+                        modifier = Modifier
+                            .padding(vertical = if (scrollChrome.collapsed.value) MmSpacing.xs else MmSpacing.md)
+                            .animateContentSize()
+                    )
+                }
+                item(key = "cash-month-metrics") {
+                    AnimatedVisibility(
+                        visible = !scrollChrome.collapsed.value,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = MmSpacing.md),
+                            horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)
+                        ) {
+                            CashMetric(
+                                icon = Icons.Filled.Add,
+                                amount = MoneyFormat.rupeesNoDecimals(state.monthIncome),
+                                label = "In this month",
+                                tint = MmColors.income,
+                                modifier = Modifier.weight(1f)
+                            )
+                            CashMetric(
+                                icon = Icons.Filled.Remove,
+                                amount = MoneyFormat.rupeesNoDecimals(state.monthSpend),
+                                label = "Out this month",
+                                tint = MmColors.expense,
+                                modifier = Modifier.weight(1f)
+                            )
+                            CashMetric(
+                                icon = Icons.Filled.Wallet,
+                                amount = MoneyFormat.rupeesNoDecimals(
+                                    Money(state.monthIncome.minorUnits - state.monthSpend.minorUnits)
+                                ),
+                                label = "Net this month",
+                                tint = if (state.monthIncome.minorUnits >= state.monthSpend.minorUnits) MmColors.income else MmColors.expense,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
                 grouped.entries.sortedByDescending { it.key }.forEach { (month, rows) ->
                     // Canonical per-month totals from the ViewModel (transaction semantics, not a
                     // raw debit/credit sign test) so this header reconciles with the monthly

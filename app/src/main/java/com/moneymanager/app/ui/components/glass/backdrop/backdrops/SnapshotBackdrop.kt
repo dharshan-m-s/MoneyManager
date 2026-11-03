@@ -59,6 +59,8 @@ class SnapshotBackdrop internal constructor() : Backdrop {
     // would invalidate the source again and keep the page redrawing while idle.
     internal var autoRequests = 0
     internal var capturing = false
+    /** True only during the synchronous source recording pass. */
+    internal var isCapturing: Boolean = false
     internal var skipAutoCapture = false
     internal var lastAutoCaptureNanos = 0L
 
@@ -164,11 +166,24 @@ fun Modifier.snapshotBackdropSource(
             val layer = graphicsContext.createGraphicsLayer()
             val width = (size.width * SNAPSHOT_SCALE).roundToInt().coerceAtLeast(1)
             val height = (size.height * SNAPSHOT_SCALE).roundToInt().coerceAtLeast(1)
-            layer.record(size = IntSize(width, height)) {
-                scale(SNAPSHOT_SCALE, pivot = Offset.Zero) { this@drawWithContent.drawContent() }
-            }
             val generation = backdrop.generation
             backdrop.capturing = true
+            backdrop.isCapturing = true
+            try {
+                layer.record(size = IntSize(width, height)) {
+                    scale(SNAPSHOT_SCALE, pivot = Offset.Zero) { this@drawWithContent.drawContent() }
+                }
+            } catch (_: RuntimeException) {
+                backdrop.capturing = false
+                try {
+                    graphicsContext.releaseGraphicsLayer(layer)
+                } catch (_: RuntimeException) {
+                    // Keep the source page drawable if the renderer discarded this layer.
+                }
+                return@drawWithContent
+            } finally {
+                backdrop.isCapturing = false
+            }
             scope.launch {
                 try {
                     // Only if nothing asked again, or let go, in the meantime.
