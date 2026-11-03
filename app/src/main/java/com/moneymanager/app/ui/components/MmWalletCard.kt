@@ -121,7 +121,6 @@ fun MmWalletCard(
             .shadow(22.dp, shape, clip = false)
             .clip(shape)
             .background(Brush.linearGradient(palette.map { it.copy(alpha = if (MaterialTheme.colors.isLight) 0.52f else 0.36f) }))
-            .mmLiquidGlass(cornerRadius = 27.dp, intensity = 1.08f)
             .then(interaction)
             .border(
                 width = 1.dp,
@@ -360,6 +359,139 @@ fun MmWalletCard(
     )
 }
 
+
+/**
+ * Animated account artwork for wallets, investments and loans. It communicates account value
+ * without implying that the account is a physical payment card.
+ */
+@Composable
+fun MmAccountArtworkCard(account: AccountEntity, modifier: Modifier = Modifier) {
+    val label = when (account.accountType) {
+        AccountType.WALLET -> "WALLET BALANCE"
+        AccountType.INVESTMENT -> "INVESTMENT VALUE"
+        AccountType.LOAN -> "LOAN OUTSTANDING"
+        else -> "ACCOUNT VALUE"
+    }
+    val amount = if (account.accountType == AccountType.LOAN) {
+        account.outstandingMinorUnits ?: account.currentBalanceMinorUnits
+    } else account.currentBalanceMinorUnits
+    val palette = when (account.accountType) {
+        AccountType.WALLET -> listOf(Color(0xFF147E83), Color(0xFF235A77), Color(0xFF142D4C))
+        AccountType.INVESTMENT -> listOf(Color(0xFF4966A6), Color(0xFF384B80), Color(0xFF202B50))
+        AccountType.LOAN -> listOf(Color(0xFF9A6938), Color(0xFF70472F), Color(0xFF342A35))
+        else -> walletPalette(account.institutionName.ifBlank { account.nickname })
+    }
+    val shape = RoundedCornerShape(27.dp)
+    val sheen = remember(account.id) { Animatable(-0.5f) }
+    LaunchedEffect(account.id) {
+        sheen.snapTo(-0.5f)
+        delay(120)
+        sheen.animateTo(1.15f, animationSpec = tween(1_050, easing = FastOutSlowInEasing))
+    }
+
+    Box(
+        modifier.fillMaxWidth().aspectRatio(1.64f)
+            .shadow(20.dp, shape, clip = false)
+            .clip(shape)
+            .background(Brush.linearGradient(palette))
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val center = Offset(size.width * 0.88f, size.height * 0.18f)
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.015f), Color.Transparent),
+                    center = center,
+                    radius = size.minDimension * 0.92f
+                ),
+                radius = size.minDimension * 0.92f,
+                center = center
+            )
+            for (ring in 0..4) {
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.035f + ring * 0.012f),
+                    radius = size.minDimension * (0.20f + ring * 0.075f),
+                    center = Offset(size.width * 0.94f, size.height * 0.78f),
+                    style = Stroke(width = (0.8f + ring * 0.12f).dp.toPx())
+                )
+            }
+            if (sheen.value < 1.12f) {
+                val x = size.width * sheen.value
+                drawRect(
+                    brush = Brush.linearGradient(
+                        colors = listOf(Color.Transparent, Color.White.copy(alpha = 0.13f), Color.Transparent),
+                        start = Offset(x - size.width * 0.24f, 0f),
+                        end = Offset(x + size.width * 0.16f, size.height)
+                    )
+                )
+            }
+        }
+        Column(Modifier.fillMaxSize().padding(horizontal = 21.dp, vertical = 18.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    account.institutionName.ifBlank { "MONEY MANAGER" }.uppercase(),
+                    color = Color.White.copy(alpha = 0.88f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    if (account.active) "ACTIVE" else "PAUSED",
+                    color = Color.White.copy(alpha = 0.78f),
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Text(label, color = Color.White.copy(alpha = 0.68f), fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
+            Spacer(Modifier.height(5.dp))
+            Text(
+                MoneyFormat.rupeesNoDecimals(Money(amount)),
+                color = Color.White,
+                fontSize = 25.sp,
+                lineHeight = 30.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.weight(1f))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        account.nickname.ifBlank { account.institutionName },
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        when (account.accountType) {
+                            AccountType.WALLET -> "EVERYDAY SPENDING"
+                            AccountType.INVESTMENT -> "PORTFOLIO"
+                            AccountType.LOAN -> "REPAYMENT ACCOUNT"
+                            else -> "ACCOUNT"
+                        },
+                        color = Color.White.copy(alpha = 0.60f),
+                        fontSize = 8.sp,
+                        letterSpacing = 1.sp
+                    )
+                }
+                Text(
+                    "••••  " + account.sourceAccountId.filter(Char::isDigit).takeLast(4).ifBlank { "----" },
+                    color = Color.White.copy(alpha = 0.70f),
+                    fontSize = 9.sp,
+                    letterSpacing = 0.8.sp
+                )
+            }
+        }
+    }
+}
+
 /**
  * A rich bank account card that mirrors the wallet-card language without pretending to be a
  * payment card. Only a masked account suffix is shown; the art remains decorative.
@@ -396,7 +528,6 @@ fun MmBankAccountCard(
             .shadow(16.dp, shape, clip = false)
             .clip(shape)
             .background(Brush.linearGradient(palette.map { it.copy(alpha = if (MaterialTheme.colors.isLight) 0.48f else 0.34f) }))
-            .mmLiquidGlass(cornerRadius = 26.dp, intensity = 1.08f)
             .border(
                 1.dp,
                 Brush.linearGradient(

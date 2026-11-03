@@ -7,9 +7,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -231,7 +233,28 @@ fun TransactionsScreen(
             title = "Transactions",
             subtitle = "${visibleRows.size} of ${rows.size} transactions",
             collapseProgress = scrollChrome.progress,
-            glassChrome = true
+            glassChrome = true,
+            actions = {
+                AnimatedVisibility(
+                    visible = !scrollChrome.collapsed.value,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs)) {
+                        TransactionsHeaderAction(
+                            icon = Icons.Filled.NorthEast,
+                            contentDescription = "Sort transactions",
+                            onClick = { showSort = true }
+                        )
+                        TransactionsHeaderAction(
+                            icon = Icons.Filled.FilterList,
+                            contentDescription = "Filter transactions",
+                            onClick = { showFilter = true },
+                            badge = filters.isActive
+                        )
+                    }
+                }
+            }
         )
 
         CompositionLocalProvider(LocalMmGlassEnabled provides true) {
@@ -253,17 +276,25 @@ fun TransactionsScreen(
                         modifier = Modifier.scrollCompactField(scrollChrome.progress)
                     )
                 }
-                TransactionsHeaderAction(
-                    icon = Icons.Filled.NorthEast,
-                    contentDescription = "Sort transactions",
-                    onClick = { showSort = true }
-                )
-                TransactionsHeaderAction(
-                    icon = Icons.Filled.FilterList,
-                    contentDescription = "Filter transactions",
-                    onClick = { showFilter = true },
-                    badge = filters.isActive
-                )
+                AnimatedVisibility(
+                    visible = scrollChrome.collapsed.value,
+                    enter = fadeIn() + expandHorizontally(),
+                    exit = fadeOut() + shrinkHorizontally()
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.xs)) {
+                        TransactionsHeaderAction(
+                            icon = Icons.Filled.NorthEast,
+                            contentDescription = "Sort transactions",
+                            onClick = { showSort = true }
+                        )
+                        TransactionsHeaderAction(
+                            icon = Icons.Filled.FilterList,
+                            contentDescription = "Filter transactions",
+                            onClick = { showFilter = true },
+                            badge = filters.isActive
+                        )
+                    }
+                }
             }
         }
 
@@ -298,7 +329,8 @@ fun TransactionsScreen(
                 Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+                    .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)
+                    .scrollCollapse(scrollChrome.progress),
                 horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically
             ) {

@@ -131,7 +131,6 @@ fun AccountsScreen(
     var editMode by rememberSaveable { mutableStateOf(false) }
     var showInactive by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    var sortByBalance by rememberSaveable { mutableStateOf(false) }
     val scrollChrome = rememberScrollChromeState(collapseDistance = 132.dp)
     val tab = AccountsTab.entries[selectedTab]
     val filtered = accounts.filter { it.accountType in tab.types && !it.deleted }
@@ -146,14 +145,7 @@ fun AccountsScreen(
     val activeAccounts = visible.filter { it.active }
     val inactiveAccounts = visible.filter { !it.active }
     val inactiveView = showInactive && inactiveAccounts.isNotEmpty()
-    val unsortedShown = if (inactiveView) inactiveAccounts else activeAccounts
-    val shown = if (sortByBalance) {
-        unsortedShown.sortedByDescending { account ->
-            if (account.accountType == AccountType.CREDIT_CARD) {
-                account.outstandingMinorUnits ?: 0L
-            } else account.currentBalanceMinorUnits
-        }
-    } else unsortedShown
+    val shown = if (inactiveView) inactiveAccounts else activeAccounts
     val total = if (inactiveView) {
         inactiveAccounts.sumOf { account ->
             if (account.accountType == AccountType.CREDIT_CARD) {
@@ -196,45 +188,28 @@ fun AccountsScreen(
             showBack = false
         )
 
-        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-            Row(
-                Modifier.fillMaxWidth()
-                    .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                    .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.42f)
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(Modifier.weight(1f)) {
-                    MmSearchField(
-                        value = query,
-                        onValueChange = { query = it },
-                        hint = "Search accounts",
-                        glassField = true,
-                        modifier = Modifier.scrollCompactField(scrollChrome.progress)
-                    )
-                }
-                Spacer(Modifier.width(MmSpacing.xs))
-                AccountsCircleAction(
-                    icon = Icons.Filled.SwapVert,
-                    contentDescription = if (sortByBalance) "Restore original account order" else "Sort accounts by balance",
-                    onClick = { sortByBalance = !sortByBalance },
-                    active = sortByBalance
-                )
-            }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MmSearchField(
+                value = query,
+                onValueChange = { query = it },
+                hint = "Search accounts",
+                glassField = false,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
-        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-            Box(
-                Modifier.fillMaxWidth()
-                    .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
-                    .mmLiquidGlass(cornerRadius = 22.dp, intensity = 0.34f)
-                    .scrollCollapse(scrollChrome.progress)
-            ) {
-                AccountsTabs(selected = selectedTab, onSelect = {
-                    selectedTab = it
-                    showInactive = false
-                })
-            }
+        Box(
+            Modifier.fillMaxWidth()
+                .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.xs)
+                .scrollCollapse(scrollChrome.progress)
+        ) {
+            AccountsTabs(selected = selectedTab, onSelect = {
+                selectedTab = it
+                showInactive = false
+            })
         }
 
         if (inactiveAccounts.isNotEmpty()) {
@@ -402,7 +377,6 @@ private fun AccountsHeader(
             Column(
                 Modifier.weight(1f)
                     .padding(start = if (showBack) MmSpacing.xs else 0.dp)
-                    .scrollCollapse(collapseProgress)
             ) {
                 Text("Accounts", style = MmType.screenTitle, color = MmColors.textPrimary)
                 Text(
@@ -439,7 +413,7 @@ private fun AccountsHeader(
             caption = "$count ${if (count == 1) "account" else "accounts"} · $tabLabel" +
                 if (showingInactive) " · switched off" else "",
             artworkKind = "account_${tabLabel.lowercase()}",
-            glass = true,
+            glass = false,
             compactProgress = collapseProgress,
             modifier = Modifier.padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
         )
@@ -454,14 +428,10 @@ private fun AccountsCircleAction(
     active: Boolean = false
 ) {
     Surface(
-        modifier = Modifier
-            .size(40.dp)
-            .mmLiquidGlass(cornerRadius = 999.dp, intensity = 0.48f)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
+        modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onClick),
         shape = CircleShape,
-        color = if (active) MmColors.accentFill.copy(alpha = 0.88f) else Color.Transparent,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MmColors.outline)
+        color = if (active) MmColors.accentFill.copy(alpha = 0.88f) else MmColors.surfaceContainer,
+        elevation = 0.dp
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
@@ -483,40 +453,40 @@ private fun AccountsTabs(selected: Int, onSelect: (Int) -> Unit) {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
             .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.sm),
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         primary.forEachIndexed { index, tab ->
             val active = selectedIndexInPrimary == index
-            val tint = if (active) MmColors.accent else MmColors.textSecondary
-            Row(
-                Modifier.clip(RoundedCornerShape(18.dp))
-                    .background(if (active) MmColors.accent.copy(alpha = 0.16f) else MmColors.surface)
-                    .border(1.dp, if (active) MmColors.accent.copy(alpha = 0.58f) else MmColors.outline.copy(alpha = 0.62f), RoundedCornerShape(18.dp))
+            Text(
+                tab.label,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (active) MmColors.accent.copy(alpha = 0.13f) else Color.Transparent)
                     .pressableClick { onSelect(primaryIndices[index]) }
-                    .padding(horizontal = 14.dp, vertical = 11.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp)
-            ) {
-                Icon(modernTypeIcon(tab.types.first()), contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
-                Text(tab.label, style = MmType.label, color = tint, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
-            }
+                    .padding(horizontal = 13.dp, vertical = 9.dp),
+                style = MmType.label,
+                color = if (active) MmColors.accent else MmColors.textSecondary,
+                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1
+            )
         }
         val allSelected = selected == allIndex || selectedIndexInPrimary < 0
-        Row(
-            Modifier.clip(RoundedCornerShape(18.dp))
-                .background(if (allSelected) MmColors.accent.copy(alpha = 0.16f) else MmColors.surface)
-                .border(1.dp, if (allSelected) MmColors.accent.copy(alpha = 0.58f) else MmColors.outline.copy(alpha = 0.62f), RoundedCornerShape(18.dp))
+        Text(
+            "All",
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(if (allSelected) MmColors.accent.copy(alpha = 0.13f) else Color.Transparent)
                 .pressableClick { onSelect(allIndex) }
-                .padding(horizontal = 14.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp)
-        ) {
-            Icon(Icons.Filled.MoreHoriz, contentDescription = null, tint = if (allSelected) MmColors.accent else MmColors.textSecondary, modifier = Modifier.size(16.dp))
-            Text("All types", style = MmType.label, color = if (allSelected) MmColors.accent else MmColors.textSecondary, fontWeight = if (allSelected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
-        }
+                .padding(horizontal = 13.dp, vertical = 9.dp),
+            style = MmType.label,
+            color = if (allSelected) MmColors.accent else MmColors.textSecondary,
+            fontWeight = if (allSelected) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1
+        )
     }
 }
+
 @Composable
 private fun AccountRow(
     account: AccountEntity,
@@ -536,31 +506,13 @@ private fun AccountRow(
         isCreditCard -> "Outstanding"
         else -> "Available balance"
     }
-    val institution = account.institutionName.takeIf { it.isNotBlank() && it != account.nickname }
-    val isCard = AccountTypeCatalog.info(account.accountType).isCard
-    val detail = if (isCard) institution.orEmpty() else {
-        listOfNotNull(
-            institution,
-            com.moneymanager.app.ui.components.maskedCardNumberFromSourceId(account.sourceAccountId)
-        ).joinToString(" • ")
-    }
-    val effectiveLimit = account.creditLimitOverrideMinorUnits ?: account.creditLimitMinorUnits
-    val available = (effectiveLimit ?: 0L) - amount
-    val usageFraction = if (isCreditCard && (effectiveLimit ?: 0L) > 0L) {
-        (amount.toFloat() / effectiveLimit!!.toFloat()).coerceIn(0f, 1f)
-    } else {
-        null
-    }
-    val animatedUsage by animateFloatAsState(
-        targetValue = usageFraction ?: 0f,
-        animationSpec = spring(dampingRatio = 0.88f, stiffness = 260f),
-        label = "accountCreditUsage"
-    )
-    val usageTint = when {
-        (usageFraction ?: 0f) >= 0.90f -> MmColors.expense
-        (usageFraction ?: 0f) >= 0.75f -> MmColors.warning
-        else -> MmColors.accent
-    }
+    val issuer = account.institutionName.ifBlank { account.nickname }
+    val masked = com.moneymanager.app.ui.components.maskedCardNumberFromSourceId(account.sourceAccountId)
+    val secondary = listOfNotNull(
+        issuer.takeIf { it.isNotBlank() && it != account.nickname },
+        masked.takeIf { it.isNotBlank() },
+        subtitle
+    ).joinToString(" · ")
     val tint = when (account.accountType) {
         AccountType.CREDIT_CARD -> MmColors.categoryPalette[5 % MmColors.categoryPalette.size]
         AccountType.CASH -> MmColors.income
@@ -569,217 +521,65 @@ private fun AccountRow(
     }
 
     Column(modifier.fillMaxWidth()) {
-        if (showTopDivider && !isCard && account.accountType != AccountType.BANK) {
+        if (showTopDivider) {
             Divider(
-                modifier = Modifier.padding(start = 60.dp, end = MmSpacing.screen),
-                color = MmColors.outline.copy(alpha = 0.55f),
-                thickness = 0.5.dp
+                modifier = Modifier.padding(start = 58.dp, end = MmSpacing.screen),
+                color = MmColors.outline.copy(alpha = 0.28f),
+                thickness = 0.65.dp
             )
         }
-
-        if (isCard) {
-            // Payment cards stay compact in the list. The full animated card is reserved for
-            // the opened account detail screen, where it has room to breathe.
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(19.dp))
-                    .background(tint.copy(alpha = if (MaterialTheme.colors.isLight) 0.105f else 0.14f))
-                    .border(0.85.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(19.dp))
-                    .mmLiquidGlass(cornerRadius = 19.dp, intensity = 0.78f)
-                    .mmSharedElement("account-${account.id}")
-                    .clickable(onClick = if (editMode) onEdit else onClick)
-                    .padding(horizontal = MmSpacing.md, vertical = 13.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MmIconBadge(icon = modernTypeIcon(account.accountType), tint = tint, size = 44.dp)
-                Spacer(Modifier.width(MmSpacing.md))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        account.nickname.ifBlank { account.institutionName.ifBlank { "Payment card" } },
-                        style = MmType.body,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MmColors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        listOfNotNull(detail.takeIf { it.isNotBlank() }, subtitle).joinToString(" · "),
-                        style = MmType.caption,
-                        color = MmColors.textSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(Modifier.width(MmSpacing.sm))
-                Column(horizontalAlignment = Alignment.End) {
-                    com.moneymanager.app.ui.components.MmAnimatedAmount(
-                        value = amount,
-                        formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
-                        style = MmType.amountRow,
-                        color = MmColors.textPrimary
-                    )
-                    if (isCreditCard && (effectiveLimit ?: 0L) > 0L) {
-                        Text(
-                            "Available ${MoneyFormat.rupeesNoDecimals(Money(available.coerceAtLeast(0L)))}",
-                            style = MmType.caption,
-                            color = MmColors.textTertiary,
-                            maxLines = 1
-                        )
-                    }
-                }
-                Spacer(Modifier.width(MmSpacing.xs))
-                if (editMode) {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Edit card", tint = MmColors.accent)
-                    }
-                } else {
-                    Icon(Icons.Filled.ChevronRight, contentDescription = "Open card", tint = tint, modifier = Modifier.size(18.dp))
-                }
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(onClick = if (editMode) onEdit else onClick)
+                .padding(horizontal = MmSpacing.sm, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (account.accountType == AccountType.BANK) {
+                MmBankLogo(issuer, Modifier.size(42.dp))
+            } else {
+                MmIconBadge(icon = modernTypeIcon(account.accountType), tint = tint, size = 42.dp)
             }
-            if (usageFraction != null) {
-                Spacer(Modifier.height(MmSpacing.xs))
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 60.dp, end = MmSpacing.sm),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "CREDIT UTILISATION",
-                        style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.sp),
-                        color = MmColors.textTertiary
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text("${(usageFraction * 100).toInt()}%", style = MmType.caption, color = usageTint)
-                }
-                Spacer(Modifier.height(5.dp))
-                Box(
-                    Modifier.padding(start = 60.dp, end = MmSpacing.sm)
-                        .fillMaxWidth().height(4.dp).clip(CircleShape)
-                        .background(MmColors.surfaceContainerHigh)
-                ) {
-                    Box(
-                        Modifier.fillMaxWidth(animatedUsage.coerceIn(0f, 1f))
-                            .height(4.dp).clip(CircleShape).background(usageTint)
-                    )
-                }
-            }
-        } else if (account.accountType == AccountType.BANK) {
-            // Bank accounts are ledger entries, not oversized payment cards. Keep the familiar
-            // row density, give the institution mark a clear place, and let the balance lead.
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(19.dp))
-                    .background(MmColors.surface.copy(alpha = if (MaterialTheme.colors.isLight) 0.16f else 0.12f))
-                    .border(0.75.dp, MmColors.outline.copy(alpha = 0.48f), RoundedCornerShape(19.dp))
-                    .mmLiquidGlass(cornerRadius = 19.dp, intensity = 0.68f)
-                    .mmSharedElement("account-${account.id}")
-                    .clickable(onClick = if (editMode) onEdit else onClick)
-                    .padding(horizontal = MmSpacing.md, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MmBankLogo(
-                    account.institutionName.ifBlank { account.nickname },
-                    Modifier.size(44.dp)
+            Spacer(Modifier.width(MmSpacing.md))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    account.nickname.ifBlank { issuer.ifBlank { "Account" } },
+                    style = MmType.body,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MmColors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Spacer(Modifier.width(MmSpacing.md))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        account.nickname.ifBlank { account.institutionName.ifBlank { "Bank account" } },
-                        style = MmType.body,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MmColors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        listOfNotNull(detail.takeIf { it.isNotBlank() }, subtitle).joinToString(" • "),
-                        style = MmType.caption,
-                        color = MmColors.textSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(Modifier.width(MmSpacing.sm))
-                Column(horizontalAlignment = Alignment.End) {
-                    com.moneymanager.app.ui.components.MmAnimatedAmount(
-                        value = amount,
-                        formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
-                        style = MmType.amountRow,
-                        color = MmColors.textPrimary
-                    )
-                    Text(
-                        if (!account.active) "INACTIVE" else "AVAILABLE",
-                        style = MmType.caption.copy(fontSize = 8.sp, letterSpacing = 0.6.sp),
-                        color = MmColors.textTertiary
-                    )
-                }
-                Spacer(Modifier.width(MmSpacing.xs))
-                if (editMode) {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Edit bank account", tint = MmColors.accent)
-                    }
-                } else {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = "Open bank account",
-                        tint = MmColors.accent,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                Text(
+                    secondary,
+                    style = MmType.caption,
+                    color = MmColors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(tint.copy(alpha = if (MaterialTheme.colors.isLight) 0.095f else 0.13f))
-                    .border(0.85.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(20.dp))
-                    .mmLiquidGlass(cornerRadius = 20.dp, intensity = 0.78f)
-                    .mmSharedElement("account-${account.id}")
-                    .clickable(onClick = if (editMode) onEdit else onClick)
-                    .padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MmIconBadge(icon = modernTypeIcon(account.accountType), tint = tint, size = 44.dp)
-                Spacer(Modifier.width(MmSpacing.md))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        account.nickname.ifBlank { account.institutionName },
-                        style = MmType.body,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MmColors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        if (detail.isNotBlank()) "$detail · $subtitle" else subtitle,
-                        style = MmType.caption,
-                        color = MmColors.textSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(Modifier.width(MmSpacing.sm))
+            Spacer(Modifier.width(MmSpacing.sm))
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 com.moneymanager.app.ui.components.MmAnimatedAmount(
                     value = amount,
                     formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
                     style = MmType.amountRow,
                     color = MmColors.textPrimary
                 )
-                Spacer(Modifier.width(MmSpacing.xs))
-                if (editMode) {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Edit account", tint = MmColors.accent)
-                    }
-                } else {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = tint,
-                        modifier = Modifier.size(18.dp)
-                    )
+                Text(
+                    if (isCreditCard) "OUTSTANDING" else "BALANCE",
+                    style = MmType.caption.copy(fontSize = 8.sp, letterSpacing = 0.65.sp),
+                    color = MmColors.textTertiary,
+                    maxLines = 1
+                )
+            }
+            Spacer(Modifier.width(MmSpacing.xs))
+            if (editMode) {
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Edit account", tint = MmColors.accent)
                 }
+            } else {
+                Icon(Icons.Filled.ChevronRight, contentDescription = "Open account", tint = MmColors.textTertiary, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -795,8 +595,7 @@ private fun AddAccountRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(MmColors.accentFill.copy(alpha = if (MaterialTheme.colors.isLight) 0.10f else 0.14f))
-            .border(1.dp, MmColors.accentFill.copy(alpha = 0.42f), RoundedCornerShape(18.dp))
-            .mmLiquidGlass(cornerRadius = 18.dp, intensity = 0.62f)
+            .background(MmColors.surfaceContainer)
             .clickable(onClick = onClick)
     ) {
         Row(
@@ -849,9 +648,7 @@ private fun ModernAllAccountTypesBrowser(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(tint.copy(alpha = if (MaterialTheme.colors.isLight) 0.085f else 0.12f))
-                    .border(1.dp, tint.copy(alpha = 0.28f), RoundedCornerShape(18.dp))
-                    .mmLiquidGlass(cornerRadius = 18.dp, intensity = 0.68f)
+                    .background(MmColors.surfaceContainer)
             ) {
                 Column(Modifier.fillMaxWidth().padding(MmSpacing.md)) {
                   Row(

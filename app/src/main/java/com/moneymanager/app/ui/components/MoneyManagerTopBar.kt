@@ -56,7 +56,9 @@ fun MoneyManagerTopBar(
     actions: @Composable RowScope.() -> Unit = {},
     compact: Boolean = false,
     @Suppress("UNUSED_PARAMETER") glassChrome: Boolean = true,
-    collapseProgress: State<Float>? = null
+    collapseProgress: State<Float>? = null,
+    keepTitleOnCollapse: Boolean = false,
+    hideNavigationOnCollapse: Boolean = false
 ) {
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -78,7 +80,8 @@ fun MoneyManagerTopBar(
         ) {
             if (onNavigationClick != null) {
                 Surface(
-                    modifier = Modifier.size(44.dp).clip(CircleShape),
+                    modifier = Modifier.size(44.dp).clip(CircleShape)
+                        .then(if (hideNavigationOnCollapse) collapseProgress?.let { Modifier.scrollCollapse(it) } ?: Modifier else Modifier),
                     shape = CircleShape,
                     color = MmColors.surfaceContainer,
                     border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.34f)),
@@ -101,9 +104,9 @@ fun MoneyManagerTopBar(
                 Modifier
                     .weight(1f)
                     .padding(horizontal = MmSpacing.md)
-                    .then(collapseProgress?.let { Modifier.scrollCollapse(it) } ?: Modifier)
+                    .then(if (keepTitleOnCollapse) Modifier else collapseProgress?.let { Modifier.scrollCollapse(it) } ?: Modifier)
             ) {
-                if (!compact) {
+                if (!compact || keepTitleOnCollapse) {
                     Text(
                         title,
                         style = MmType.screenTitle.copy(fontSize = 25.sp, lineHeight = 31.sp),

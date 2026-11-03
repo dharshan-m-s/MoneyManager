@@ -1,6 +1,8 @@
 package com.moneymanager.app.ui.modern.screens.accountdetail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -54,6 +56,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -324,6 +328,7 @@ private fun AccountHeader(
             onBack = onBack,
             compact = compact,
             collapseProgress = collapseProgress,
+            keepTitleOnCollapse = true,
             actions = {
                 MmTopBarAction(Icons.Filled.Search, "Search this account", onToggleSearch)
                 MmTopBarAction(Icons.Filled.Edit, if (isCreditCard) "Edit credit card" else "Edit account", onEdit)
@@ -332,88 +337,171 @@ private fun AccountHeader(
 
         if (account == null) return@Column
 
-        if (isPaymentCard) {
-            MmWalletCard(
-                account = account,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.lg)
-                    .mmSharedElement("account-${account.id}"),
-                maskedNumberOverride = state.maskedCardNumber
-            )
-        } else if (account.accountType == AccountType.BANK) {
-            MmBankAccountCard(
-                account = account,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.lg)
-                    .mmSharedElement("account-${account.id}")
-            )
+        val liftModifier = Modifier.graphicsLayer {
+            translationY = -12.dp.toPx() * collapseProgress.value.coerceIn(0f, 1f)
+            scaleX = 1f - 0.012f * collapseProgress.value.coerceIn(0f, 1f)
+            scaleY = 1f - 0.012f * collapseProgress.value.coerceIn(0f, 1f)
         }
 
-        if (isCreditCard || account.accountType != AccountType.BANK) MmCard(
-            modifier = Modifier.fillMaxWidth().padding(
-                horizontal = MmSpacing.screen,
-                vertical = if (isPaymentCard) MmSpacing.xs else MmSpacing.lg
-            ).mmLiquidGlass(cornerRadius = 24.dp, intensity = 0.86f)
-                .then(if (isPaymentCard) Modifier else Modifier.mmSharedElement("account-${account.id}")),
-            contentPadding = PaddingValues(MmSpacing.xl),
-            backgroundColor = MmColors.surface.copy(alpha = if (androidx.compose.material.MaterialTheme.colors.isLight) 0.24f else 0.18f)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (isCreditCard) "CARD LIABILITY" else "ACCOUNT VALUE", style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.1.sp), color = MmColors.textTertiary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                MmPill(if (account.active) "Active" else "Inactive", tint = if (account.active) MmColors.income else MmColors.textSecondary, filled = true)
-            }
-            if (isCreditCard) {
-                Text("Outstanding", style = MmType.caption, color = MmColors.textSecondary)
-                MmAnimatedAmount(
-                    value = account.outstandingMinorUnits ?: 0L,
-                    formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
-                    style = MmType.amountHero,
-                    color = MmColors.textPrimary
-                )
-                if (state.statementDueDateEpochMillis != null) {
-                    Spacer(Modifier.height(MmSpacing.xs))
-                    Text(
-                        "Statement ${state.currentCycle?.label.orEmpty()} • Due ${formatFullDate(state.statementDueDateEpochMillis)}",
-                        style = MmType.caption,
-                        color = MmColors.textSecondary
-                    )
-                }
-                val limit = account.creditLimitOverrideMinorUnits ?: account.creditLimitMinorUnits
-                val outstanding = account.outstandingMinorUnits ?: 0L
-                if (limit != null && limit > 0L) {
-                    Spacer(Modifier.height(MmSpacing.sm))
-                    val fraction = (outstanding.toFloat() / limit.toFloat()).coerceIn(0f, 1f)
-                    MmProgressBar(fraction = fraction, color = if (fraction > 0.9f) MmColors.expense else MmColors.accent, height = 6.dp)
-                    Spacer(Modifier.height(MmSpacing.xs))
-                    Text(
-                        "${(fraction * 100).toInt()}% of ${MoneyFormat.rupeesNoDecimals(Money(limit))} limit used",
-                        style = MmType.caption,
-                        color = MmColors.textSecondary
-                    )
-                }
-                if (account.lastReportedAtEpochMillis != null) {
-                    Spacer(Modifier.height(MmSpacing.xs))
-                    Text(
-                        "Last reported ${formatFullDate(account.lastReportedAtEpochMillis)}" +
-                            (account.lastReportedBalanceMinorUnits?.let { " • ${MoneyFormat.rupeesNoDecimals(Money(it))}" } ?: ""),
-                        style = MmType.caption,
-                        color = MmColors.textSecondary
-                    )
-                }
-            } else {
-                Text("Available balance", style = MmType.caption, color = MmColors.textSecondary)
-                MmAnimatedAmount(
-                    value = account.currentBalanceMinorUnits,
-                    formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
-                    style = MmType.amountHero,
-                    color = MmColors.textPrimary,
-                    modifier = Modifier.padding(vertical = MmSpacing.xs)
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)) {
-                    if (!account.active) MmPill("Inactive", tint = MmColors.textSecondary, filled = true)
-                    if (account.lastReportedAtEpochMillis != null) {
-                        MmPill("Reported ${formatFullDate(account.lastReportedAtEpochMillis)}", tint = MmColors.textSecondary, filled = true)
+        when {
+            isPaymentCard -> {
+                val pagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxWidth().then(liftModifier),
+                    contentPadding = PaddingValues(horizontal = MmSpacing.screen),
+                    pageSpacing = 12.dp
+                ) { page ->
+                    if (page == 0) {
+                        MmWalletCard(
+                            account = account,
+                            modifier = Modifier.fillMaxWidth(),
+                            maskedNumberOverride = state.maskedCardNumber
+                        )
+                    } else {
+                        CardBalancePage(
+                            state = state,
+                            account = account,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
+                Row(
+                    Modifier.fillMaxWidth().padding(top = MmSpacing.sm, bottom = MmSpacing.xs),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(2) { index ->
+                        Box(
+                            Modifier.padding(horizontal = 3.dp)
+                                .size(width = if (pagerState.currentPage == index) 18.dp else 6.dp, height = 6.dp)
+                                .clip(CircleShape)
+                                .background(if (pagerState.currentPage == index) MmColors.accent else MmColors.outline)
+                        )
+                    }
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        if (pagerState.currentPage == 0) "Card • Swipe for balance" else "Balance • Swipe for card",
+                        style = MmType.caption,
+                        color = MmColors.textTertiary
+                    )
+                }
             }
+            account.accountType == AccountType.BANK -> {
+                MmBankAccountCard(
+                    account = account,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+                        .then(liftModifier)
+                        .mmSharedElement("account-${account.id}")
+                )
+            }
+            account.accountType == AccountType.WALLET ||
+                account.accountType == AccountType.INVESTMENT ||
+                account.accountType == AccountType.LOAN -> {
+                com.moneymanager.app.ui.components.MmAccountArtworkCard(
+                    account = account,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+                        .then(liftModifier)
+                )
+            }
+            else -> {
+                CardBalancePage(
+                    state = state,
+                    account = account,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+                        .then(liftModifier)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardBalancePage(
+    state: AccountDetailUiState,
+    account: com.moneymanager.app.data.local.entity.AccountEntity,
+    modifier: Modifier = Modifier
+) {
+    val creditCard = state.isCreditCard
+    val amount = if (creditCard) account.outstandingMinorUnits ?: 0L else account.currentBalanceMinorUnits
+    val amountLabel = if (creditCard) "OUTSTANDING BALANCE" else "AVAILABLE BALANCE"
+    val limit = account.creditLimitOverrideMinorUnits ?: account.creditLimitMinorUnits
+    val available = limit?.let { (it - amount).coerceAtLeast(0L) }
+    val accent = when (account.accountType) {
+        AccountType.CREDIT_CARD -> Color(0xFF5D6CC7)
+        AccountType.DEBIT_CARD -> Color(0xFF238A84)
+        AccountType.PREPAID_CARD -> Color(0xFF9A713B)
+        else -> MmColors.accent
+    }
+    val shape = RoundedCornerShape(25.dp)
+
+    Column(
+        modifier.fillMaxWidth().aspectRatio(1.64f).clip(shape)
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        accent.copy(alpha = if (androidx.compose.material.MaterialTheme.colors.isLight) 0.15f else 0.23f),
+                        MmColors.surfaceContainer,
+                        MmColors.surface
+                    )
+                )
+            )
+            .padding(horizontal = 21.dp, vertical = 18.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (creditCard) "CARD SUMMARY" else "ACCOUNT SUMMARY",
+                style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.1.sp),
+                color = MmColors.textSecondary,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.weight(1f))
+            MmPill(if (account.active) "Active" else "Inactive", tint = if (account.active) MmColors.income else MmColors.textSecondary, filled = true)
+        }
+        Spacer(Modifier.weight(1f))
+        Text(amountLabel, style = MmType.caption.copy(fontSize = 9.sp, letterSpacing = 1.1.sp), color = MmColors.textSecondary, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(5.dp))
+        MmAnimatedAmount(
+            value = amount,
+            formatter = { MoneyFormat.rupeesNoDecimals(Money(it)) },
+            style = MmType.amountHero,
+            color = MmColors.textPrimary
+        )
+        if (creditCard && limit != null) {
+            Spacer(Modifier.height(MmSpacing.xs))
+            Text(
+                "Credit limit ${MoneyFormat.rupeesNoDecimals(Money(limit))}" +
+                    (available?.let { "  ·  Available ${MoneyFormat.rupeesNoDecimals(Money(it))}" } ?: ""),
+                style = MmType.caption,
+                color = MmColors.textSecondary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        } else if (state.statementDueDateEpochMillis != null) {
+            Spacer(Modifier.height(MmSpacing.xs))
+            Text(
+                "Due ${formatFullDate(state.statementDueDateEpochMillis)}",
+                style = MmType.caption,
+                color = MmColors.textSecondary
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.weight(1f)) {
+                Text(account.nickname.ifBlank { account.institutionName }, style = MmType.body, color = MmColors.textPrimary, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(account.institutionName, style = MmType.caption, color = MmColors.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(
+                when (account.accountType) {
+                    AccountType.CREDIT_CARD -> "CREDIT"
+                    AccountType.DEBIT_CARD -> "DEBIT"
+                    AccountType.PREPAID_CARD -> "PREPAID"
+                    else -> "ACCOUNT"
+                },
+                style = MmType.caption.copy(letterSpacing = 0.8.sp),
+                color = accent,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
