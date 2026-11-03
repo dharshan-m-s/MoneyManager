@@ -350,7 +350,7 @@ private class DrawBackdropNode(
                 // over its lightweight tint/highlight on the next composition.
                 backdropDrawUnavailable = true
                 (backdrop as? LayerBackdrop)?.markCaptureUnavailable()
-                padding = 0f
+                this@DrawBackdropNode.padding = 0f
                 try {
                     layer.renderEffect = null
                 } catch (_: RuntimeException) {
