@@ -355,29 +355,22 @@ private fun AccountHeader(
                     contentPadding = PaddingValues(horizontal = MmSpacing.screen),
                     pageSpacing = 12.dp
                 ) { page ->
-                    if (page == 0) {
-                        // The sampled lens is a separate cradle behind the physical card.
-                        // MmWalletCard draws afterward, so its issuer artwork remains crisp
-                        // and is never blurred, tinted, refracted or clipped by the glass.
-                        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-                            Box(
-                                Modifier.fillMaxWidth()
-                                    .mmLiquidGlass(cornerRadius = 34.dp, intensity = 0.42f)
-                                    .padding(8.dp)
-                            ) {
-                                MmWalletCard(
-                                    account = account,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    maskedNumberOverride = state.maskedCardNumber
-                                )
-                            }
+                    AccountGlassFrame {
+                        // The frame draws its sampled lens first. The selected account surface
+                        // is rendered afterward, so payment artwork and balance content stay crisp.
+                        if (page == 0) {
+                            MmWalletCard(
+                                account = account,
+                                modifier = Modifier.fillMaxWidth(),
+                                maskedNumberOverride = state.maskedCardNumber
+                            )
+                        } else {
+                            CardBalancePage(
+                                state = state,
+                                account = account,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
-                    } else {
-                        CardBalancePage(
-                            state = state,
-                            account = account,
-                            modifier = Modifier.fillMaxWidth()
-                        )
                     }
                 }
                 Row(
@@ -402,30 +395,60 @@ private fun AccountHeader(
                 }
             }
             account.accountType == AccountType.BANK -> {
-                MmBankAccountCard(
-                    account = account,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+                AccountGlassFrame(
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
                         .then(liftModifier)
-                        .mmSharedElement("account-${account.id}")
-                )
+                ) {
+                    MmBankAccountCard(
+                        account = account,
+                        modifier = Modifier.fillMaxWidth().mmSharedElement("account-${account.id}")
+                    )
+                }
             }
             account.accountType == AccountType.WALLET ||
                 account.accountType == AccountType.INVESTMENT ||
                 account.accountType == AccountType.LOAN -> {
-                com.moneymanager.app.ui.components.MmAccountArtworkCard(
-                    account = account,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+                AccountGlassFrame(
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
                         .then(liftModifier)
-                )
+                ) {
+                    com.moneymanager.app.ui.components.MmAccountArtworkCard(
+                        account = account,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
             else -> {
-                CardBalancePage(
-                    state = state,
-                    account = account,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
+                AccountGlassFrame(
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
                         .then(liftModifier)
-                )
+                ) {
+                    CardBalancePage(
+                        state = state,
+                        account = account,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun AccountGlassFrame(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+        Box(
+            modifier.fillMaxWidth()
+                .mmLiquidGlass(cornerRadius = 34.dp, intensity = 0.42f)
+                .padding(8.dp)
+        ) {
+            content()
         }
     }
 }
