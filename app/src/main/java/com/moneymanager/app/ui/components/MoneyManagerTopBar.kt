@@ -75,9 +75,7 @@ fun MoneyManagerTopBar(
                         )
                     } ?: Modifier.heightIn(min = if (compact) 56.dp else 74.dp).animateContentSize()
                 )
-                .then {
-                    if (glassChrome) it.mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.38f) else it
-                }
+                .then(if (glassChrome) Modifier.mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.38f) else Modifier)
                 .padding(horizontal = MmSpacing.screen, vertical = if (compact) 2.dp else 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
