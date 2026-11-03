@@ -171,13 +171,11 @@ fun BillsScreen(
                 hideNavigationOnCollapse = true,
                 collapseToolbarCompletely = true,
                 actions = {
-                    if (bills.isNotEmpty()) {
-                        AnimatedVisibility(
-                            visible = !scrollChrome.collapsed.value,
-                            enter = fadeIn() + expandHorizontally(),
-                            exit = fadeOut() + shrinkHorizontally()
-                        ) { BillAddAction(onAdd = onAddBiller) }
-                    }
+                    AnimatedVisibility(
+                        visible = !scrollChrome.collapsed.value,
+                        enter = fadeIn() + expandHorizontally(),
+                        exit = fadeOut() + shrinkHorizontally()
+                    ) { BillAddAction(onAdd = onAddBiller) }
                 }
             )
 
@@ -196,13 +194,11 @@ fun BillsScreen(
                         glassField = false
                     )
                 }
-                if (bills.isNotEmpty()) {
-                    AnimatedVisibility(
-                        visible = scrollChrome.collapsed.value,
-                        enter = fadeIn() + expandHorizontally(),
-                        exit = fadeOut() + shrinkHorizontally()
-                    ) { BillAddAction(onAdd = onAddBiller) }
-                }
+                AnimatedVisibility(
+                    visible = scrollChrome.collapsed.value,
+                    enter = fadeIn() + expandHorizontally(),
+                    exit = fadeOut() + shrinkHorizontally()
+                ) { BillAddAction(onAdd = onAddBiller) }
             }
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
