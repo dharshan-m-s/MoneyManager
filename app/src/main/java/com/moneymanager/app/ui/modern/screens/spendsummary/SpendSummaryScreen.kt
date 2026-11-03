@@ -43,6 +43,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -68,6 +70,7 @@ import com.moneymanager.app.ui.components.MmProgressBar
 import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.components.rememberScrollChromeState
+import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.spendsummary.MonthWindow
 import com.moneymanager.app.ui.spendsummary.SpendCategoryRow
@@ -238,12 +241,15 @@ fun SpendSummaryScreen(
     }
 
     val scrollChrome = rememberScrollChromeState(collapseDistance = 216.dp)
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) { headerHeightPx.toDp() }
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
             title = "Spend summary",
             subtitle = selectedPeriod?.label.orEmpty(),
             onBack = onBack,
-            collapseProgress = scrollChrome.progress
+            collapseProgress = scrollChrome.progress,
+            modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height }
         )
 
         LazyColumn(
@@ -251,7 +257,7 @@ fun SpendSummaryScreen(
             contentPadding = PaddingValues(
                 start = MmSpacing.screen,
                 end = MmSpacing.screen,
-                top = MmSpacing.sm,
+                top = headerInset + MmSpacing.sm,
                 bottom = MmSpacing.xxxl + com.moneymanager.app.ui.components.LocalDockContentPadding.current
             ),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.lg)
