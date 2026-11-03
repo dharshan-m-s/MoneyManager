@@ -91,7 +91,7 @@ fun MmCard(
             ),
         shape = cardShape,
         color = backgroundColor,
-        border = BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.34f)),
+        border = null,
         elevation = 0.dp
     ) {
         Column(
@@ -253,7 +253,6 @@ fun MmBalancePanel(
             .then(if (glass) Modifier.mmLiquidGlass(cornerRadius = 28.dp, intensity = 0.88f) else Modifier)
             .clip(shape)
             .background(if (glass) Color.Transparent else MmColors.surfaceContainer)
-            .border(BorderStroke(0.65.dp, MmColors.outline.copy(alpha = 0.32f)), shape)
             .padding(panelPadding)
             .animateContentSize()
     ) {

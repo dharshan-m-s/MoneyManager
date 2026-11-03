@@ -5,6 +5,10 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -120,7 +124,7 @@ fun MmWalletCard(
             .aspectRatio(1.64f)
             .shadow(22.dp, shape, clip = false)
             .clip(shape)
-            .background(Brush.linearGradient(palette.map { it.copy(alpha = if (MaterialTheme.colors.isLight) 0.52f else 0.36f) }))
+            .background(Brush.linearGradient(palette))
             .then(interaction)
             .border(
                 width = 1.dp,
@@ -382,48 +386,134 @@ fun MmAccountArtworkCard(account: AccountEntity, modifier: Modifier = Modifier) 
         else -> walletPalette(account.institutionName.ifBlank { account.nickname })
     }
     val shape = RoundedCornerShape(27.dp)
-    val sheen = remember(account.id) { Animatable(-0.5f) }
-    LaunchedEffect(account.id) {
-        sheen.snapTo(-0.5f)
-        delay(120)
-        sheen.animateTo(1.15f, animationSpec = tween(1_050, easing = FastOutSlowInEasing))
-    }
+    val motion = rememberInfiniteTransition(label = "accountArtworkMotion")
+    val phase by motion.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = when (account.accountType) {
+                    AccountType.WALLET -> 5200
+                    AccountType.INVESTMENT -> 7200
+                    AccountType.LOAN -> 6400
+                    else -> 6000
+                },
+                easing = FastOutSlowInEasing
+            ),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "accountArtworkPhase"
+    )
+    val shimmer by motion.animateFloat(
+        initialValue = -0.35f,
+        targetValue = 1.25f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(7600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "accountArtworkShimmer"
+    )
 
     Box(
         modifier.fillMaxWidth().aspectRatio(1.64f)
-            .shadow(20.dp, shape, clip = false)
+            .shadow(16.dp, shape, clip = false)
             .clip(shape)
             .background(Brush.linearGradient(palette))
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val center = Offset(size.width * 0.88f, size.height * 0.18f)
+            val min = size.minDimension
+            val pulse = 0.94f + phase * 0.08f
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.015f), Color.Transparent),
+                    colors = listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.025f), Color.Transparent),
                     center = center,
-                    radius = size.minDimension * 0.92f
+                    radius = min * 0.92f * pulse
                 ),
-                radius = size.minDimension * 0.92f,
+                radius = min * 0.92f * pulse,
                 center = center
             )
-            for (ring in 0..4) {
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.035f + ring * 0.012f),
-                    radius = size.minDimension * (0.20f + ring * 0.075f),
-                    center = Offset(size.width * 0.94f, size.height * 0.78f),
-                    style = Stroke(width = (0.8f + ring * 0.12f).dp.toPx())
-                )
-            }
-            if (sheen.value < 1.12f) {
-                val x = size.width * sheen.value
-                drawRect(
-                    brush = Brush.linearGradient(
-                        colors = listOf(Color.Transparent, Color.White.copy(alpha = 0.13f), Color.Transparent),
-                        start = Offset(x - size.width * 0.24f, 0f),
-                        end = Offset(x + size.width * 0.16f, size.height)
+
+            when (account.accountType) {
+                AccountType.WALLET -> {
+                    // Wallet: softly orbiting concentric rings and a breathing highlight.
+                    for (ring in 0..3) {
+                        val radius = min * (0.18f + ring * 0.075f + phase * 0.018f)
+                        drawCircle(
+                            color = Color.White.copy(alpha = 0.055f + ring * 0.012f),
+                            radius = radius,
+                            center = Offset(size.width * (0.88f - phase * 0.035f), size.height * 0.72f),
+                            style = Stroke(width = (1.0f + ring * 0.18f).dp.toPx())
+                        )
+                    }
+                    drawArc(
+                        color = Color.White.copy(alpha = 0.18f),
+                        startAngle = 205f + phase * 24f,
+                        sweepAngle = 74f,
+                        useCenter = false,
+                        topLeft = Offset(size.width * 0.65f, size.height * 0.30f),
+                        size = Size(min * 0.62f, min * 0.62f),
+                        style = Stroke(width = 1.2.dp.toPx())
                     )
-                )
+                }
+                AccountType.INVESTMENT -> {
+                    // Investment: a restrained rising portfolio path with a moving data point.
+                    val points = Path().apply {
+                        moveTo(size.width * 0.62f, size.height * 0.72f)
+                        cubicTo(size.width * 0.70f, size.height * 0.64f, size.width * 0.72f, size.height * 0.76f, size.width * 0.79f, size.height * 0.58f)
+                        cubicTo(size.width * 0.84f, size.height * 0.46f, size.width * 0.89f, size.height * 0.56f, size.width * 0.98f, size.height * 0.30f)
+                    }
+                    drawPath(points, Color.White.copy(alpha = 0.22f), style = Stroke(width = 1.5.dp.toPx()))
+                    val dotX = size.width * (0.72f + phase * 0.24f)
+                    val dotY = size.height * (0.70f - phase * 0.30f)
+                    drawCircle(Color.White.copy(alpha = 0.20f), min * 0.085f, Offset(dotX, dotY))
+                    drawCircle(Color.White.copy(alpha = 0.80f), min * 0.025f, Offset(dotX, dotY))
+                    for (line in 0..2) {
+                        val y = size.height * (0.28f + line * 0.09f)
+                        drawLine(Color.White.copy(alpha = 0.045f), Offset(size.width * 0.64f, y), Offset(size.width * 0.98f, y), 0.8.dp.toPx())
+                    }
+                }
+                AccountType.LOAN -> {
+                    // Loan: a calm rotating progress arc and pulse around the repayment motif.
+                    val arcSize = min * (0.44f + phase * 0.035f)
+                    val arcTop = Offset(size.width * 0.74f, size.height * 0.30f)
+                    drawArc(
+                        color = Color.White.copy(alpha = 0.16f),
+                        startAngle = 145f,
+                        sweepAngle = 250f,
+                        useCenter = false,
+                        topLeft = arcTop,
+                        size = Size(arcSize, arcSize),
+                        style = Stroke(width = 2.dp.toPx())
+                    )
+                    drawArc(
+                        color = Color.White.copy(alpha = 0.48f),
+                        startAngle = 145f + phase * 250f,
+                        sweepAngle = 54f,
+                        useCenter = false,
+                        topLeft = arcTop,
+                        size = Size(arcSize, arcSize),
+                        style = Stroke(width = 2.2.dp.toPx())
+                    )
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.10f + phase * 0.06f),
+                        radius = min * (0.12f + phase * 0.025f),
+                        center = Offset(size.width * 0.87f, size.height * 0.53f)
+                    )
+                }
+                else -> Unit
             }
+
+            // A very slow, low-contrast reflection keeps the artwork alive without competing
+            // with the balance or creating a flashing/high-motion effect.
+            val x = size.width * shimmer
+            drawRect(
+                brush = Brush.linearGradient(
+                    colors = listOf(Color.Transparent, Color.White.copy(alpha = 0.065f), Color.Transparent),
+                    start = Offset(x - size.width * 0.20f, 0f),
+                    end = Offset(x + size.width * 0.14f, size.height)
+                )
+            )
         }
         Column(Modifier.fillMaxSize().padding(horizontal = 21.dp, vertical = 18.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -527,7 +617,7 @@ fun MmBankAccountCard(
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .shadow(16.dp, shape, clip = false)
             .clip(shape)
-            .background(Brush.linearGradient(palette.map { it.copy(alpha = if (MaterialTheme.colors.isLight) 0.48f else 0.34f) }))
+            .background(Brush.linearGradient(palette))
             .border(
                 1.dp,
                 Brush.linearGradient(
