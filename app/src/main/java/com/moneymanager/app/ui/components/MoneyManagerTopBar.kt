@@ -26,6 +26,7 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,16 +73,28 @@ fun MoneyManagerTopBar(
     hideNavigationOnCollapse: Boolean = false,
     collapseToolbarCompletely: Boolean = false,
     modifier: Modifier = Modifier,
-    bottomContent: @Composable ColumnScope.() -> Unit = {}
+    bottomContent: @Composable ColumnScope.() -> Unit = {},
+    transparentChrome: Boolean = false
 ) {
     Column(modifier.fillMaxWidth()) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .mmTopBarSurface(accentStrength = if (glassChrome) 1f else 0.72f)
-                .modernTopInsets()
-                .padding(horizontal = MmSpacing.sm)
-        ) {
+        CompositionLocalProvider(LocalMmGlassEnabled provides true) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .then(
+                        when {
+                            transparentChrome -> Modifier
+                            glassChrome -> Modifier.mmLiquidGlass(
+                                cornerRadius = 24.dp,
+                                intensity = 1.08f,
+                                blurMultiplier = 1.4f
+                            )
+                            else -> Modifier.mmTopBarSurface(accentStrength = 0.72f)
+                        }
+                    )
+                    .modernTopInsets()
+                    .padding(horizontal = MmSpacing.sm)
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -157,7 +170,8 @@ fun MoneyManagerTopBar(
                         content = actions
                     )
                 }
-            bottomContent()
+                bottomContent()
+            }
         }
     }
 }
