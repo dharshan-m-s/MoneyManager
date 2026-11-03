@@ -181,8 +181,8 @@ fun AccountsScreen(
             Column(Modifier.fillMaxWidth()) {
                 MmBalancePanel(
                     label = when {
-                        showingInactive && tab == AccountsTab.CREDIT_CARDS -> "Inactive outstanding"
-                        showingInactive -> "Inactive balance"
+                        inactiveView && tab == AccountsTab.CREDIT_CARDS -> "Inactive outstanding"
+                        inactiveView -> "Inactive balance"
                         tab == AccountsTab.CREDIT_CARDS -> "Total outstanding"
                         else -> "Total balance"
                     },
@@ -195,7 +195,7 @@ fun AccountsScreen(
                     }.sorted(),
                     visualLabel = "Account mix",
                     caption = "${shown.size} ${if (shown.size == 1) "account" else "accounts"} · ${tab.label}" +
-                        if (showingInactive) " · switched off" else "",
+                        if (inactiveView) " · switched off" else "",
                     artworkKind = "account_${tab.label.lowercase()}",
                     glass = true,
                     compactProgress = scrollChrome.progress,
