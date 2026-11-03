@@ -193,6 +193,9 @@ private class DrawBackdropElement(
     }
 
     override fun update(node: DrawBackdropNode) {
+        if (node.backdrop !== backdrop) {
+            node.backdropDrawUnavailable = false
+        }
         node.backdrop = backdrop
         node.shapeProvider = shapeProvider
         node.effects = effects
@@ -286,6 +289,10 @@ private class DrawBackdropNode(
 
     private var padding by mutableFloatStateOf(0f)
 
+    // Stop retrying a renderer path that failed for this node. The shared LayerBackdrop
+    // is also marked unavailable so the composable swaps to its non-sampled fallback.
+    var backdropDrawUnavailable: Boolean = false
+
     private val recordBackdropBlock: (DrawScope.() -> Unit) = {
         val canvas = drawContext.canvas
         val padding = padding
@@ -318,24 +325,38 @@ private class DrawBackdropNode(
 
     private val drawBackdropLayer: DrawScope.() -> Unit = {
         val layer = graphicsLayer
-        if (layer != null) {
+        if (layer != null && !backdropDrawUnavailable) {
             val padding = padding
             val scale = backdropScale
+            try {
+                recordLayer(
+                    this@DrawBackdropNode,
+                    layer,
+                    size = IntSize(
+                        ((size.width * scale).toInt() + padding.toInt() * 2).coerceAtLeast(1),
+                        ((size.height * scale).toInt() + padding.toInt() * 2).coerceAtLeast(1)
+                    ),
+                    block = recordBackdropBlock
+                )
 
-            recordLayer(
-                this@DrawBackdropNode,
-                layer,
-                size = IntSize(
-                    ((size.width * scale).toInt() + padding.toInt() * 2).coerceAtLeast(1),
-                    ((size.height * scale).toInt() + padding.toInt() * 2).coerceAtLeast(1)
-                ),
-                block = recordBackdropBlock
-            )
-
-            layer.topLeft =
-                if (padding != 0f) IntOffset(-padding.toInt(), -padding.toInt())
-                else IntOffset.Zero
-            drawRecordedBackdrop()
+                layer.topLeft =
+                    if (padding != 0f) IntOffset(-padding.toInt(), -padding.toInt())
+                    else IntOffset.Zero
+                drawRecordedBackdrop()
+            } catch (_: RuntimeException) {
+                // Renderer failures while recording or compositing an individual glass
+                // surface must not take down the page or navigation. Stop sampling this
+                // node, invalidate the shared material, and let the normal content draw
+                // over its lightweight tint/highlight on the next composition.
+                backdropDrawUnavailable = true
+                (backdrop as? LayerBackdrop)?.markCaptureUnavailable()
+                padding = 0f
+                try {
+                    layer.renderEffect = null
+                } catch (_: RuntimeException) {
+                    // The app content remains drawable even if this layer is unusable.
+                }
+            }
         }
     }
 
@@ -452,6 +473,7 @@ private class DrawBackdropNode(
     override fun onAttach() {
         val graphicsContext = requireGraphicsContext()
         graphicsLayer = graphicsContext.createGraphicsLayer()
+        backdropDrawUnavailable = false
 
         observeEffects()
     }
