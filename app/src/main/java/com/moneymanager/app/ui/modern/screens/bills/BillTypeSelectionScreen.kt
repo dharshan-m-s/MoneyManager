@@ -86,7 +86,8 @@ fun BillTypeSelectionScreen(
         MoneyManagerTopBar(
             title = "Choose bill type",
             subtitle = "Pick the kind of bill you want to track",
-            onBack = onBack
+            onBack = onBack,
+            glassChrome = false
         )
 
         Column(

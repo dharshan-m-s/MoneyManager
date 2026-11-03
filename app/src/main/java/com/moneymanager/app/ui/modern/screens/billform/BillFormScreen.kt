@@ -112,6 +112,7 @@ fun BillFormScreen(
                     onClick = viewModel::save
                 )
             },
+            glassChrome = false,
             modifier = Modifier.fillMaxWidth().zIndex(3f).overlayWithoutLayoutSpace()
                 .onSizeChanged { headerHeightPx = it.height }
         )

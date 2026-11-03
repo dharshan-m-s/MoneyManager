@@ -82,7 +82,12 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
-        MoneyManagerTopBar(title = "App updates", subtitle = "Release channel & install status", onBack = onBack)
+        MoneyManagerTopBar(
+            title = "App updates",
+            subtitle = "Release channel & install status",
+            onBack = onBack,
+            glassChrome = false
+        )
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)

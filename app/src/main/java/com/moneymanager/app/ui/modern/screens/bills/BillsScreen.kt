@@ -33,6 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Surface
 import androidx.compose.material.Button
@@ -85,6 +86,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -290,332 +292,277 @@ private fun BillPaymentDialog(
     var showRecent by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
     var recentQuery by remember(state.billRow?.bill?.id) { mutableStateOf("") }
     var showRecordPayment by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
+    var initialPaymentModeChosen by remember(state.billRow?.bill?.id) { mutableStateOf(false) }
     var showAccountPicker by remember { mutableStateOf(false) }
     var pendingSettlement by remember(state.billRow?.bill?.id) { mutableStateOf<PendingBillSettlement?>(null) }
     val selectedSource = state.accounts.firstOrNull { it.id == state.recordSourceAccountId }
     val occurrence = state.billRow?.nextInstance
-    val paymentFormScroll = rememberScrollState()
+    val formScroll = rememberScrollState()
     val dateFormat = DateTimeFormatter.ofPattern("dd MMM yyyy")
     val zone = ZoneId.of("Asia/Kolkata")
+    val totalDue = occurrence?.amountDueMinorUnits ?: amount.minorUnits
+    val paidSoFar = occurrence?.paidAmountMinorUnits ?: 0L
+    val remainingDue = (totalDue - paidSoFar).coerceAtLeast(0L)
 
-    val recentRows: List<BillPaymentCandidate> = remember(state.recentTransactions, recentQuery) {
-        val q = recentQuery.trim().lowercase()
-        val queryTokens = q.split(Regex("\\s+"))
-            .map { it.trim() }
-            .filter { it.length >= 2 }
-        if (queryTokens.isEmpty()) {
-            state.recentTransactions
-        } else {
-            val scored: List<Pair<BillPaymentCandidate, Int>> = state.recentTransactions.mapNotNull { candidate ->
-                val tx = candidate.transaction
-                val haystack = listOfNotNull(
-                    tx.merchantReceiverSender,
-                    tx.notes,
-                    tx.rawCategoryName,
-                    tx.rawPaymentType,
-                    tx.txnType.name,
-                    tx.txnSubType.name,
-                    candidate.account?.nickname,
-                    candidate.account?.institutionName,
-                    candidate.account?.sourceAccountId,
-                    MoneyFormat.rupeesNoDecimals(Money(tx.debitMinorUnits)),
-                    MoneyFormat.rupeesNoDecimals(Money(tx.debitMinorUnits)).replace(Regex("[^0-9.]"), ""),
-                    dateFormat.format(Instant.ofEpochMilli(tx.occurredAtEpochMillis).atZone(zone))
-                ).joinToString(" ").lowercase()
-                val matched = queryTokens.count { token -> haystack.contains(token) }
-                if (matched > 0) candidate to matched else null
+    LaunchedEffect(state.loading, state.matches.isEmpty(), state.recentTransactions.isEmpty()) {
+        if (!state.loading && !initialPaymentModeChosen) {
+            when {
+                state.matches.isNotEmpty() -> Unit
+                state.recentTransactions.isNotEmpty() -> showRecent = true
+                else -> showRecordPayment = true
             }
-            scored
-                .sortedWith(compareByDescending<Pair<BillPaymentCandidate, Int>> { it.second }
-                    .thenByDescending { it.first.transaction.occurredAtEpochMillis })
-                .map { it.first }
+            initialPaymentModeChosen = true
         }
     }
 
-    fun requestSettlement(actualMinor: Long, remainingMinor: Long, billAmountMinor: Long, confirm: (Long) -> Unit) {
-        val difference = remainingMinor - actualMinor
+    val recentRows: List<BillPaymentCandidate> = remember(state.recentTransactions, recentQuery) {
+        val tokens = recentQuery.trim().lowercase().split(Regex("\\s+"))
+            .map(String::trim).filter { it.length >= 2 }
+        if (tokens.isEmpty()) state.recentTransactions else state.recentTransactions.mapNotNull { candidate ->
+            val tx = candidate.transaction
+            val haystack = listOfNotNull(
+                tx.merchantReceiverSender, tx.notes, tx.rawCategoryName, tx.rawPaymentType,
+                tx.txnType.name, tx.txnSubType.name, candidate.account?.nickname,
+                candidate.account?.institutionName, candidate.account?.sourceAccountId,
+                MoneyFormat.rupeesNoDecimals(Money(tx.debitMinorUnits)),
+                MoneyFormat.rupeesNoDecimals(Money(tx.debitMinorUnits)).replace(Regex("[^0-9.]"), ""),
+                dateFormat.format(Instant.ofEpochMilli(tx.occurredAtEpochMillis).atZone(zone))
+            ).joinToString(" ").lowercase()
+            val score = tokens.count(haystack::contains)
+            if (score > 0) candidate to score else null
+        }.sortedWith(
+            compareByDescending<Pair<BillPaymentCandidate, Int>> { it.second }
+                .thenByDescending { it.first.transaction.occurredAtEpochMillis }
+        ).map { it.first }
+    }
+
+    val selectedTransaction = (state.matches + state.recentTransactions)
+        .firstOrNull { it.transaction.id == state.selectedTransactionId }?.transaction
+
+    fun requestSettlement(actualMinor: Long, confirm: (Long) -> Unit) {
+        val difference = remainingDue - actualMinor
         if (actualMinor > 0L && difference > 0L) {
             pendingSettlement = PendingBillSettlement(
-                billAmountMinorUnits = billAmountMinor,
+                billAmountMinorUnits = totalDue,
                 actualPaymentMinorUnits = actualMinor,
                 differenceMinorUnits = difference,
                 keepPending = { confirm(0L) },
                 settleBill = { confirm(difference) }
             )
-        } else {
-            confirm(0L)
-        }
+        } else confirm(0L)
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.84f),
-            shape = RoundedCornerShape(28.dp),
-            border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.72f)),
-            elevation = 18.dp,
+            modifier = Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.82f),
+            shape = RoundedCornerShape(30.dp),
+            border = BorderStroke(0.8.dp, MmColors.outline.copy(alpha = 0.45f)),
+            elevation = 20.dp,
             color = MmColors.surface
         ) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .then(
-                        if (showRecordPayment) Modifier.verticalScroll(paymentFormScroll)
-                        else Modifier
-                    )
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 10.dp, top = 16.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            Column(Modifier.fillMaxSize()) {
+                // Compact, fixed header: the bill and balance remain visible while the list scrolls.
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md),
+                    verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
                 ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Mark bill as paid", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            "$billName • ${MoneyFormat.rupeesNoDecimals(amount)}",
-                            fontSize = 12.sp,
-                            color = MmColors.textSecondary,
-                            maxLines = 1
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("SETTLE BILL", style = MmType.caption, color = MmColors.accent, fontWeight = FontWeight.Bold)
+                            Text(billName, style = MmType.sectionTitle, color = MmColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Filled.Close, contentDescription = "Close", tint = MmColors.textSecondary)
+                        }
                     }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close", tint = MmColors.textSecondary)
-                    }
-                }
 
-                MmCard(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
-                    contentPadding = PaddingValues(MmSpacing.md),
-                    backgroundColor = MmColors.surfaceContainer
-                ) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Search, contentDescription = null, tint = MmColors.accent, modifier = Modifier.size(22.dp))
-                        Column(Modifier.padding(start = 10.dp)) {
-                            Text("We checked your recent payments", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Pick the transaction you already recorded. Nothing new will be created.",
-                            fontSize = 11.sp,
-                            color = MmColors.textSecondary,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                    }
-                }
-
-                if (occurrence != null && occurrence.paidAmountMinorUnits > 0L) {
-                    val fmt = { minor: Long -> MoneyFormat.rupeesNoDecimals(Money(minor)) }
-                    Text(
-                        "Already paid ${fmt(occurrence.paidAmountMinorUnits)} of " +
-                            "${fmt(occurrence.amountDueMinorUnits)} - " +
-                            "${fmt(occurrence.amountDueMinorUnits - occurrence.paidAmountMinorUnits)} remaining",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MmColors.accent,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-                    )
-                }
-                }
-
-                if (!showRecordPayment) {
-                if (state.loading) {
-                    Column(
-                        Modifier.weight(1f).fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                            .background(Brush.linearGradient(listOf(MmColors.accent.copy(alpha = 0.17f), MmColors.surfaceContainerHigh, MmColors.surfaceContainer)))
+                            .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Searching recent transactions…", color = MmColors.textSecondary, fontSize = 13.sp)
-                    }
-                } else if (!showRecent) {
-                    if (state.matches.isEmpty() && state.recentTransactions.isEmpty()) {
-                        Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-                            Text("No matching transactions found in the default window", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Column(Modifier.weight(1f)) {
+                            Text("REMAINING", style = MmType.caption, color = MmColors.textSecondary, fontWeight = FontWeight.SemiBold)
+                            Text(MoneyFormat.rupeesNoDecimals(Money(remainingDue)), style = MmType.amountTile, color = MmColors.textPrimary)
                             Text(
-                                "No eligible transactions found near the due date. You can search older transactions or record a payment manually.",
-                                fontSize = 12.sp,
-                                color = MmColors.textSecondary,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                            TextButton(onClick = onSearchOlder) {
-                                Text("Search older transactions", color = MmColors.accent, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    } else if (state.matches.isEmpty()) {
-                        Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-                            Text("No strong automatic match", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text(
-                                "The biller name or amount may be different in your statement. Use Recent Transactions to choose it manually, or search older transactions.",
-                                fontSize = 12.sp,
-                                color = MmColors.textSecondary,
-                                modifier = Modifier.padding(top = 4.dp)
+                                if (paidSoFar > 0L) "${MoneyFormat.rupeesNoDecimals(Money(paidSoFar))} already paid"
+                                else "Total bill ${MoneyFormat.rupeesNoDecimals(Money(totalDue))}",
+                                style = MmType.caption,
+                                color = MmColors.textSecondary
                             )
                         }
-                    } else {
-                        Text(
-                            "Best matches",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-                        )
-                        LazyColumn(
-                            modifier = Modifier.weight(1f).fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        Box(
+                            Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(MmColors.accent.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            items(state.matches, key = { it.transaction.id }) { candidate ->
-                                BillPaymentCandidateRow(candidate, state.selectedTransactionId, dateFormat, zone, onSelectTransaction)
-                            }
-                        }
-                    }
-                } else {
-                    Box(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
-                        MmSearchField(
-                            value = recentQuery,
-                            onValueChange = { recentQuery = it },
-                            hint = "Search by name, amount, date or account"
-                        )
-                    }
-                    Text(
-                        "Recent transactions",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-                    )
-                    LazyColumn(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        items(recentRows, key = { it.transaction.id }) { candidate ->
-                            BillPaymentCandidateRow(candidate, state.selectedTransactionId, dateFormat, zone, onSelectTransaction)
-                        }
-                    }
-                    if (recentRows.isEmpty()) {
-                        Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-                            Text(
-                                "No recent transaction matches that search.",
-                                color = MmColors.textSecondary,
-                                fontSize = 12.sp
+                            Icon(
+                                if (isCreditCard) Icons.Filled.CreditCard else Icons.Filled.Payments,
+                                contentDescription = null,
+                                tint = MmColors.accent,
+                                modifier = Modifier.size(23.dp)
                             )
-                            TextButton(onClick = onSearchOlder) {
-                                Text("Search older transactions", color = MmColors.accent, fontWeight = FontWeight.SemiBold)
-                            }
                         }
                     }
-                }
 
+                    PaymentModeSelector(
+                        recordPayment = showRecordPayment,
+                        onSelect = { showRecordPayment = it }
+                    )
                 }
 
                 if (showRecordPayment) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)) {
-                        Text("Record a new payment", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Column(
+                        Modifier.weight(1f).fillMaxWidth().verticalScroll(formScroll)
+                            .padding(horizontal = MmSpacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(MmSpacing.md)
+                    ) {
+                        Text("New payment", style = MmType.label, color = MmColors.textPrimary, fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (isCreditCard) "Creates a transfer from the chosen account and reduces the card outstanding."
-                            else "Records the actual bill expense against the chosen cash or bank account.",
-                            fontSize = 11.sp,
-                            color = MmColors.textSecondary,
-                            modifier = Modifier.padding(top = 2.dp, bottom = MmSpacing.sm)
+                            if (isCreditCard) "A transfer is recorded from the account you choose."
+                            else "Only the amount actually paid is recorded as an expense.",
+                            style = MmType.caption,
+                            color = MmColors.textSecondary
                         )
-                        MmCard(onClick = { showAccountPicker = true }) {
-                            Text("Paid from", style = MmType.caption, color = MmColors.textSecondary)
+                        MmCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { showAccountPicker = true },
+                            backgroundColor = MmColors.surfaceContainer
+                        ) {
+                            Text("PAID FROM", style = MmType.caption, color = MmColors.textSecondary, fontWeight = FontWeight.SemiBold)
                             Text(
-                                selectedSource?.nickname?.ifBlank { selectedSource.institutionName }
-                                    ?: "Choose an account",
+                                selectedSource?.nickname?.ifBlank { selectedSource.institutionName } ?: "Choose an account",
                                 style = MmType.body,
-                                color = if (selectedSource != null) MmColors.textPrimary else MmColors.expense
+                                color = if (selectedSource != null) MmColors.textPrimary else MmColors.accent
                             )
                         }
-                        Spacer(Modifier.height(MmSpacing.sm))
-                        MmAmountField(
-                            value = state.recordAmount,
-                            onValueChange = onRecordAmount,
-                            label = "Payment amount"
-                        )
-                        Spacer(Modifier.height(MmSpacing.sm))
+                        MmAmountField(value = state.recordAmount, onValueChange = onRecordAmount, label = "Amount paid")
                         MmDateField(
                             label = "Payment date",
                             epochMillis = state.recordDateEpochMillis,
                             onChange = onRecordDate,
                             includeTime = true
                         )
-                        Spacer(Modifier.height(MmSpacing.sm))
+                        OutlinedTextField(
+                            value = state.recordNotes,
+                            onValueChange = onRecordNotes,
+                            label = { Text("Note (optional)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 1,
+                            maxLines = 3,
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                    }
+                } else {
+                    Column(Modifier.weight(1f).fillMaxWidth()) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),
+                            horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                        ) {
+                            PaymentListTab("Best matches", selected = !showRecent, modifier = Modifier.weight(1f)) { showRecent = false }
+                            PaymentListTab("Recent", selected = showRecent, modifier = Modifier.weight(1f)) { showRecent = true }
+                        }
+
+                        if (showRecent) {
+                            Box(Modifier.fillMaxWidth().padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)) {
+                                MmSearchField(value = recentQuery, onValueChange = { recentQuery = it }, hint = "Search name, amount or date")
+                            }
+                        }
+
+                        val rows = if (showRecent) recentRows else state.matches
+                        when {
+                            state.loading -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                Text("Finding payments…", style = MmType.caption, color = MmColors.textSecondary)
+                            }
+                            rows.isEmpty() -> Column(
+                                Modifier.weight(1f).fillMaxWidth().padding(horizontal = MmSpacing.xl),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Box(
+                                    Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(MmColors.surfaceContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Filled.Search, contentDescription = null, tint = MmColors.textSecondary)
+                                }
+                                Spacer(Modifier.height(MmSpacing.md))
+                                Text(
+                                    if (showRecent) "No transactions found" else "No close matches yet",
+                                    style = MmType.label,
+                                    color = MmColors.textPrimary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    if (showRecent) "Try another search, or record a new payment."
+                                    else "Check Recent for another payment or enter one manually.",
+                                    style = MmType.caption,
+                                    color = MmColors.textSecondary
+                                )
+                                TextButton(onClick = onSearchOlder) {
+                                    Text("Search older transactions", color = MmColors.accent, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                            else -> LazyColumn(
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
+                            ) {
+                                items(rows, key = { it.transaction.id }) { candidate ->
+                                    BillPaymentCandidateRow(candidate, state.selectedTransactionId, dateFormat, zone, onSelectTransaction)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                state.error?.let { error ->
+                    Text(error, style = MmType.caption, color = MmColors.expense, modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs))
+                }
+
+                Column(
+                    Modifier.fillMaxWidth().background(MmColors.surfaceContainer)
+                        .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.md),
+                    verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)
+                ) {
+                    if (showRecordPayment) {
                         MmPrimaryButton(
-                            text = if (state.saving) "Recording…" else "Record payment",
+                            text = if (state.saving) "Recording payment…" else "Record payment",
                             onClick = {
                                 val actual = runCatching {
                                     Money.fromRupees(BigDecimal(state.recordAmount.trim().ifBlank { "0" })).minorUnits
                                 }.getOrNull() ?: 0L
-                                val remaining = occurrence?.let {
-                                    (it.amountDueMinorUnits - it.paidAmountMinorUnits).coerceAtLeast(0L)
-                                } ?: 0L
-                                requestSettlement(actual, remaining, amount.minorUnits, onRecordPayment)
+                                requestSettlement(actual, onRecordPayment)
                             },
                             enabled = !state.saving && state.recordSourceAccountId != null,
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
-                        )
-                    }
-                }
-
-                val selectedTxn = (state.matches + state.recentTransactions)
-                    .firstOrNull { it.transaction.id == state.selectedTransactionId }
-                    ?.transaction
-                if (selectedTxn != null && occurrence != null) {
-                    val fmt = { minor: Long -> MoneyFormat.rupeesNoDecimals(Money(minor)) }
-                    val remainingForLink =
-                        (occurrence.amountDueMinorUnits - occurrence.paidAmountMinorUnits)
-                            .coerceAtLeast(0L)
-                    val txnAmount = selectedTxn.debitMinorUnits
-                    val outcome = when {
-                        txnAmount >= remainingForLink -> {
-                            val excess = txnAmount - remainingForLink
-                            if (excess > 0L) {
-                                "Records ${fmt(txnAmount)} - settles this occurrence with " +
-                                    "${fmt(excess)} extra, kept as a credit"
-                            } else {
-                                "Records ${fmt(txnAmount)} - settles this occurrence in full"
-                            }
-                        }
-                        else -> "Records ${fmt(txnAmount)} - " +
-                            "${fmt(remainingForLink - txnAmount)} still due after this"
-                    }
-                    Text(
-                        outcome,
-                        fontSize = 12.sp,
-                        color = MmColors.textSecondary,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-                    )
-                }
-
-                state.error?.let {
-                    Text(it, color = MmColors.expense, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-                }
-
-                Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    MmPrimaryButton(
-                        text = if (showRecordPayment) "Hide payment form" else "Record a payment",
-                        onClick = { showRecordPayment = !showRecordPayment },
-                        icon = Icons.Filled.Payments,
-                        modifier = Modifier.fillMaxWidth().height(48.dp)
-                    )
-                    if (!showRecent) {
-                        MmSecondaryButton(
-                            text = "Choose from Recent Transactions",
-                            onClick = { showRecent = true },
-                            icon = Icons.Filled.Search,
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                            modifier = Modifier.fillMaxWidth().height(50.dp)
                         )
                     } else {
-                        TextButton(onClick = { showRecent = false }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Back to Best Matches", color = MmColors.accent, fontWeight = FontWeight.SemiBold)
+                        val linkedOutcome = selectedTransaction?.let { txn ->
+                            val diff = remainingDue - txn.debitMinorUnits
+                            when {
+                                diff > 0L -> "${MoneyFormat.rupeesNoDecimals(Money(txn.debitMinorUnits))} selected · ${MoneyFormat.rupeesNoDecimals(Money(diff))} will remain"
+                                diff < 0L -> "${MoneyFormat.rupeesNoDecimals(Money(txn.debitMinorUnits))} selected · extra stays as a credit"
+                                else -> "${MoneyFormat.rupeesNoDecimals(Money(txn.debitMinorUnits))} selected · exact settlement"
+                            }
                         }
+                        Text(
+                            linkedOutcome ?: "Select a transaction you have already recorded.",
+                            style = MmType.caption,
+                            color = MmColors.textSecondary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        MmPrimaryButton(
+                            text = if (state.saving) "Linking payment…" else "Link selected payment",
+                            onClick = {
+                                requestSettlement(selectedTransaction?.debitMinorUnits ?: 0L, onConfirm)
+                            },
+                            enabled = !state.loading && !state.saving && selectedTransaction != null,
+                            modifier = Modifier.fillMaxWidth().height(50.dp)
+                        )
                     }
-
-                    MmSecondaryButton(
-                        text = "Link Selected Payment",
-                        onClick = {
-                            val actual = selectedTxn?.debitMinorUnits ?: 0L
-                            val remaining = occurrence?.let {
-                                (it.amountDueMinorUnits - it.paidAmountMinorUnits).coerceAtLeast(0L)
-                            } ?: 0L
-                            requestSettlement(actual, remaining, amount.minorUnits, onConfirm)
-                        },
-                        enabled = !state.loading && !state.saving && state.selectedTransactionId != null,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp)
-                    )
                 }
             }
         }
@@ -641,39 +588,78 @@ private fun BillPaymentDialog(
     }
 
     pendingSettlement?.let { pending ->
-        AlertDialog(
-            onDismissRequest = { pendingSettlement = null },
-            title = { Text("Is there still an amount pending on this bill?", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)) {
-                    SettlementAmountRow("Original bill amount", pending.billAmountMinorUnits)
-                    SettlementAmountRow("Amount actually paid", pending.actualPaymentMinorUnits)
-                    SettlementAmountRow("Remaining difference", pending.differenceMinorUnits, MmColors.warning)
-                    Text(
-                        "Keep the difference due, or close the bill with a non-cash adjustment.",
-                        style = MmType.caption,
-                        color = MmColors.textSecondary
+        Dialog(onDismissRequest = { pendingSettlement = null }) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.94f),
+                shape = RoundedCornerShape(28.dp),
+                elevation = 20.dp,
+                color = MmColors.surface
+            ) {
+                Column(Modifier.fillMaxWidth().padding(MmSpacing.lg), verticalArrangement = Arrangement.spacedBy(MmSpacing.md)) {
+                    Text("PAYMENT DIFFERENCE", style = MmType.caption, color = MmColors.warning, fontWeight = FontWeight.Bold)
+                    Text("Is there still an amount pending?", style = MmType.sectionTitle, color = MmColors.textPrimary)
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(MmColors.surfaceContainer).padding(MmSpacing.md),
+                        verticalArrangement = Arrangement.spacedBy(MmSpacing.sm)
+                    ) {
+                        SettlementAmountRow("Original bill", pending.billAmountMinorUnits)
+                        SettlementAmountRow("Actually paid", pending.actualPaymentMinorUnits)
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(MmColors.outline.copy(alpha = 0.35f)))
+                        SettlementAmountRow("Difference", pending.differenceMinorUnits, MmColors.warning)
+                    }
+                    MmSecondaryButton(
+                        text = "Amount still pending",
+                        onClick = { pendingSettlement = null; pending.keepPending() },
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
                     )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    pendingSettlement = null
-                    pending.keepPending()
-                }) { Text("Amount still pending", color = MmColors.accent) }
-            },
-            dismissButton = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { pendingSettlement = null }) {
+                    MmPrimaryButton(
+                        text = "Bill fully settled",
+                        onClick = { pendingSettlement = null; pending.settleBill() },
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    )
+                    TextButton(onClick = { pendingSettlement = null }, modifier = Modifier.fillMaxWidth()) {
                         Text("Cancel", color = MmColors.textSecondary)
                     }
-                    TextButton(onClick = {
-                        pendingSettlement = null
-                        pending.settleBill()
-                    }) { Text("Bill fully settled", color = MmColors.income) }
                 }
             }
-        )
+        }
+    }
+}
+
+@Composable
+private fun PaymentModeSelector(recordPayment: Boolean, onSelect: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MmColors.surfaceContainer).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        PaymentModeTab("Match a payment", selected = !recordPayment, modifier = Modifier.weight(1f)) { onSelect(false) }
+        PaymentModeTab("New payment", selected = recordPayment, modifier = Modifier.weight(1f)) { onSelect(true) }
+    }
+}
+
+@Composable
+private fun PaymentModeTab(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.clip(RoundedCornerShape(12.dp))
+            .background(if (selected) MmColors.surface else Color.Transparent)
+            .pressableClick(onClick = onClick)
+            .padding(horizontal = MmSpacing.sm, vertical = MmSpacing.sm),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, style = MmType.caption, color = if (selected) MmColors.textPrimary else MmColors.textSecondary, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+    }
+}
+
+@Composable
+private fun PaymentListTab(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.clip(RoundedCornerShape(14.dp))
+            .background(if (selected) MmColors.accent.copy(alpha = 0.12f) else MmColors.surfaceContainer)
+            .pressableClick(onClick = onClick)
+            .padding(horizontal = MmSpacing.sm, vertical = MmSpacing.sm),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, style = MmType.caption, color = if (selected) MmColors.accent else MmColors.textSecondary, fontWeight = FontWeight.SemiBold)
     }
 }
 

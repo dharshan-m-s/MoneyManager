@@ -76,7 +76,8 @@ fun ImportScreen(
         MoneyManagerTopBar(
             title = "Import statement",
             subtitle = "Moneyview consolidated CSV",
-            onBack = onBack
+            onBack = onBack,
+            glassChrome = false
         )
 
         when (val s = state) {
