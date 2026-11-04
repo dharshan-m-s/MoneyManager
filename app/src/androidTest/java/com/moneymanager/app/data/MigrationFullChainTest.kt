@@ -14,8 +14,8 @@ import org.junit.runner.RunWith
 
 /**
  * End-to-end migration coverage for every schema version that has an exported schema file:
- * 1 -> 12, 4 -> 12 and 8 -> 12. Each test seeds user data at the source version, runs the
- * real migration chain, lets Room validate the resulting schema against the compiled v10
+ * 1 -> 15, 4 -> 15 and 8 -> 15. Each test seeds user data at the source version, runs the
+ * real migration chain, lets Room validate the resulting schema against the compiled v15
  * entities, and then asserts the data and the per-step contracts:
  *  - 2 -> 3: includeInStatistics defaults to 1 (existing rows keep counting);
  *  - 4 -> 5 / 9 -> 10: checkpoint columns exist and default to NULL;
@@ -27,11 +27,16 @@ import org.junit.runner.RunWith
  *  - 10 -> 11: payment allocations table created and every legacy paid occurrence backfilled
  *    as exactly one full-settlement allocation (detail covered by Migration10To11Test),
  *  - 11 -> 12: bills still holding the legacy 3-day reminder default are raised to the new
- *    10-day default, which is also the window in which "Mark as paid" unlocks.
+ *    10-day default, which is also the window in which "Mark as paid" unlocks;
+ *  - 12 -> 13: explicit reporting class column added without touching existing rows;
+ *  - 13 -> 14: card checkpoint watermark and allocation type added with safe defaults;
+ *  - 14 -> 15: the allocation table is rebuilt so settlement adjustments cascade with their
+ *    authorising payment while all existing rows keep their values.
  *
  * NOTE: exported schemas 5.json/6.json/7.json do not exist, so starting states 5, 6 and 7
  * cannot be reproduced with MigrationTestHelper. Those exact starting versions are NOT
- * VERIFIED here; their migrations are exercised transitively by the 1 -> 11 and 4 -> 11 runs.
+ * VERIFIED here; their migrations are exercised transitively by the full 1 -> 15 and 4 -> 15
+ * runs.
  */
 @RunWith(AndroidJUnit4::class)
 class MigrationFullChainTest {
@@ -78,7 +83,7 @@ class MigrationFullChainTest {
 
     @Test
     fun chainFromVersion1PreservesEveryTableAndBackfills() {
-        helper.createDatabase("migration-full-1-12.db", 1).use { db ->
+        helper.createDatabase("migration-full-1-15.db", 1).use { db ->
             insertAccount(db, 1)
             insertTransaction(db, 1, 1)
             insertBill(db, 1)
@@ -100,8 +105,8 @@ class MigrationFullChainTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            "migration-full-1-12.db",
-            12,
+            "migration-full-1-15.db",
+            15,
             true,
             *AppDatabaseMigrations.ALL_MIGRATIONS
         )
@@ -156,13 +161,15 @@ class MigrationFullChainTest {
         // 4 -> 5 / 9 -> 10: checkpoint columns exist and default to NULL.
         db.query(
             "SELECT manualBalanceOverrideMinorUnits, manualBalanceAdjustmentMinorUnits, " +
-                "outstandingCheckpointMinorUnits, outstandingAdjustmentMinorUnits FROM accounts WHERE id = 1"
+                "outstandingCheckpointMinorUnits, outstandingAdjustmentMinorUnits, " +
+                "outstandingCheckpointTransactionId FROM accounts WHERE id = 1"
         ).use {
             it.moveToFirst()
             assertTrue(it.isNull(0))
             assertTrue(it.isNull(1))
             assertTrue(it.isNull(2))
             assertTrue(it.isNull(3))
+            assertTrue(it.isNull(4))
         }
         db.query("SELECT scheduleAnchorDay FROM bills WHERE id = 1").use {
             it.moveToFirst()
@@ -179,8 +186,8 @@ class MigrationFullChainTest {
         // 10 -> 11: the legacy paid occurrence became one full-settlement allocation, and the
         // unpaid one stays allocation-free with a zero paid aggregate.
         db.query(
-            "SELECT billInstanceId, transactionId, amountMinorUnits, paidAtEpochMillis " +
-                "FROM bill_payment_allocations"
+            "SELECT billInstanceId, transactionId, amountMinorUnits, paidAtEpochMillis, " +
+                "allocationType, paymentAllocationId FROM bill_payment_allocations"
         ).use {
             assertEquals(1, it.count)
             it.moveToFirst()
@@ -188,6 +195,8 @@ class MigrationFullChainTest {
             assertEquals(1L, it.getLong(1))
             assertEquals(50000L, it.getLong(2))
             assertEquals(1751040000000L, it.getLong(3))
+            assertEquals("PAYMENT", it.getString(4))
+            assertTrue(it.isNull(5))
         }
         db.query(
             "SELECT paidAmountMinorUnits FROM bill_instances WHERE id = 1"
@@ -221,7 +230,7 @@ class MigrationFullChainTest {
 
     @Test
     fun chainFromVersion4AppliesAllLaterMigrations() {
-        helper.createDatabase("migration-full-4-12.db", 4).use { db ->
+        helper.createDatabase("migration-full-4-15.db", 4).use { db ->
             insertAccount(db, 1)
             insertTransaction(db, 1, 1)
             insertBill(db, 1)
@@ -234,8 +243,8 @@ class MigrationFullChainTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            "migration-full-4-12.db",
-            12,
+            "migration-full-4-15.db",
+            15,
             true,
             AppDatabaseMigrations.MIGRATION_4_5,
             AppDatabaseMigrations.MIGRATION_5_6,
@@ -244,7 +253,10 @@ class MigrationFullChainTest {
             AppDatabaseMigrations.MIGRATION_8_9,
             AppDatabaseMigrations.MIGRATION_9_10,
             AppDatabaseMigrations.MIGRATION_10_11,
-            AppDatabaseMigrations.MIGRATION_11_12
+            AppDatabaseMigrations.MIGRATION_11_12,
+            AppDatabaseMigrations.MIGRATION_12_13,
+            AppDatabaseMigrations.MIGRATION_13_14,
+            AppDatabaseMigrations.MIGRATION_14_15
         )
 
         db.query("SELECT currentBalanceMinorUnits FROM accounts WHERE id = 1").use {
@@ -273,7 +285,7 @@ class MigrationFullChainTest {
 
     @Test
     fun chainFromVersion8CreatesAttachmentsAndCheckpoints() {
-        helper.createDatabase("migration-full-8-12.db", 8).use { db ->
+        helper.createDatabase("migration-full-8-15.db", 8).use { db ->
             insertAccount(db, 1)
             insertTransaction(db, 1, 1)
             insertBill(db, 1)
@@ -284,13 +296,16 @@ class MigrationFullChainTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            "migration-full-8-12.db",
-            12,
+            "migration-full-8-15.db",
+            15,
             true,
             AppDatabaseMigrations.MIGRATION_8_9,
             AppDatabaseMigrations.MIGRATION_9_10,
             AppDatabaseMigrations.MIGRATION_10_11,
-            AppDatabaseMigrations.MIGRATION_11_12
+            AppDatabaseMigrations.MIGRATION_11_12,
+            AppDatabaseMigrations.MIGRATION_12_13,
+            AppDatabaseMigrations.MIGRATION_13_14,
+            AppDatabaseMigrations.MIGRATION_14_15
         )
 
         db.execSQL(
