@@ -89,10 +89,28 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           TAG="v${VERSION_NAME#v}"
-          gh release create "$TAG" \
-            "MoneyManager-v${VERSION_NAME}-release.apk" \
-            "MoneyManager-v${VERSION_NAME}-release.apk.sha256" \
-            --title "Money Manager ${VERSION_NAME}" \
-            --generate-notes
+          APK="MoneyManager-v${VERSION_NAME}-release.apk"
+          CHECKSUM="${APK}.sha256"
+          # GitHub occasionally returns 5xx while creating a release, sometimes after the
+          # release object already exists. Retry, and fall back to uploading the assets
+          # onto the existing release so a transient error cannot lose a completed build.
+          for attempt in 1 2 3 4 5; do
+            if gh release create "$TAG" "$APK" "$CHECKSUM" \
+                --title "Money Manager ${VERSION_NAME}" \
+                --generate-notes; then
+              exit 0
+            fi
+            echo "Release creation attempt ${attempt} failed; checking for the release..."
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              if gh release upload "$TAG" "$APK" "$CHECKSUM" --clobber; then
+                echo "Uploaded assets to existing release ${TAG}"
+                exit 0
+              fi
+            fi
+            sleep $((attempt * 15))
+          done
+          echo "GitHub release creation failed after 5 attempts"
+          exit 1
