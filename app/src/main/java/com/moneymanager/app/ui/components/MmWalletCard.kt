@@ -3,7 +3,6 @@ package com.moneymanager.app.ui.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -91,22 +90,16 @@ fun MmWalletCard(
 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
-    val tilt by animateFloatAsState(
-        targetValue = if (pressed) -0.85f else 0f,
-        animationSpec = spring(dampingRatio = 0.48f, stiffness = 760f),
-        label = "walletCardTilt"
-    )
-    val lift by animateFloatAsState(
-        targetValue = if (pressed) 1.018f else 1f,
-        animationSpec = spring(dampingRatio = 0.52f, stiffness = 720f),
-        label = "walletCardLift"
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) MmMotion.touchScale else 1f,
+        animationSpec = MmMotion.microSpring(),
+        label = "walletCardPress"
     )
     val interaction = if (onClick != null) {
         Modifier
             .graphicsLayer {
-                rotationZ = tilt
-                scaleX = lift
-                scaleY = lift
+                scaleX = pressScale
+                scaleY = pressScale
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
             }
             .clickable(
@@ -600,8 +593,8 @@ fun MmBankAccountCard(
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.986f else 1f,
-        animationSpec = spring(dampingRatio = 0.58f, stiffness = 720f),
+        targetValue = if (pressed) MmMotion.touchScale else 1f,
+        animationSpec = MmMotion.microSpring(),
         label = "bankAccountCardScale"
     )
     val sheen = remember(account.id) { Animatable(-0.48f) }

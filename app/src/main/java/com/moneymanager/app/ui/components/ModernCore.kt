@@ -3,7 +3,6 @@ package com.moneymanager.app.ui.components
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -79,11 +78,11 @@ fun MmCard(
     val cardShape = RoundedCornerShape(24.dp)
     Surface(
         modifier = modifier
-            .animateContentSize(animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f))
+            .animateContentSize(animationSpec = MmMotion.standardSpring())
             .fillMaxWidth()
             .then(
                 if (onClick != null) Modifier
-                    .pressScale(interactionSource, pressedScale = 0.975f)
+                    .pressScale(interactionSource)
                     .clickable(
                         interactionSource = interactionSource,
                         indication = null,
@@ -175,7 +174,7 @@ fun MmMetricCard(
             .border(BorderStroke(0.75.dp, tint.copy(alpha = 0.15f)), shape)
             .then(
                 if (onClick != null) Modifier
-                    .pressScale(interactionSource, pressedScale = 0.975f)
+                    .pressScale(interactionSource)
                     .clickable(
                         interactionSource = interactionSource,
                         indication = null,
@@ -235,17 +234,17 @@ fun MmBalancePanel(
     val compact = (compactProgress?.value ?: 0f).coerceIn(0f, 1f)
     val panelPadding by animateDpAsState(
         targetValue = MmSpacing.xl - (8.dp * compact),
-        animationSpec = spring(dampingRatio = 0.86f, stiffness = 360f),
+        animationSpec = MmMotion.standardSpring(),
         label = "balancePanelPadding"
     )
     val contentGap by animateDpAsState(
         targetValue = MmSpacing.md - (6.dp * compact),
-        animationSpec = spring(dampingRatio = 0.86f, stiffness = 360f),
+        animationSpec = MmMotion.standardSpring(),
         label = "balancePanelGap"
     )
     val artworkSize by animateDpAsState(
         targetValue = 76.dp - (22.dp * compact),
-        animationSpec = spring(dampingRatio = 0.86f, stiffness = 360f),
+        animationSpec = MmMotion.standardSpring(),
         label = "balancePanelArtwork"
     )
     CompositionLocalProvider(LocalMmGlassEnabled provides glass) {
@@ -341,7 +340,7 @@ fun MmBalancePanel(
                                 .coerceIn(0.06f, 1f)
                             val animatedFraction by animateFloatAsState(
                                 targetValue = fraction,
-                                animationSpec = spring(dampingRatio = 0.82f, stiffness = 250f),
+                                animationSpec = MmMotion.standardSpring(),
                                 label = "balancePanelBar$index"
                             )
                             Box(
@@ -381,7 +380,7 @@ fun MmPlainCard(
             .fillMaxWidth()
             .then(
                 if (onClick != null) Modifier
-                    .pressScale(interactionSource, pressedScale = 0.985f)
+                    .pressScale(interactionSource)
                     .clickable(
                         interactionSource = interactionSource,
                         indication = null,
@@ -498,7 +497,7 @@ fun MmChip(
     val interactionSource = remember { MutableInteractionSource() }
     Surface(
         modifier = modifier
-            .pressScale(interactionSource, pressedScale = 0.96f)
+            .pressScale(interactionSource)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -534,7 +533,7 @@ fun MmSegmentedControl(
             val safeIndex = selectedIndex.coerceIn(options.indices)
             val indicatorOffset by animateDpAsState(
                 targetValue = slotWidth * safeIndex.toFloat(),
-                animationSpec = spring(dampingRatio = 0.82f, stiffness = 380f),
+                animationSpec = MmMotion.standardSpring(),
                 label = "segmentedSelection"
             )
             Box(

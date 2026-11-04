@@ -7,7 +7,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
@@ -118,6 +117,7 @@ import java.util.Locale
 import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.components.MmSpotlightPanel
 import com.moneymanager.app.ui.components.revealOnAppear
+import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.appearance.AppearanceEntryPoint
 import com.moneymanager.app.ui.appearance.AppearancePreferences
 import com.moneymanager.app.ui.appearance.MmAppearance
@@ -194,7 +194,7 @@ private fun SettingsRow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                    .then(if (onClick != null) Modifier.pressableClick(onClick = onClick) else Modifier)
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -281,7 +281,7 @@ private fun SettingsSwitchRow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onCheckedChange(!checked) }
+                    .pressableClick { onCheckedChange(!checked) }
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

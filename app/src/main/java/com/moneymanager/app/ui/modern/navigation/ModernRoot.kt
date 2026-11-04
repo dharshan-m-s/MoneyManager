@@ -34,14 +34,13 @@ import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.runtime.Composable
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.spring
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.moneymanager.app.ui.navigation.Destination
@@ -71,6 +71,7 @@ import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.security.LockMethod
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.MmMotion
 import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
 import com.moneymanager.app.ui.components.LocalMmGlassAutoCaptureAllowed
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
@@ -91,6 +92,11 @@ import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
 import timber.log.Timber
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.Job
 
 // Primary destinations keep the navigation dock available. Detail and editing
 // destinations intentionally leave the dock so the task at hand has the full screen.
@@ -218,6 +224,9 @@ fun ModernRoot() {
 
     val navController = rememberNavController()
     var sheetDragOffset by remember { mutableFloatStateOf(0f) }
+    val sheetSettleAnimation = remember { Animatable(0f) }
+    var sheetSettleJob by remember { mutableStateOf<Job?>(null) }
+    var sheetIsMoving by remember { mutableStateOf(false) }
     val sheetAnimationScope = rememberCoroutineScope()
     var navHostHeightPx by remember { mutableIntStateOf(0) }
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -270,14 +279,37 @@ fun ModernRoot() {
     androidx.activity.compose.BackHandler(enabled = overlay != DockOverlay.NONE) {
         closeOverlay()
     }
-    androidx.activity.compose.BackHandler(
+    PredictiveBackHandler(
         enabled = currentRoute != Destination.Dashboard.route && overlay == DockOverlay.NONE
-    ) {
-        // One root-level policy covers both tab destinations and detail flows. A valid
-        // previous entry is always preferred; orphaned/restored routes return to Dashboard.
+    ) { backEvents ->
+        try {
+            backEvents.collect { event ->
+                if (navHostHeightPx > 0) {
+                    sheetSettleJob?.cancel()
+                    sheetIsMoving = true
+                    sheetDragOffset = navHostHeightPx * 0.14f * event.progress
+                }
+            }
+        } catch (_: CancellationException) {
+            // A cancelled predictive gesture settles the current page back into place.
+            withContext(NonCancellable) {
+                sheetSettleAnimation.snapTo(sheetDragOffset)
+                sheetSettleAnimation.animateTo(
+                    0f,
+                    animationSpec = MmMotion.spatialSpring()
+                ) { sheetDragOffset = value }
+                sheetIsMoving = false
+            }
+            return@PredictiveBackHandler
+        }
+
+        // One root-level policy covers tab destinations and detail flows. A valid previous
+        // entry is preferred; orphaned/restored routes return to Dashboard.
         if (!navController.popBackStack()) {
             navController.navigate(Destination.Dashboard.route) { launchSingleTop = true }
         }
+        sheetDragOffset = 0f
+        sheetIsMoving = false
     }
 
     // The floating dock, overlays and menus live outside the page capture and can safely
@@ -337,7 +369,7 @@ fun ModernRoot() {
                         ) {
                             // Avoid a full-screen transformed RenderNode at rest; only create
                             // the drag layer while a sheet is actively moving.
-                            val pageDragModifier = if (sheetDragOffset == 0f) Modifier else {
+                            val pageDragModifier = if (!sheetIsMoving) Modifier else {
                                 Modifier.graphicsLayer {
                                     translationY = sheetDragOffset
                                     val travel = (navHostHeightPx * 0.9f).coerceAtLeast(1f)
@@ -378,6 +410,7 @@ fun ModernRoot() {
                                 .pointerInput(currentRoute, navHostHeightPx) {
                                     awaitEachGesture {
                                         val down = awaitFirstDown(requireUnconsumed = false)
+                                        sheetSettleJob?.cancel()
                                         val tracker = VelocityTracker()
                                         tracker.addPosition(down.uptimeMillis, down.position)
                                         var pressed = true
@@ -387,6 +420,7 @@ fun ModernRoot() {
                                             tracker.addPosition(change.uptimeMillis, change.position)
                                             val delta = change.positionChange().y
                                             if (delta != 0f) {
+                                                sheetIsMoving = true
                                                 sheetDragOffset = (sheetDragOffset + delta).coerceAtLeast(0f)
                                                 if (delta > 0f || sheetDragOffset > 0f) change.consume()
                                             }
@@ -398,23 +432,24 @@ fun ModernRoot() {
                                         val flingDistance = with(density) { 28.dp.toPx() }
                                         val dismiss = distance >= dismissDistance ||
                                             (distance >= flingDistance && velocity >= 900f)
-                                        sheetAnimationScope.launch {
-                                            val animation = Animatable(distance)
+                                        sheetSettleJob = sheetAnimationScope.launch {
+                                            sheetSettleAnimation.snapTo(distance)
                                             if (dismiss) {
-                                                animation.animateTo(
+                                                sheetSettleAnimation.animateTo(
                                                     targetValue = navHostHeightPx.toFloat().coerceAtLeast(1f),
-                                                    animationSpec = spring(dampingRatio = 0.88f, stiffness = 285f),
+                                                    animationSpec = MmMotion.spatialSpring(),
                                                     initialVelocity = velocity.coerceAtLeast(0f)
                                                 ) { sheetDragOffset = value }
                                                 navController.popBackStack()
                                             } else {
-                                                animation.animateTo(
+                                                sheetSettleAnimation.animateTo(
                                                     targetValue = 0f,
-                                                    animationSpec = spring(dampingRatio = 0.78f, stiffness = 420f),
+                                                    animationSpec = MmMotion.elasticSpring(),
                                                     initialVelocity = velocity
                                                 ) { sheetDragOffset = value }
                                             }
                                             sheetDragOffset = 0f
+                                            sheetIsMoving = false
                                         }
                                     }
                                 },
@@ -459,13 +494,13 @@ fun ModernRoot() {
                 androidx.compose.animation.scaleIn(
                     initialScale = 0.92f,
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 1f),
-                    animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 460f)
+                    animationSpec = MmMotion.standardSpring()
                 ),
             exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(110)) +
                 androidx.compose.animation.scaleOut(
                     targetScale = 0.96f,
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 1f),
-                    animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 520f)
+                    animationSpec = MmMotion.microSpring()
                 )
         ) {
             ModernMorePopover(
@@ -494,13 +529,13 @@ fun ModernRoot() {
                 androidx.compose.animation.scaleIn(
                     initialScale = 0.90f,
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f),
-                    animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.68f, stiffness = 440f)
+                    animationSpec = MmMotion.standardSpring()
                 ),
             exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(110)) +
                 androidx.compose.animation.scaleOut(
                     targetScale = 0.96f,
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f),
-                    animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 520f)
+                    animationSpec = MmMotion.microSpring()
                 )
         ) {
             ModernAddActionSurface(

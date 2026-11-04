@@ -9,7 +9,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -620,7 +619,7 @@ private fun AccountRow(
         Row(
             modifier = Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .clickable(onClick = if (editMode) onEdit else onClick)
+                .pressableClick(onClick = if (editMode) onEdit else onClick)
                 .padding(horizontal = MmSpacing.sm, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -685,7 +684,7 @@ private fun AddAccountRow(
             .clip(RoundedCornerShape(18.dp))
             .background(MmColors.accentFill.copy(alpha = if (MaterialTheme.colors.isLight) 0.10f else 0.14f))
             .background(MmColors.surfaceContainer)
-            .clickable(onClick = onClick)
+            .pressableClick(onClick = onClick)
     ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),

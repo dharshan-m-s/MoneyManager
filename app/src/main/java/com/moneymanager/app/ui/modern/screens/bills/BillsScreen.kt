@@ -9,6 +9,7 @@ import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -106,6 +107,7 @@ import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPill
 import com.moneymanager.app.ui.components.pressableClick
+import com.moneymanager.app.ui.components.pressScale
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.mmPageBackdrop
@@ -757,6 +759,7 @@ private fun BillCard(
     modifier: Modifier = Modifier
 ) {
     var showDeleteConfirmation by remember(row.bill.id) { mutableStateOf(false) }
+    val interactionSource = remember(row.bill.id) { MutableInteractionSource() }
     val now = System.currentTimeMillis()
     val next = row.nextInstance
     val latestPaid = row.latestPaid
@@ -818,7 +821,9 @@ private fun BillCard(
     MmCard(
         modifier = modifier
             .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)
+            .pressScale(interactionSource)
             .combinedClickable(
+                interactionSource = interactionSource,
                 onClick = onClick,
                 onLongClick = { showDeleteConfirmation = true }
             )

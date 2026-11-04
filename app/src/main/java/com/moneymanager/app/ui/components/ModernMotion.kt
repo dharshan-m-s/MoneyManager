@@ -3,9 +3,12 @@ package com.moneymanager.app.ui.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.SnapSpec
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -29,8 +32,11 @@ import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +44,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,17 +56,44 @@ import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import kotlin.math.roundToLong
+import kotlinx.coroutines.currentCoroutineContext
 
 /**
  * Shared motion tokens. Keep touch feedback and layout springs consistent across components.
  * Spring-based transitions remain interruptible when a new pointer interaction arrives.
  */
 internal object MmMotion {
-    const val pressDamping = 0.52f
-    const val pressStiffness = 720f
-    const val pressDepthDp = 1.2f
-    const val contentDamping = 0.88f
-    const val contentStiffness = 420f
+    const val touchScale = 0.988f
+    const val microDamping = 0.92f
+    const val microStiffness = 760f
+    const val standardDamping = 0.90f
+    const val standardStiffness = 420f
+    const val spatialDamping = 0.92f
+    const val spatialStiffness = 300f
+    const val elasticDamping = 0.84f
+    const val elasticStiffness = 360f
+
+    fun <T> microSpring(): SpringSpec<T> = spring(
+        dampingRatio = microDamping,
+        stiffness = microStiffness
+    )
+
+    fun <T> standardSpring(): SpringSpec<T> = spring(
+        dampingRatio = standardDamping,
+        stiffness = standardStiffness
+    )
+
+    fun <T> spatialSpring(): SpringSpec<T> = spring(
+        dampingRatio = spatialDamping,
+        stiffness = spatialStiffness
+    )
+
+    fun <T> elasticSpring(): SpringSpec<T> = spring(
+        dampingRatio = elasticDamping,
+        stiffness = elasticStiffness
+    )
+
+    fun <T> reducedMotion(): SnapSpec<T> = snap()
 }
 
 /**
@@ -70,43 +104,24 @@ internal object MmMotion {
  * Compose's platform overscroll remains enabled so Android 12+ supplies its native stretch edge.
  */
 
-/** Press feedback: the surface compresses vertically and stretches horizontally. */
+/** Press feedback: a subtle, interruptible compression that preserves the surface shape. */
 @Composable
 fun Modifier.pressScale(
     interactionSource: MutableInteractionSource,
-    pressedScale: Float = 0.965f,
+    pressedScale: Float = MmMotion.touchScale,
     enabled: Boolean = true
 ): Modifier {
     val pressed by interactionSource.collectIsPressedAsState()
-    // Compress vertically while the surface expands slightly horizontally. This
-    // squash-and-stretch response feels tactile without moving surrounding layout.
     val isPressed = pressed && enabled
     val compression = pressedScale.coerceIn(0.90f, 1f)
-    val scaleX by animateFloatAsState(
-        targetValue = if (isPressed) 1f + (1f - compression) * 0.34f else 1f,
-        animationSpec = spring(
-            dampingRatio = MmMotion.pressDamping,
-            stiffness = MmMotion.pressStiffness
-        ),
-        label = "elasticPressX"
-    )
-    val scaleY by animateFloatAsState(
+    val scale by animateFloatAsState(
         targetValue = if (isPressed) compression else 1f,
-        animationSpec = spring(
-            dampingRatio = MmMotion.pressDamping,
-            stiffness = MmMotion.pressStiffness
-        ),
-        label = "elasticPressY"
-    )
-    val pressDepth by animateFloatAsState(
-        targetValue = if (isPressed) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.62f, stiffness = 760f),
-        label = "elasticPressDepth"
+        animationSpec = MmMotion.microSpring(),
+        label = "pressScale"
     )
     return this.graphicsLayer {
-        this.scaleX = scaleX
-        this.scaleY = scaleY
-        translationY = pressDepth * MmMotion.pressDepthDp.dp.toPx()
+        scaleX = scale
+        scaleY = scale
         transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
     }
 }
@@ -136,17 +151,28 @@ fun Modifier.pressableClick(
 @Composable
 fun Modifier.revealOnAppear(
     index: Int = 0,
-    delayPerItemMillis: Int = 32,
-    maxStaggerSteps: Int = 8
+    delayPerItemMillis: Int = 12,
+    maxStaggerSteps: Int = 4
 ): Modifier {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(index) {
-        val delay = (index.coerceAtMost(maxStaggerSteps) * delayPerItemMillis).toLong()
-        kotlinx.coroutines.delay(delay)
-        progress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing)
-        )
+    // Lazy lists save this flag with each stable item key. A row that scrolls out and
+    // back into composition therefore does not replay its entrance animation.
+    var hasAppeared by rememberSaveable { mutableStateOf(false) }
+    val progress = remember { Animatable(if (hasAppeared) 1f else 0f) }
+    LaunchedEffect(Unit) {
+        if (hasAppeared) {
+            progress.snapTo(1f)
+        } else if (currentCoroutineContext()[MotionDurationScale]?.scaleFactor == 0f) {
+            hasAppeared = true
+            progress.animateTo(1f, animationSpec = MmMotion.reducedMotion())
+        } else {
+            hasAppeared = true
+            val delay = (index.coerceAtMost(maxStaggerSteps) * delayPerItemMillis).toLong()
+            kotlinx.coroutines.delay(delay)
+            progress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+            )
+        }
     }
     return this.graphicsLayer {
         alpha = progress.value
@@ -235,7 +261,7 @@ fun MmPrimaryButton(
     val glow = MmColors.accentFill
     Box(
         modifier = modifier
-            .pressScale(interactionSource, pressedScale = 0.955f, enabled = enabled)
+            .pressScale(interactionSource, enabled = enabled)
             .clip(MmShape.row)
             .background(
                 if (enabled) {
@@ -295,7 +321,7 @@ fun MmSecondaryButton(
     val view = LocalView.current
     Box(
         modifier = modifier
-            .pressScale(interactionSource, pressedScale = 0.955f, enabled = enabled)
+            .pressScale(interactionSource, enabled = enabled)
             .clip(MmShape.row)
             .background(MmColors.surface)
             .border(1.dp, MmColors.hairline, MmShape.row)
