@@ -4,6 +4,7 @@ import android.app.DatePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -154,74 +155,82 @@ fun CategoryTransactionsScreen(
         MoneyManagerTopBar(
             title = title,
             subtitle = "${rows.size} ${if (rows.size == 1) "transaction" else "transactions"} • $monthLabel",
-            onBack = onBack
+            onBack = onBack,
+            glassChrome = false,
+            solidChrome = true
         )
-        if (history.months.isNotEmpty()) {
-            CategoryHistoryGraph(
-                history = chartHistory,
-                selectedIndex = selectedIndex,
-                range = range,
-                customStartLabel = customStartMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate().toString() } ?: "Start date",
-                customEndLabel = customEndMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate().toString() } ?: "End date",
-                onRangeChange = { selected ->
-                    rangeName = selected.name
-                    if (selected == SpendSummaryRange.CUSTOM) {
-                        val today = LocalDate.now(zone)
-                        customStartMillis = today.minusMonths(5).withDayOfMonth(1).atStartOfDay(zone).toInstant().toEpochMilli()
-                        customEndMillis = today.atStartOfDay(zone).toInstant().toEpochMilli()
-                        openCustomDatePicker(true)
-                    }
-                },
-                onChooseCustomStart = { openCustomDatePicker(true) },
-                onChooseCustomEnd = { openCustomDatePicker(false) },
-                onSelect = { index ->
-                    selectedBucketIndex = index
-                    chartHistory.months.getOrNull(index)?.let { period ->
-                        viewModel.selectMonth(period.startInclusive, period.endExclusive)
-                    }
-                }
-            )
-            Spacer(Modifier.height(MmSpacing.sm))
-        }
-
-        if (rows.isEmpty()) {
-            MmEmptyState(
-                icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                title = "No transactions in $title",
-                message = "Transactions you record in this category will be listed here.",
-                modifier = Modifier.fillMaxSize()
-            )
-            return@Column
-        }
-
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = MmSpacing.lg,
-                end = MmSpacing.lg,
-                top = MmSpacing.lg,
-                bottom = MmSpacing.xxl
-            ),
+            contentPadding = PaddingValues(bottom = MmSpacing.xxl),
             verticalArrangement = Arrangement.spacedBy(MmSpacing.xs)
         ) {
-            item {
-                MmBalancePanel(
-                    label = "NET SPEND · $monthLabel",
-                    value = MoneyFormat.rupeesNoDecimals(Money(spent)),
-                    caption = "Transactions included in this selected period",
-                    tint = MmColors.expense,
-                    animatedValueMinorUnits = spent,
-                    visualValues = chartHistory.totals,
-                    visualLabel = "SPENDING TREND"
-                )
-                Spacer(Modifier.height(MmSpacing.sm))
+            if (history.months.isNotEmpty()) {
+                item(key = "category-history-graph") {
+                    CategoryHistoryGraph(
+                        history = chartHistory,
+                        selectedIndex = selectedIndex,
+                        range = range,
+                        customStartLabel = customStartMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate().toString() } ?: "Start date",
+                        customEndLabel = customEndMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate().toString() } ?: "End date",
+                        onRangeChange = { selected ->
+                            rangeName = selected.name
+                            if (selected == SpendSummaryRange.CUSTOM) {
+                                val today = LocalDate.now(zone)
+                                customStartMillis = today.minusMonths(5).withDayOfMonth(1).atStartOfDay(zone).toInstant().toEpochMilli()
+                                customEndMillis = today.atStartOfDay(zone).toInstant().toEpochMilli()
+                                openCustomDatePicker(true)
+                            }
+                        },
+                        onChooseCustomStart = { openCustomDatePicker(true) },
+                        onChooseCustomEnd = { openCustomDatePicker(false) },
+                        onSelect = { index ->
+                            selectedBucketIndex = index
+                            chartHistory.months.getOrNull(index)?.let { period ->
+                                viewModel.selectMonth(period.startInclusive, period.endExclusive)
+                            }
+                        }
+                    )
+                }
+                item(key = "category-history-spacer") { Spacer(Modifier.height(MmSpacing.sm)) }
             }
-            itemsIndexed(rows, key = { _, txn -> txn.id }) { index, txn ->
-                MmTransactionRow(
-                    txn = txn,
-                    onClick = { onTransactionClick(txn.id) },
-                    modifier = Modifier.revealOnAppear(index = index)
-                )
+
+            if (rows.isEmpty()) {
+                item(key = "category-transactions-empty") {
+                    Box(
+                        Modifier.fillParentMaxSize().padding(horizontal = MmSpacing.lg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        MmEmptyState(
+                            icon = Icons.AutoMirrored.Filled.ReceiptLong,
+                            title = "No transactions in $title",
+                            message = "Transactions you record in this category will be listed here.",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            } else {
+                item(key = "category-net-spend") {
+                    MmBalancePanel(
+                        label = "NET SPEND · $monthLabel",
+                        value = MoneyFormat.rupeesNoDecimals(Money(spent)),
+                        caption = "Transactions included in this selected period",
+                        tint = MmColors.expense,
+                        animatedValueMinorUnits = spent,
+                        visualValues = chartHistory.totals,
+                        visualLabel = "SPENDING TREND",
+                        glass = false,
+                        modifier = Modifier.padding(horizontal = MmSpacing.lg)
+                            .padding(top = MmSpacing.lg)
+                    )
+                }
+                itemsIndexed(rows, key = { _, txn -> txn.id }) { index, txn ->
+                    MmTransactionRow(
+                        txn = txn,
+                        onClick = { onTransactionClick(txn.id) },
+                        modifier = Modifier.padding(horizontal = MmSpacing.lg)
+                            .revealOnAppear(index = index)
+                    )
+                }
             }
         }
     }
@@ -302,7 +311,7 @@ private fun CategoryHistoryGraph(
                 }
                 LazyRow(
                     state = listState,
-                    modifier = Modifier.fillMaxWidth().height(224.dp),
+                    modifier = Modifier.fillMaxWidth().height(184.dp),
                     contentPadding = PaddingValues(horizontal = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {

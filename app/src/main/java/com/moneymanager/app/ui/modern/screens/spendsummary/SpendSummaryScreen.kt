@@ -248,6 +248,8 @@ fun SpendSummaryScreen(
             title = "Spend summary",
             subtitle = selectedPeriod?.label.orEmpty(),
             onBack = onBack,
+            glassChrome = false,
+            solidChrome = true,
             collapseProgress = scrollChrome.progress,
             keepTitleOnCollapse = true,
             modifier = Modifier.overlayWithoutLayoutSpace().onSizeChanged { headerHeightPx = it.height }
@@ -577,7 +579,7 @@ private fun MonthBarGraph(
                 }
                 LazyRow(
                     state = listState,
-                    modifier = Modifier.fillMaxWidth().height(224.dp),
+                    modifier = Modifier.fillMaxWidth().height(184.dp),
                     contentPadding = PaddingValues(horizontal = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
                 ) {

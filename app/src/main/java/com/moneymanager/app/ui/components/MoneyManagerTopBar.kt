@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Text
@@ -76,7 +77,8 @@ fun MoneyManagerTopBar(
     collapseToolbarCompletely: Boolean = false,
     modifier: Modifier = Modifier,
     bottomContent: @Composable ColumnScope.() -> Unit = {},
-    transparentChrome: Boolean = false
+    transparentChrome: Boolean = false,
+    solidChrome: Boolean = false
 ) {
     Column(modifier.fillMaxWidth()) {
         CompositionLocalProvider(LocalMmGlassEnabled provides true) {
@@ -86,6 +88,9 @@ fun MoneyManagerTopBar(
                     .then(
                         when {
                             transparentChrome -> Modifier
+                            solidChrome -> Modifier
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MmColors.surfaceContainer, RoundedCornerShape(24.dp))
                             glassChrome -> Modifier.mmLiquidGlass(
                                 cornerRadius = 24.dp,
                                 intensity = 1.0f,
