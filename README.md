@@ -1,12 +1,12 @@
 # Money Manager – Credit Card & Transaction Management Rework
 
-![Money Manager app icon](app/src/main/res/drawable-nodpi/money_manager_app_icon.webp)
+![Money Manager app icon](app/src/main/res/drawable-nodpi/money_manager_app_icon.png)
 
 Money Manager is a personal finance app for tracking accounts, cards, income, expenses, bills and transactions.
 
 ## Brand identity
 
-The launcher uses the approved high-resolution Money Manager artwork: layered payment cards with a luminous blue-violet glass finish, a rupee symbol and a card chip on a deep indigo background. The exact same WebP artwork is used by the Android launcher and this README preview.
+The launcher uses the approved high-resolution Money Manager artwork: layered payment cards with a luminous blue-violet glass finish, a rupee symbol and a card chip on a deep indigo background. The same high-resolution artwork is used by the Android launcher and this README preview.
 
 ## What was changed
 

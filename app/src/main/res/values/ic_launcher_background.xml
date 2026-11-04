@@ -1,3 +1,4 @@
 <resources>
-    <color name="ic_launcher_background">#080431</color>
+    <!-- Transparent so the logo artwork sits on whatever the launcher draws. -->
+    <color name="ic_launcher_background">#00000000</color>
 </resources>
