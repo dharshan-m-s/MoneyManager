@@ -90,6 +90,7 @@ import com.moneymanager.app.domain.model.AccountTypeCatalog
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.reporting.FinancialSummary
 import com.moneymanager.app.ui.accounts.AccountsTab
+import com.moneymanager.app.ui.accounts.accountsBackTarget
 import com.moneymanager.app.ui.accounts.AccountsViewModel
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.rememberScrollChromeState
