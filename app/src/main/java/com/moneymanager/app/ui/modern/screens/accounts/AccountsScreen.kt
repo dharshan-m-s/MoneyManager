@@ -1,5 +1,6 @@
 package com.moneymanager.app.ui.modern.screens.accounts
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -145,6 +146,9 @@ fun AccountsScreen(
 ) {
     val accounts by viewModel.accounts.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(AccountsTab.entries.indexOf(initialTab).coerceAtLeast(0)) }
+    // Selecting a type from All is a local navigation step. Preserve that origin while
+    // detail/editor destinations are pushed so Back returns to All rather than Home.
+    var enteredTypeFromAll by rememberSaveable { mutableStateOf(false) }
     var editMode by rememberSaveable { mutableStateOf(false) }
     var showInactive by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -155,6 +159,13 @@ fun AccountsScreen(
     var accountsOverviewHeightPx by remember { mutableIntStateOf(0) }
     val accountsOverviewInset = with(androidx.compose.ui.platform.LocalDensity.current) { accountsOverviewHeightPx.toDp() }
     val tab = AccountsTab.entries[selectedTab]
+    BackHandler(enabled = accountsBackTarget(tab, enteredTypeFromAll) != null) {
+        accountsBackTarget(tab, enteredTypeFromAll)?.let { target ->
+            selectedTab = AccountsTab.entries.indexOf(target)
+            enteredTypeFromAll = false
+            showInactive = false
+        }
+    }
     val filtered = accounts.filter { it.accountType in tab.types && !it.deleted }
     val visible = filtered.filter { account ->
         !account.hide && (
@@ -201,6 +212,7 @@ fun AccountsScreen(
                     accounts = accounts,
                     topInset = accountsHeaderInset + accountsOverviewInset + MmSpacing.md,
                     onSelectType = { type ->
+                        enteredTypeFromAll = true
                         selectedTab = AccountsTab.entries.indexOf(AccountsTab.forType(type))
                         showInactive = false
                     },
@@ -363,6 +375,9 @@ fun AccountsScreen(
                             selected = selectedTab,
                             onSelect = {
                                 selectedTab = it
+                                if (AccountsTab.entries[it] == AccountsTab.ALL) {
+                                    enteredTypeFromAll = false
+                                }
                                 showInactive = false
                             },
                             horizontalInset = 0.dp

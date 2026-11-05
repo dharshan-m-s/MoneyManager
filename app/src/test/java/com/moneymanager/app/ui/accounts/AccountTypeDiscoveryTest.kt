@@ -33,6 +33,28 @@ class AccountTypeDiscoveryTest {
     }
 
     @Test
+    fun backFromTypeOpenedThroughAllReturnsToAllBeforeLeavingAccounts() {
+        AccountTypeCatalog.supported.forEach { type ->
+            assertEquals(
+                AccountsTab.ALL,
+                accountsBackTarget(AccountsTab.forType(type), enteredFromAll = true)
+            )
+        }
+    }
+
+    @Test
+    fun backFromNormalAccountsTabDoesNotCreateAnExtraNavigationStep() {
+        assertEquals(
+            null,
+            accountsBackTarget(AccountsTab.BANK, enteredFromAll = false)
+        )
+        assertEquals(
+            null,
+            accountsBackTarget(AccountsTab.ALL, enteredFromAll = true)
+        )
+    }
+
+    @Test
     fun everySupportedTypeHasExactlyOnePrimaryTab() {
         AccountTypeCatalog.supported.forEach { type ->
             val tab = AccountsTab.forType(type)
