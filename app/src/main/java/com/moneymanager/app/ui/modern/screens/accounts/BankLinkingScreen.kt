@@ -50,6 +50,9 @@ import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.components.MmPrimaryButton
+import com.moneymanager.app.ui.components.MmOption
+import com.moneymanager.app.ui.components.MmPickerSheet
+import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.ui.accounts.BankLinkingViewModel
 
 @Composable
@@ -57,16 +60,28 @@ fun BankLinkingScreen(
     bankName: String,
     onBack: () -> Unit,
     onSaved: () -> Unit,
+    accountType: AccountType = AccountType.BANK,
     viewModel: BankLinkingViewModel = hiltViewModel()
 ) {
     var accountNumber by rememberSaveable { mutableStateOf("") }
     var debitCardLast4 by rememberSaveable { mutableStateOf("") }
+    var linkedBankAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var showBankAccountPicker by rememberSaveable { mutableStateOf(false) }
     var isBusiness by rememberSaveable { mutableStateOf(false) }
     val state by viewModel.state.collectAsState()
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
+    val issuerAccounts = state.existingBankAccounts.filter {
+        it.institutionName.equals(bankName, ignoreCase = true)
+    }
+
     fun save() {
-        if (!state.saving && accountNumber.isNotBlank()) {
+        if (state.saving) return
+        if (accountType == AccountType.DEBIT_CARD) {
+            viewModel.save(bankName, "", debitCardLast4, isBusiness, AccountType.DEBIT_CARD, linkedBankAccountId)
+            return
+        }
+        if (accountNumber.isNotBlank()) {
             val lower = bankName.lowercase()
             val type = when {
                 lower.contains("loan") -> com.moneymanager.app.domain.model.AccountType.LOAN
@@ -76,7 +91,7 @@ fun BankLinkingScreen(
                 lower.contains("cash") -> com.moneymanager.app.domain.model.AccountType.CASH
                 else -> com.moneymanager.app.domain.model.AccountType.BANK
             }
-            if (type == com.moneymanager.app.domain.model.AccountType.BANK) {
+            if (type == AccountType.BANK) {
                 viewModel.save(bankName, accountNumber, debitCardLast4, isBusiness)
             } else {
                 viewModel.save(bankName, accountNumber, debitCardLast4, isBusiness, type)
@@ -119,29 +134,86 @@ fun BankLinkingScreen(
             }
 
             MmCard {
-                Text("Account reference", style = MmType.label, color = MmColors.textSecondary)
-                Spacer(Modifier.height(MmSpacing.md))
-                MmTextField(
-                    value = accountNumber,
-                    onValueChange = { accountNumber = it.filter { c -> c.isDigit() }.take(12) },
-                    label = "Account number",
-                    placeholder = "Full number or last 4 digits",
-                    keyboardType = KeyboardType.Number
-                )
-                Spacer(Modifier.height(MmSpacing.md))
-                MmTextField(
-                    value = debitCardLast4,
-                    onValueChange = { debitCardLast4 = it.filter { c -> c.isDigit() }.take(4) },
-                    label = "Debit card (optional)",
-                    placeholder = "Last 4 digits",
-                    keyboardType = KeyboardType.Number
-                )
-                Spacer(Modifier.height(MmSpacing.md))
                 Text(
-                    "The reference keeps accounts distinct and is never shown in full on list screens.",
-                    style = MmType.caption,
+                    if (accountType == AccountType.DEBIT_CARD) "Debit card details" else "Account reference",
+                    style = MmType.label,
                     color = MmColors.textSecondary
                 )
+                Spacer(Modifier.height(MmSpacing.md))
+                if (accountType == AccountType.DEBIT_CARD) {
+                    MmTextField(
+                        value = debitCardLast4,
+                        onValueChange = { debitCardLast4 = it.filter(Char::isDigit).take(4) },
+                        label = "Last 4 digits of debit card",
+                        placeholder = "1234",
+                        keyboardType = KeyboardType.Number
+                    )
+                    Spacer(Modifier.height(MmSpacing.sm))
+                    Text(
+                        "A bank account is optional. You can link one now or keep this card standalone.",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
+                    )
+                } else {
+                    MmTextField(
+                        value = accountNumber,
+                        onValueChange = { accountNumber = it.filter { c -> c.isDigit() }.take(12) },
+                        label = "Account number",
+                        placeholder = "Full number or last 4 digits",
+                        keyboardType = KeyboardType.Number
+                    )
+                    Spacer(Modifier.height(MmSpacing.md))
+                    MmTextField(
+                        value = debitCardLast4,
+                        onValueChange = { debitCardLast4 = it.filter { c -> c.isDigit() }.take(4) },
+                        label = "Debit card (optional)",
+                        placeholder = "Last 4 digits",
+                        keyboardType = KeyboardType.Number
+                    )
+                    Spacer(Modifier.height(MmSpacing.md))
+                    Text(
+                        "The reference keeps accounts distinct and is never shown in full on list screens.",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
+                    )
+                }
+            }
+
+            if (accountType == AccountType.DEBIT_CARD) {
+                MmCard {
+                    Text("Bank account (optional)", style = MmType.label, color = MmColors.textSecondary)
+                    Spacer(Modifier.height(MmSpacing.sm))
+                    androidx.compose.material.OutlinedButton(
+                        onClick = { showBankAccountPicker = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(MmSpacing.radiusRow)
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            val linked = issuerAccounts.firstOrNull { it.id == linkedBankAccountId }
+                            Text(
+                                linked?.nickname?.ifBlank { linked.institutionName } ?: "Continue without linking",
+                                style = MmType.body,
+                                color = MmColors.textPrimary
+                            )
+                            Text(
+                                linked?.institutionName ?: "You can link an account later",
+                                style = MmType.caption,
+                                color = MmColors.textSecondary
+                            )
+                        }
+                        Text(
+                            if (linkedBankAccountId == null) "Select" else "Change",
+                            color = MmColors.accent
+                        )
+                    }
+                    if (issuerAccounts.isEmpty()) {
+                        Text(
+                            "No existing $bankName account found. You can still create this card independently.",
+                            style = MmType.caption,
+                            color = MmColors.textSecondary
+                        )
+                    }
+                }
             }
 
             MmCard {
@@ -156,11 +228,36 @@ fun BankLinkingScreen(
             state.error?.let { Text(it, color = MmColors.expense, style = MmType.caption) }
 
             MmPrimaryButton(
-                text = if (state.saving) "Adding…" else "Add this account",
+                text = if (state.saving) "Adding…" else if (accountType == AccountType.DEBIT_CARD) "Add debit card" else "Add this account",
                 onClick = { save() },
-                enabled = !state.saving && accountNumber.isNotBlank(),
+                enabled = !state.saving && (
+                    if (accountType == AccountType.DEBIT_CARD) debitCardLast4.length == 4
+                    else accountNumber.isNotBlank()
+                ),
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
+
+    if (showBankAccountPicker) {
+        MmPickerSheet(
+            title = "Choose existing bank account",
+            options = issuerAccounts.map { account ->
+                MmOption(
+                    id = account.id,
+                    label = account.nickname.ifBlank { account.institutionName },
+                    subtitle = account.institutionName
+                )
+            },
+            selectedId = linkedBankAccountId,
+            onSelect = { option ->
+                linkedBankAccountId = option.id.takeIf { it >= 0L }
+                showBankAccountPicker = false
+            },
+            onDismiss = { showBankAccountPicker = false },
+            allowNone = true,
+            noneLabel = "Continue without linking",
+            searchHint = "Search bank accounts"
+        )
     }
 }

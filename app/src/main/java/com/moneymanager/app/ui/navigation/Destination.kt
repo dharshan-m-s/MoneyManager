@@ -1,5 +1,6 @@
 package com.moneymanager.app.ui.navigation
 import com.moneymanager.app.ui.dashboard.DashboardBreakdownKind
+import com.moneymanager.app.domain.model.AccountType
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
@@ -86,9 +87,16 @@ sealed class Destination(val route: String, val label: String, val icon: ImageVe
     data object AccountSelection : Destination("account_selection/{entryPoint}", "Choose Account", Icons.Filled.AccountBalance) {
         fun route(entryPoint: String) = "account_selection/$entryPoint"
     }
-    data object BankSelection : Destination("bank_selection", "Select Bank", Icons.Filled.AccountBalance)
-    data object BankLinking : Destination("bank_linking?bankName={bankName}", "Link Bank Account", Icons.Filled.AccountBalance) {
-        fun route(bankName: String) = "bank_linking?bankName=$bankName"
+    data object BankSelection : Destination("bank_selection?accountType={accountType}", "Select Bank", Icons.Filled.AccountBalance) {
+        fun route(accountType: AccountType = AccountType.BANK) = "bank_selection?accountType=${accountType.name}"
+    }
+    data object BankLinking : Destination(
+        "bank_linking?bankName={bankName}&accountType={accountType}",
+        "Link Bank Account",
+        Icons.Filled.AccountBalance
+    ) {
+        fun route(bankName: String, accountType: AccountType = AccountType.BANK) =
+            "bank_linking?bankName=$bankName&accountType=${accountType.name}"
     }
     data object BillTypeSelection : Destination("bill_type_selection", "Select Bill Type", Icons.Filled.Description)
     data object DashboardBreakdown : Destination(

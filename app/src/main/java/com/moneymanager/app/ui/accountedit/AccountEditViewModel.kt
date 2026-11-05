@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
 import com.moneymanager.app.data.local.dao.AccountDao
+import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.repository.AccountRepository
 import com.moneymanager.app.data.repository.AccountingService
@@ -23,6 +24,8 @@ data class AccountEditState(
     val institutionName: String = "",
     val sourceAccountId: String = "",
     val accountType: AccountType = AccountType.BANK,
+    val linkedBankAccountId: Long? = null,
+    val bankAccounts: List<AccountEntity> = emptyList(),
     val businessPersonal: BusinessPersonal = BusinessPersonal.PERSONAL,
     val currentBalance: String = "",
     /** Informational engine-derived balance, shown alongside the editable checkpoint. */
@@ -61,12 +64,17 @@ class AccountEditViewModel @Inject constructor(
             // can see how the ledger value differs from their reconciliation. Movement values
             // for cards are the outstanding, but this editor only handles cash-like balances.
             val derived = accountingService.derivedBalancesFor(a).autoBalanceMinorUnits
+            val bankAccounts = accountDao.findAll().filter {
+                it.accountType == AccountType.BANK && it.active && !it.deleted
+            }.sortedBy { it.nickname.lowercase() }
             _state.value = AccountEditState(
                 accountId = a.id,
                 nickname = a.nickname,
                 institutionName = a.institutionName,
                 sourceAccountId = a.sourceAccountId,
                 accountType = a.accountType,
+                linkedBankAccountId = a.parentAccountId,
+                bankAccounts = bankAccounts,
                 businessPersonal = a.businessPersonal,
                 // Show the EFFECTIVE current balance, never the older checkpoint value. The
                 // checkpoint is an offset applied to the ledger; the effective balance already
@@ -87,6 +95,9 @@ class AccountEditViewModel @Inject constructor(
     fun institutionName(v: String) { _state.value = _state.value.copy(institutionName = v) }
     fun sourceAccountId(v: String) { _state.value = _state.value.copy(sourceAccountId = v) }
     fun accountType(v: AccountType) { _state.value = _state.value.copy(accountType = v) }
+    fun linkedBankAccount(id: Long?) {
+        _state.value = _state.value.copy(linkedBankAccountId = id, error = null)
+    }
     fun businessPersonal(v: BusinessPersonal) { _state.value = _state.value.copy(businessPersonal = v) }
     fun currentBalance(v: String) { _state.value = _state.value.copy(currentBalance = v, balanceDirty = true) }
     fun manualBalanceEnabled(v: Boolean) {
@@ -104,6 +115,18 @@ class AccountEditViewModel @Inject constructor(
                 _state.value = s.copy(error = "Account not found")
                 return@launch
             }
+            val linkedBank = if (s.accountType == AccountType.DEBIT_CARD) {
+                s.linkedBankAccountId?.let { accountDao.findById(it) }
+            } else null
+            if (s.accountType == AccountType.DEBIT_CARD && s.linkedBankAccountId != null &&
+                (linkedBank == null || linkedBank.accountType != AccountType.BANK ||
+                    !linkedBank.active || linkedBank.deleted ||
+                    !linkedBank.institutionName.equals(s.institutionName, ignoreCase = true))
+            ) {
+                _state.value = s.copy(error = "Choose an active bank account from the same bank to link this debit card")
+                return@launch
+            }
+
             val supportsManualBalance = s.accountType == AccountType.BANK ||
                 s.accountType == AccountType.CASH || s.accountType == AccountType.WALLET ||
                 s.accountType == AccountType.DEBIT_CARD || s.accountType == AccountType.PREPAID_CARD
@@ -138,6 +161,13 @@ class AccountEditViewModel @Inject constructor(
                 institutionName = s.institutionName.ifBlank { a.institutionName },
                 sourceAccountId = sourceId,
                 accountType = s.accountType,
+                // Existing debit cards remain unlinked unless the user explicitly chooses a
+                // bank in this editor. Changing away from debit-card type clears this relation.
+                parentAccountId = when {
+                    s.accountType == AccountType.DEBIT_CARD -> linkedBank?.id
+                    a.accountType == AccountType.DEBIT_CARD -> null
+                    else -> a.parentAccountId
+                },
                 businessPersonal = s.businessPersonal,
                 // The entered amount is a live reconciliation checkpoint, not an invented
                 // opening transaction. It is stored as an offset against the derived ledger

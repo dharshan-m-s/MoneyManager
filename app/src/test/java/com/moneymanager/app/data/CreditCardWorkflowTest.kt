@@ -291,6 +291,67 @@ class CreditCardWorkflowTest {
     }
 
     @Test
+    fun linkedDebitCardPurchasesReduceOnlyTheLinkedBankAccount() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK, current = 20_000)
+        val cardId = db.accountDao().insert(
+            AccountEntity(
+                sourceAccountId = "linked-debit-${System.nanoTime()}",
+                institutionName = "Test",
+                nickname = "Test Debit Card",
+                accountType = AccountType.DEBIT_CARD,
+                businessPersonal = BusinessPersonal.PERSONAL,
+                openingBalanceMinorUnits = 0L,
+                currentBalanceMinorUnits = 0L,
+                parentAccountId = bankId,
+                createdAtEpochMillis = 0,
+                updatedAtEpochMillis = 0
+            )
+        )
+
+        transactions.addTransaction(
+            com.moneymanager.app.data.repository.NewTransactionInput(
+                occurredAtEpochMillis = at(5),
+                accountId = cardId,
+                categoryId = null,
+                rawCategoryName = "Food",
+                merchantReceiverSender = "Cafe",
+                amount = Money(2_500),
+                isIncome = false,
+                paymentType = PaymentType.NETBANKING,
+                businessPersonal = BusinessPersonal.PERSONAL,
+                notes = null,
+                reimbursable = false
+            )
+        )
+
+        assertEquals(17_500L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+        assertEquals(0L, db.accountDao().findById(cardId)!!.currentBalanceMinorUnits)
+        val txn = db.transactionDao().findByAccount(bankId).single()
+        assertEquals(PaymentType.DEBIT_CARD, txn.paymentType)
+    }
+
+    @Test
+    fun standaloneDebitCardKeepsItsOwnBalance() = runBlocking {
+        val cardId = insertAccount(AccountType.DEBIT_CARD, current = 0)
+        transactions.addTransaction(
+            com.moneymanager.app.data.repository.NewTransactionInput(
+                occurredAtEpochMillis = at(5),
+                accountId = cardId,
+                categoryId = null,
+                rawCategoryName = "Food",
+                merchantReceiverSender = "Cafe",
+                amount = Money(1_000),
+                isIncome = false,
+                paymentType = PaymentType.NETBANKING,
+                businessPersonal = BusinessPersonal.PERSONAL,
+                notes = null,
+                reimbursable = false
+            )
+        )
+        assertEquals(-1_000L, db.accountDao().findById(cardId)!!.currentBalanceMinorUnits)
+    }
+
+    @Test
     fun aLegThatSettlesABillCannotBeRePointed() = runBlocking {
         val bankId = insertAccount(AccountType.BANK, current = 20_000)
         val otherBank = insertAccount(AccountType.BANK, current = 0)

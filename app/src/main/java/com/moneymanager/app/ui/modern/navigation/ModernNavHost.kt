@@ -19,6 +19,7 @@ import androidx.navigation.navArgument
 import com.moneymanager.app.ui.modern.screens.accountdetail.AccountDetailScreen
 import com.moneymanager.app.ui.modern.screens.accounts.AccountsScreen
 import com.moneymanager.app.ui.accounts.AccountsTab
+import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.ui.modern.screens.accounts.BankLinkingScreen
 import com.moneymanager.app.ui.modern.screens.accounts.BankSelectionScreen
 import com.moneymanager.app.ui.modern.screens.accounts.AccountSelectionScreen
@@ -176,7 +177,7 @@ fun ModernNavHost(
                 onBack = { safeBack() },
                 initialTab = AccountsTab.LOANS,
                 onAccountClick = { id -> go(Destination.AccountDetail.route(id)) },
-                onAddAccount = { go(Destination.BankSelection.route) }
+                onAddAccount = { go(Destination.BankSelection.route()) }
                 )
             }
         }
@@ -186,7 +187,8 @@ fun ModernNavHost(
                 onBack = { safeBack() },
                 onAccountClick = { id -> go(Destination.AccountDetail.route(id)) },
                 onAddCreditCard = { go(Destination.CreditCardForm.route(null)) },
-                onAddAccount = { go(Destination.BankSelection.route) },
+                onAddDebitCard = { go(Destination.BankSelection.route(AccountType.DEBIT_CARD)) },
+                onAddAccount = { go(Destination.BankSelection.route()) },
                 onAccountSettings = { go(Destination.Settings.route) },
                 onEditAccount = { id -> go(Destination.AccountEdit.route(id)) },
                 onEditCreditCard = { id -> go(Destination.CreditCardForm.route(id)) },
@@ -373,26 +375,44 @@ fun ModernNavHost(
             )
         }
 
-        composable(Destination.BankSelection.route) {
+        composable(
+            route = Destination.BankSelection.route,
+            arguments = listOf(navArgument("accountType") {
+                type = NavType.StringType
+                defaultValue = AccountType.BANK.name
+            })
+        ) { backStackEntry ->
+            val accountType = runCatching {
+                AccountType.valueOf(backStackEntry.arguments?.getString("accountType") ?: AccountType.BANK.name)
+            }.getOrDefault(AccountType.BANK)
             BankSelectionScreen(
                 onBack = { safeBack() },
+                accountType = accountType,
                 onBankSelected = { bankName ->
-                    go(Destination.BankLinking.route(bankName))
+                    go(Destination.BankLinking.route(bankName, accountType))
                 }
             )
         }
 
         composable(
             route = Destination.BankLinking.route,
-            arguments = listOf(navArgument("bankName") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("bankName") { type = NavType.StringType },
+                navArgument("accountType") {
+                    type = NavType.StringType
+                    defaultValue = AccountType.BANK.name
+                }
+            )
         ) { backStackEntry ->
             val bankName = backStackEntry.arguments?.getString("bankName") ?: "Bank"
+            val accountType = runCatching {
+                AccountType.valueOf(backStackEntry.arguments?.getString("accountType") ?: AccountType.BANK.name)
+            }.getOrDefault(AccountType.BANK)
             BankLinkingScreen(
                 bankName = bankName,
+                accountType = accountType,
                 onBack = { safeBack() },
-                onSaved = {
-                    safeBack()
-                }
+                onSaved = { safeBack() }
             )
         }
 

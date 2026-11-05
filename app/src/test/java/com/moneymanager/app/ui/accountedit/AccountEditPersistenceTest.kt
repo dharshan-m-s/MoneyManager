@@ -174,6 +174,34 @@ class AccountEditPersistenceTest {
     }
 
     @Test
+    fun debitCardCanBeLinkedFromEditWithoutChangingExistingBalances() = runBlocking {
+        val bank = createAccount(AccountType.BANK, current = 25_000)
+        val card = createAccount(AccountType.DEBIT_CARD, current = 0)
+        val vm = loadViewModel(card.id)
+
+        assertNull(db.accountDao().findById(card.id)!!.parentAccountId)
+        vm.linkedBankAccount(bank.id)
+        saveAndWait(vm)
+
+        assertEquals(bank.id, db.accountDao().findById(card.id)!!.parentAccountId)
+        assertEquals(25_000L, db.accountDao().findById(bank.id)!!.currentBalanceMinorUnits)
+        assertEquals(0L, db.accountDao().findById(card.id)!!.currentBalanceMinorUnits)
+    }
+
+    @Test
+    fun debitCardCanBeExplicitlyUnlinkedFromEdit() = runBlocking {
+        val bank = createAccount(AccountType.BANK, current = 10_000)
+        val card = createAccount(AccountType.DEBIT_CARD, current = 0)
+        db.accountDao().update(card.copy(parentAccountId = bank.id))
+        val vm = loadViewModel(card.id)
+
+        vm.linkedBankAccount(null)
+        saveAndWait(vm)
+
+        assertNull(db.accountDao().findById(card.id)!!.parentAccountId)
+    }
+
+    @Test
     fun investmentAccountPersists() = runBlocking {
         val account = createAccount(AccountType.INVESTMENT, current = 50000)
         val vm = loadViewModel(account.id)

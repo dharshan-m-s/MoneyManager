@@ -10,11 +10,12 @@ import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.BusinessPersonal
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import dagger.hilt.android.lifecycle.HiltViewModel
 
-data class BankLinkingState(val saving: Boolean = false, val saved: Boolean = false, val error: String? = null)
+data class BankLinkingState(val saving: Boolean = false, val saved: Boolean = false, val error: String? = null, val existingBankAccounts: List<AccountEntity> = emptyList())
 
 @HiltViewModel
 class BankLinkingViewModel @Inject constructor(
@@ -25,21 +26,43 @@ class BankLinkingViewModel @Inject constructor(
     private val _state = MutableStateFlow(BankLinkingState())
     val state: StateFlow<BankLinkingState> = _state
 
+    init {
+        viewModelScope.launch {
+            accountDao.observeActive().collect { accounts ->
+                _state.value = _state.value.copy(existingBankAccounts = accounts.filter {
+                    it.accountType == AccountType.BANK && it.active && !it.deleted
+                }.sortedBy { it.nickname.lowercase() })
+            }
+        }
+    }
+
     fun save(bankName: String, accountLast4: String, debitCardLast4: String, isBusiness: Boolean) {
         save(bankName, accountLast4, debitCardLast4, isBusiness, AccountType.BANK)
     }
 
-    fun save(bankName: String, accountLast4: String, debitCardLast4: String, isBusiness: Boolean, accountType: AccountType) {
-        if (accountType == AccountType.BANK || accountType == AccountType.DEBIT_CARD) {
-            val accountSuffix = accountLast4.filter(Char::isDigit).takeLast(4)
-            if (accountSuffix.length < 4) {
+    fun save(
+        bankName: String,
+        accountLast4: String,
+        debitCardLast4: String,
+        isBusiness: Boolean,
+        accountType: AccountType,
+        linkedBankAccountId: Long? = null
+    ) {
+        when (accountType) {
+            AccountType.BANK -> if (accountLast4.filter(Char::isDigit).takeLast(4).length < 4) {
                 _state.value = _state.value.copy(error = "Enter the last 4 digits of the account number")
                 return
             }
-        } else if (accountType == AccountType.CREDIT_CARD) {
+            AccountType.DEBIT_CARD -> if (debitCardLast4.filter(Char::isDigit).takeLast(4).length < 4) {
+                _state.value = _state.value.copy(error = "Enter the last 4 digits of the debit card")
+                return
+            }
+            AccountType.CREDIT_CARD -> {
             // Credit card form has its own screen; this path is not used for credit card creation
             _state.value = _state.value.copy(error = "Use the credit card form to add credit cards")
             return
+            }
+            else -> Unit
         }
 
         viewModelScope.launch {
@@ -47,6 +70,34 @@ class BankLinkingViewModel @Inject constructor(
             try {
                 val now = System.currentTimeMillis()
                 when (accountType) {
+                    AccountType.DEBIT_CARD -> {
+                        val suffix = debitCardLast4.filter(Char::isDigit).takeLast(4)
+                        val linked = linkedBankAccountId?.let { accountDao.findById(it) }
+                        if (linkedBankAccountId != null && (
+                            linked == null || linked.accountType != AccountType.BANK || !linked.active || linked.deleted
+                        )) throw IllegalArgumentException("Choose an active bank account")
+                        if (linked != null && !linked.institutionName.equals(bankName, ignoreCase = true)) {
+                            throw IllegalArgumentException("The selected account does not belong to $bankName")
+                        }
+                        val sourceId = "${bankName.take(4).uppercase()}-DC-$suffix"
+                        require(accountDao.findBySourceAccountId(sourceId) == null) {
+                            "A debit card with these last four digits already exists for $bankName"
+                        }
+                        accountDao.insert(AccountEntity(
+                            sourceAccountId = sourceId,
+                            institutionName = bankName,
+                            nickname = "$bankName Debit Card • $suffix",
+                            accountType = AccountType.DEBIT_CARD,
+                            businessPersonal = linked?.businessPersonal
+                                ?: if (isBusiness) BusinessPersonal.BUSINESS else BusinessPersonal.PERSONAL,
+                            openingBalanceMinorUnits = 0L,
+                            currentBalanceMinorUnits = 0L,
+                            parentAccountId = linked?.id,
+                            active = true,
+                            createdAtEpochMillis = now,
+                            updatedAtEpochMillis = now
+                        ))
+                    }
                     AccountType.BANK -> {
                         val accountSuffix = accountLast4.filter(Char::isDigit).takeLast(4)
                         val accountSourceId = "${bankName.take(4).uppercase()}-$accountSuffix"

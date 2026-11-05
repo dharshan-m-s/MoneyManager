@@ -133,6 +133,7 @@ fun AccountsScreen(
     initialTab: AccountsTab = AccountsTab.BANK,
     onAccountClick: (Long) -> Unit = {},
     onAddCreditCard: () -> Unit = {},
+    onAddDebitCard: () -> Unit = {},
     onAddAccount: () -> Unit = {},
     onAccountSettings: () -> Unit = {},
     onEditAccount: (Long) -> Unit = {},
@@ -206,6 +207,7 @@ fun AccountsScreen(
                     onAddType = { type ->
                         when (type) {
                             AccountType.CREDIT_CARD -> onAddCreditCard()
+                            AccountType.DEBIT_CARD -> onAddDebitCard()
                             else -> onAddAccount()
                         }
                     }
@@ -244,7 +246,7 @@ fun AccountsScreen(
                                 emptyTitle = "No ${tab.label.lowercase()} yet"
                                 emptyMessage = when (tab) {
                                     AccountsTab.CREDIT_CARDS -> "Add a card to track outstanding, limits and billing cycles."
-                                    AccountsTab.DEBIT_CARDS -> "Add a debit card to track spending from a bank account."
+                                    AccountsTab.DEBIT_CARDS -> "Add a debit card and optionally link it to a bank account."
                                     AccountsTab.LOANS -> "Add a loan to keep track of what is left to pay."
                                     AccountsTab.WALLETS -> "Add a wallet to track balances."
                                     AccountsTab.PREPAID_CARDS -> "Add a prepaid card to track its balance."
@@ -253,8 +255,16 @@ fun AccountsScreen(
                                     AccountsTab.INVESTMENTS -> "Add an investment account to track it here."
                                     AccountsTab.ALL -> "No accounts found for this selection."
                                 }
-                                emptyActionLabel = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account"
-                                emptyAction = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                                emptyActionLabel = when (tab) {
+                                    AccountsTab.CREDIT_CARDS -> "Add credit card"
+                                    AccountsTab.DEBIT_CARDS -> "Add debit card"
+                                    else -> "Add account"
+                                }
+                                emptyAction = when (tab) {
+                                    AccountsTab.CREDIT_CARDS -> onAddCreditCard
+                                    AccountsTab.DEBIT_CARDS -> onAddDebitCard
+                                    else -> onAddAccount
+                                }
                             }
                             MmEmptyState(
                                 icon = tab.icon,
@@ -283,8 +293,16 @@ fun AccountsScreen(
                             item(key = "add-account") {
                                 Box(Modifier.padding(horizontal = MmSpacing.sm)) {
                                     AddAccountRow(
-                                        label = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account",
-                                        onClick = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                                        label = when (tab) {
+                                            AccountsTab.CREDIT_CARDS -> "Add credit card"
+                                            AccountsTab.DEBIT_CARDS -> "Add debit card"
+                                            else -> "Add account"
+                                        },
+                                        onClick = when (tab) {
+                                            AccountsTab.CREDIT_CARDS -> onAddCreditCard
+                                            AccountsTab.DEBIT_CARDS -> onAddDebitCard
+                                            else -> onAddAccount
+                                        }
                                     )
                                 }
                             }
