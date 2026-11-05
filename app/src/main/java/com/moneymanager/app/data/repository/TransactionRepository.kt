@@ -67,8 +67,14 @@ class TransactionRepository @Inject constructor(
             // the card ID as the user's selection, but post the ledger movement to its bank.
             // An unlinked card remains a standalone balance-holding account.
             val linkedBank = if (selectedAccount.accountType == AccountType.DEBIT_CARD) {
-                selectedAccount.parentAccountId?.let { accountDao.findById(it) }
-                    ?.takeIf { it.accountType == AccountType.BANK && it.active && !it.deleted }
+                selectedAccount.parentAccountId?.let { parentId ->
+                    val bank = accountDao.findById(parentId)
+                        ?: throw IllegalStateException("The debit card's linked bank account no longer exists")
+                    require(bank.accountType == AccountType.BANK && !bank.deleted) {
+                        "The debit card is linked to an invalid bank account"
+                    }
+                    bank
+                }
             } else null
             val ledgerAccount = linkedBank ?: selectedAccount
             val effectivePaymentType = if (selectedAccount.accountType == AccountType.DEBIT_CARD) {
