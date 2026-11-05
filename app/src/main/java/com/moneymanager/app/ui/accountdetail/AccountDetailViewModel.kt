@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import java.time.Instant
 import java.time.YearMonth
@@ -38,6 +39,8 @@ data class CycleGroup(
 
 data class AccountDetailUiState(
     val account: AccountEntity? = null,
+    /** Live balance source for a linked debit card; never copied into the card ledger. */
+    val linkedBankAccount: AccountEntity? = null,
     val isCreditCard: Boolean = false,
     val maskedCardNumber: String = "",
     val monthGroups: List<MonthGroup> = emptyList(),
@@ -71,11 +74,18 @@ class AccountDetailViewModel @Inject constructor(
     private var currentAccountId: Long? = null
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun stateFor(accountId: Long) = combine(
-        accountDao.observeById(accountId),
-        limitFlow.flatMapLatest { limit -> transactionDao.observeByAccountLimited(accountId, limit) },
-        transactionDao.observeFullAccountHistory(accountId)
-    ) { account, txns, fullHistory ->
+    fun stateFor(accountId: Long): kotlinx.coroutines.flow.StateFlow<AccountDetailUiState> {
+        val accountFlow = accountDao.observeById(accountId)
+        val linkedBankFlow = accountFlow.flatMapLatest { account ->
+            account?.takeIf { it.accountType == AccountType.DEBIT_CARD }
+                ?.parentAccountId?.let { accountDao.observeById(it) } ?: flowOf(null)
+        }
+        return combine(
+            accountFlow,
+            linkedBankFlow,
+            limitFlow.flatMapLatest { limit -> transactionDao.observeByAccountLimited(accountId, limit) },
+            transactionDao.observeFullAccountHistory(accountId)
+        ) { account, linkedBank, txns, fullHistory ->
         val isCard = account?.accountType == AccountType.CREDIT_CARD
         // Month/cycle income & expense are computed from the FULL history, not the bounded page
         // being displayed, so a subtotal never changes just because fewer rows were paged in.
@@ -172,6 +182,7 @@ class AccountDetailViewModel @Inject constructor(
         }
         AccountDetailUiState(
             account = account,
+            linkedBankAccount = linkedBank,
             isCreditCard = isCard,
             maskedCardNumber = maskedNumber(account?.sourceAccountId),
             monthGroups = monthGroups,
@@ -182,7 +193,8 @@ class AccountDetailViewModel @Inject constructor(
             currentStatementMinorUnits = currentStatement,
             statementDueDateEpochMillis = statementDueDate
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AccountDetailUiState())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AccountDetailUiState())
+    }
 
     private fun maskedNumber(sourceId: String?): String {
         val digits = sourceId?.filter { it.isDigit() }.orEmpty()

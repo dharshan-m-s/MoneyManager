@@ -91,6 +91,7 @@ import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.reporting.FinancialSummary
 import com.moneymanager.app.ui.accounts.AccountsTab
 import com.moneymanager.app.ui.accounts.accountsBackTarget
+import com.moneymanager.app.ui.accounts.debitCardDisplayBalance
 import com.moneymanager.app.ui.accounts.AccountsViewModel
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.rememberScrollChromeState
@@ -291,6 +292,9 @@ fun AccountsScreen(
                         itemsIndexed(shown, key = { _, account -> account.id }) { index, account ->
                             AccountRow(
                                 account = account,
+                                linkedBankBalance = if (account.accountType == AccountType.DEBIT_CARD)
+                                    accounts.firstOrNull { it.id == account.parentAccountId }?.currentBalanceMinorUnits
+                                else null,
                                 modifier = Modifier.revealOnAppear(index = index),
                                 isCreditCard = account.accountType == AccountType.CREDIT_CARD,
                                 editMode = editMode,
@@ -613,19 +617,22 @@ private fun AccountsTabs(
 private fun AccountRow(
     account: AccountEntity,
     isCreditCard: Boolean,
+    linkedBankBalance: Long? = null,
     editMode: Boolean,
     showTopDivider: Boolean = false,
     onClick: () -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val amount = if (isCreditCard) account.outstandingMinorUnits ?: 0L else account.currentBalanceMinorUnits
+    val amount = if (isCreditCard) account.outstandingMinorUnits ?: 0L
+        else debitCardDisplayBalance(account.accountType, account.currentBalanceMinorUnits, linkedBankBalance)
     val subtitle = when {
         !account.active -> "Inactive"
         account.hide -> "Hidden from totals"
         account.balanceSource == AccountBalanceSource.REPORTED && account.lastReportedAtEpochMillis != null ->
             "Reported ${formatDayMonth(account.lastReportedAtEpochMillis)}"
         isCreditCard -> "Outstanding"
+        account.accountType == AccountType.DEBIT_CARD && linkedBankBalance != null -> "Linked bank balance"
         else -> "Available balance"
     }
     val issuer = account.institutionName.orEmpty().ifBlank { account.nickname.orEmpty() }

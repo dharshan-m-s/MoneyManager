@@ -49,6 +49,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.AccountType
+import com.moneymanager.app.ui.accounts.matchesBankIssuer
+import com.moneymanager.app.ui.accounts.maskedBankAccountNumber
+import com.moneymanager.app.domain.model.Money
+import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.domain.model.AccountTypeCatalog
 import com.moneymanager.app.domain.model.BusinessPersonal
 import com.moneymanager.app.ui.components.MmAmountField
@@ -196,14 +200,14 @@ fun AccountEditScreen(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                linkedBank?.nickname?.ifBlank { linkedBank.institutionName }
+                                linkedBank?.let { it.nickname.ifBlank { it.institutionName } + " · " + it.maskedBankAccountNumber() }
                                     ?: "No bank account linked",
                                 style = MmType.body,
                                 color = MmColors.textPrimary
                             )
                             Text(
                                 if (linkedBank == null) "Standalone debit card balance"
-                                else linkedBank.institutionName,
+                                else linkedBank.institutionName + " · " + MoneyFormat.rupeesNoDecimals(Money(linkedBank.currentBalanceMinorUnits)) + " available",
                                 style = MmType.caption,
                                 color = MmColors.textSecondary
                             )
@@ -362,12 +366,12 @@ fun AccountEditScreen(
         MmPickerSheet(
             title = "Link bank account",
             options = state.bankAccounts.filter {
-                it.institutionName.equals(state.institutionName, ignoreCase = true)
+                it.matchesBankIssuer(state.institutionName)
             }.map { bank ->
                 MmOption(
                     id = bank.id,
-                    label = bank.nickname.ifBlank { bank.institutionName },
-                    subtitle = bank.institutionName.takeIf { it.isNotBlank() }
+                    label = bank.nickname.ifBlank { bank.institutionName } + " · " + bank.maskedBankAccountNumber(),
+                    subtitle = bank.institutionName + " · " + MoneyFormat.rupeesNoDecimals(Money(bank.currentBalanceMinorUnits))
                 )
             },
             selectedId = state.linkedBankAccountId,

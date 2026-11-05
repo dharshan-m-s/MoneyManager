@@ -13,6 +13,7 @@ import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.BusinessPersonal
 import com.moneymanager.app.domain.model.Money
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -56,6 +57,17 @@ class AccountEditViewModel @Inject constructor(
 ) : ViewModel() {
     private val _state = MutableStateFlow(AccountEditState())
     val state: StateFlow<AccountEditState> = _state
+
+    init {
+        viewModelScope.launch {
+            accountDao.observeActive().collect { accounts ->
+                val banks = accounts.filter {
+                    it.accountType == AccountType.BANK && it.active && !it.deleted
+                }.sortedBy { it.nickname.lowercase() }
+                _state.value = _state.value.copy(bankAccounts = banks)
+            }
+        }
+    }
 
     fun load(id: Long) {
         viewModelScope.launch {
@@ -121,7 +133,7 @@ class AccountEditViewModel @Inject constructor(
             if (s.accountType == AccountType.DEBIT_CARD && s.linkedBankAccountId != null &&
                 (linkedBank == null || linkedBank.accountType != AccountType.BANK ||
                     !linkedBank.active || linkedBank.deleted ||
-                    !linkedBank.institutionName.equals(s.institutionName, ignoreCase = true))
+                    !linkedBank.matchesBankIssuer(s.institutionName))
             ) {
                 _state.value = s.copy(error = "Choose an active bank account from the same bank to link this debit card")
                 return@launch

@@ -76,7 +76,7 @@ class BankLinkingViewModel @Inject constructor(
                         if (linkedBankAccountId != null && (
                             linked == null || linked.accountType != AccountType.BANK || !linked.active || linked.deleted
                         )) throw IllegalArgumentException("Choose an active bank account")
-                        if (linked != null && !linked.institutionName.equals(bankName, ignoreCase = true)) {
+                        if (linked != null && !linked.matchesBankIssuer(bankName)) {
                             throw IllegalArgumentException("The selected account does not belong to $bankName")
                         }
                         val sourceId = "${bankName.take(4).uppercase()}-DC-$suffix"

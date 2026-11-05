@@ -53,6 +53,10 @@ import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.components.MmOption
 import com.moneymanager.app.ui.components.MmPickerSheet
 import com.moneymanager.app.domain.model.AccountType
+import com.moneymanager.app.ui.accounts.matchesBankIssuer
+import com.moneymanager.app.ui.accounts.maskedBankAccountNumber
+import com.moneymanager.app.domain.model.Money
+import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.ui.accounts.BankLinkingViewModel
 
 @Composable
@@ -71,9 +75,7 @@ fun BankLinkingScreen(
     val state by viewModel.state.collectAsState()
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
-    val issuerAccounts = state.existingBankAccounts.filter {
-        it.institutionName.equals(bankName, ignoreCase = true)
-    }
+    val issuerAccounts = state.existingBankAccounts.filter { it.matchesBankIssuer(bankName) }
 
     fun save() {
         if (state.saving) return
@@ -191,12 +193,12 @@ fun BankLinkingScreen(
                         Column(Modifier.weight(1f)) {
                             val linked = issuerAccounts.firstOrNull { it.id == linkedBankAccountId }
                             Text(
-                                linked?.nickname?.ifBlank { linked.institutionName } ?: "Continue without linking",
+                                linked?.let { it.nickname.ifBlank { it.institutionName } + "  " + it.maskedBankAccountNumber() } ?: "Continue without linking",
                                 style = MmType.body,
                                 color = MmColors.textPrimary
                             )
                             Text(
-                                linked?.institutionName ?: "You can link an account later",
+                                linked?.let { it.institutionName + " · " + MoneyFormat.rupeesNoDecimals(Money(it.currentBalanceMinorUnits)) } ?: "You can link an account later",
                                 style = MmType.caption,
                                 color = MmColors.textSecondary
                             )
@@ -245,8 +247,8 @@ fun BankLinkingScreen(
             options = issuerAccounts.map { account ->
                 MmOption(
                     id = account.id,
-                    label = account.nickname.ifBlank { account.institutionName },
-                    subtitle = account.institutionName
+                    label = account.nickname.ifBlank { account.institutionName } + " · " + account.maskedBankAccountNumber(),
+                    subtitle = account.institutionName + " · " + MoneyFormat.rupeesNoDecimals(Money(account.currentBalanceMinorUnits))
                 )
             },
             selectedId = linkedBankAccountId,
