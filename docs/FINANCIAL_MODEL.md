@@ -26,6 +26,19 @@ so:
 
 Legacy rows are initialised once by deriving the offset from the value the user already saw.
 
+## Debit cards and bank accounts
+
+A debit card is a payment instrument. Its optional `parentAccountId` points to the bank
+account that actually holds its funds. A linked debit card is excluded from independent
+balance aggregation (`parentAccountId IS NULL`); new purchases selected through that card are
+posted once to the linked bank account and retain `PaymentType.DEBIT_CARD`. An unlinked debit
+card remains a standalone balance-holding account and continues to receive its own transactions.
+
+Linking or unlinking a debit card is metadata-only: it does not move historical transactions,
+copy balances, create adjustment entries, or backfill a relationship that an existing user has
+not explicitly selected. A user can establish or change the relationship from the debit-card
+editor. Only future purchases use the selected bank account.
+
 ## Dashboard definitions (current month, Asia/Kolkata, start-inclusive/end-exclusive)
 
 | Metric | Formula |

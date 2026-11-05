@@ -53,6 +53,8 @@ import androidx.lifecycle.viewModelScope
 import com.moneymanager.app.data.local.dao.AccountDao
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.domain.model.AccountType
+import com.moneymanager.app.ui.accounts.maskedBankAccountNumber
+import com.moneymanager.app.ui.accounts.debitCardDisplayBalance
 import com.moneymanager.app.domain.model.AccountTypeCatalog
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.MmCard
@@ -187,6 +189,7 @@ fun AccountSelectionScreen(
                     itemsIndexed(rows, key = { _, account -> account.id }) { index, account ->
                         AccountChoiceRow(
                             account = account,
+                            linkedBank = accounts.firstOrNull { it.id == account.parentAccountId },
                             onClick = { onAccountSelected(account.id) },
                             modifier = Modifier.revealOnAppear(index = index)
                         )
@@ -250,6 +253,7 @@ private fun accountTypeLabel(type: AccountType): String = when (type) {
 @Composable
 private fun AccountChoiceRow(
     account: AccountEntity,
+    linkedBank: AccountEntity? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -257,10 +261,15 @@ private fun AccountChoiceRow(
     val isCard = AccountTypeCatalog.info(account.accountType).isCard
     val subtitle = listOfNotNull(
         account.institutionName.takeIf { it.isNotBlank() && it != title },
-        account.sourceAccountId.takeIf { it.isNotBlank() && !isCard }
+        if (account.accountType == AccountType.BANK) account.maskedBankAccountNumber()
+        else if (account.accountType == AccountType.DEBIT_CARD) linkedBank?.let {
+            it.nickname.ifBlank { it.institutionName } + " · " + it.maskedBankAccountNumber()
+        }
+        else account.sourceAccountId.takeIf { it.isNotBlank() && !isCard }
     ).distinct().joinToString(" • ")
     val isCreditCard = account.accountType == AccountType.CREDIT_CARD
-    val balance = if (isCreditCard) account.outstandingMinorUnits ?: 0L else account.currentBalanceMinorUnits
+    val balance = if (isCreditCard) account.outstandingMinorUnits ?: 0L
+        else debitCardDisplayBalance(account.accountType, account.currentBalanceMinorUnits, linkedBank?.currentBalanceMinorUnits)
 
     MmCard(
         modifier = modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs),

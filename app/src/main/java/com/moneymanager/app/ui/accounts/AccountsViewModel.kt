@@ -12,10 +12,14 @@ import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 /**
- * One tab per supported [AccountType] (UNKNOWN is the importer's fallback bucket, not a type a
- * user can choose), plus an [ALL] overview. The Accounts screen shows only a compact subset of
- * these as chips; the full set lives behind the All account types browser.
+ * The account-type browser is an in-screen drill-down. Its Back action should return to
+ * the All-types browser before the enclosing Accounts destination is popped.
  */
+internal fun accountsBackTarget(
+    selectedTab: AccountsTab,
+    enteredFromAll: Boolean
+): AccountsTab? = if (enteredFromAll && selectedTab != AccountsTab.ALL) AccountsTab.ALL else null
+
 enum class AccountsTab(val label: String, val types: Set<AccountType>) {
     BANK("Bank accounts", setOf(AccountType.BANK)),
     DEBIT_CARDS("Debit cards", setOf(AccountType.DEBIT_CARD)),

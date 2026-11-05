@@ -1,4 +1,6 @@
 <resources>
-    <!-- Transparent so the logo artwork sits on whatever the launcher draws. -->
-    <color name="ic_launcher_background">#00000000</color>
+    <!-- Match the deep indigo edge of the Money Manager artwork. A transparent
+         adaptive-icon background is rendered black by some launchers (notably
+         Samsung One UI), creating an unwanted black ring around the foreground. -->
+    <color name="ic_launcher_background">#171078</color>
 </resources>

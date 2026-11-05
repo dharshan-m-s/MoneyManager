@@ -1,5 +1,6 @@
 package com.moneymanager.app.ui.modern.screens.accounts
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -89,6 +90,8 @@ import com.moneymanager.app.domain.model.AccountTypeCatalog
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.reporting.FinancialSummary
 import com.moneymanager.app.ui.accounts.AccountsTab
+import com.moneymanager.app.ui.accounts.accountsBackTarget
+import com.moneymanager.app.ui.accounts.debitCardDisplayBalance
 import com.moneymanager.app.ui.accounts.AccountsViewModel
 import com.moneymanager.app.ui.components.MmSearchField
 import com.moneymanager.app.ui.components.rememberScrollChromeState
@@ -133,6 +136,7 @@ fun AccountsScreen(
     initialTab: AccountsTab = AccountsTab.BANK,
     onAccountClick: (Long) -> Unit = {},
     onAddCreditCard: () -> Unit = {},
+    onAddDebitCard: () -> Unit = {},
     onAddAccount: () -> Unit = {},
     onAccountSettings: () -> Unit = {},
     onEditAccount: (Long) -> Unit = {},
@@ -144,6 +148,9 @@ fun AccountsScreen(
 ) {
     val accounts by viewModel.accounts.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(AccountsTab.entries.indexOf(initialTab).coerceAtLeast(0)) }
+    // Selecting a type from All is a local navigation step. Preserve that origin while
+    // detail/editor destinations are pushed so Back returns to All rather than Home.
+    var enteredTypeFromAll by rememberSaveable { mutableStateOf(false) }
     var editMode by rememberSaveable { mutableStateOf(false) }
     var showInactive by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -154,6 +161,13 @@ fun AccountsScreen(
     var accountsOverviewHeightPx by remember { mutableIntStateOf(0) }
     val accountsOverviewInset = with(androidx.compose.ui.platform.LocalDensity.current) { accountsOverviewHeightPx.toDp() }
     val tab = AccountsTab.entries[selectedTab]
+    BackHandler(enabled = accountsBackTarget(tab, enteredTypeFromAll) != null) {
+        accountsBackTarget(tab, enteredTypeFromAll)?.let { target ->
+            selectedTab = AccountsTab.entries.indexOf(target)
+            enteredTypeFromAll = false
+            showInactive = false
+        }
+    }
     val filtered = accounts.filter { it.accountType in tab.types && !it.deleted }
     val visible = filtered.filter { account ->
         !account.hide && (
@@ -200,12 +214,14 @@ fun AccountsScreen(
                     accounts = accounts,
                     topInset = accountsHeaderInset + accountsOverviewInset + MmSpacing.md,
                     onSelectType = { type ->
+                        enteredTypeFromAll = true
                         selectedTab = AccountsTab.entries.indexOf(AccountsTab.forType(type))
                         showInactive = false
                     },
                     onAddType = { type ->
                         when (type) {
                             AccountType.CREDIT_CARD -> onAddCreditCard()
+                            AccountType.DEBIT_CARD -> onAddDebitCard()
                             else -> onAddAccount()
                         }
                     }
@@ -244,7 +260,7 @@ fun AccountsScreen(
                                 emptyTitle = "No ${tab.label.lowercase()} yet"
                                 emptyMessage = when (tab) {
                                     AccountsTab.CREDIT_CARDS -> "Add a card to track outstanding, limits and billing cycles."
-                                    AccountsTab.DEBIT_CARDS -> "Add a debit card to track spending from a bank account."
+                                    AccountsTab.DEBIT_CARDS -> "Add a debit card and optionally link it to a bank account."
                                     AccountsTab.LOANS -> "Add a loan to keep track of what is left to pay."
                                     AccountsTab.WALLETS -> "Add a wallet to track balances."
                                     AccountsTab.PREPAID_CARDS -> "Add a prepaid card to track its balance."
@@ -253,8 +269,16 @@ fun AccountsScreen(
                                     AccountsTab.INVESTMENTS -> "Add an investment account to track it here."
                                     AccountsTab.ALL -> "No accounts found for this selection."
                                 }
-                                emptyActionLabel = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account"
-                                emptyAction = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                                emptyActionLabel = when (tab) {
+                                    AccountsTab.CREDIT_CARDS -> "Add credit card"
+                                    AccountsTab.DEBIT_CARDS -> "Add debit card"
+                                    else -> "Add account"
+                                }
+                                emptyAction = when (tab) {
+                                    AccountsTab.CREDIT_CARDS -> onAddCreditCard
+                                    AccountsTab.DEBIT_CARDS -> onAddDebitCard
+                                    else -> onAddAccount
+                                }
                             }
                             MmEmptyState(
                                 icon = tab.icon,
@@ -268,6 +292,9 @@ fun AccountsScreen(
                         itemsIndexed(shown, key = { _, account -> account.id }) { index, account ->
                             AccountRow(
                                 account = account,
+                                linkedBankBalance = if (account.accountType == AccountType.DEBIT_CARD)
+                                    accounts.firstOrNull { it.id == account.parentAccountId }?.currentBalanceMinorUnits
+                                else null,
                                 modifier = Modifier.revealOnAppear(index = index),
                                 isCreditCard = account.accountType == AccountType.CREDIT_CARD,
                                 editMode = editMode,
@@ -283,8 +310,16 @@ fun AccountsScreen(
                             item(key = "add-account") {
                                 Box(Modifier.padding(horizontal = MmSpacing.sm)) {
                                     AddAccountRow(
-                                        label = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account",
-                                        onClick = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
+                                        label = when (tab) {
+                                            AccountsTab.CREDIT_CARDS -> "Add credit card"
+                                            AccountsTab.DEBIT_CARDS -> "Add debit card"
+                                            else -> "Add account"
+                                        },
+                                        onClick = when (tab) {
+                                            AccountsTab.CREDIT_CARDS -> onAddCreditCard
+                                            AccountsTab.DEBIT_CARDS -> onAddDebitCard
+                                            else -> onAddAccount
+                                        }
                                     )
                                 }
                             }
@@ -345,6 +380,9 @@ fun AccountsScreen(
                             selected = selectedTab,
                             onSelect = {
                                 selectedTab = it
+                                if (AccountsTab.entries[it] == AccountsTab.ALL) {
+                                    enteredTypeFromAll = false
+                                }
                                 showInactive = false
                             },
                             horizontalInset = 0.dp
@@ -579,19 +617,22 @@ private fun AccountsTabs(
 private fun AccountRow(
     account: AccountEntity,
     isCreditCard: Boolean,
+    linkedBankBalance: Long? = null,
     editMode: Boolean,
     showTopDivider: Boolean = false,
     onClick: () -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val amount = if (isCreditCard) account.outstandingMinorUnits ?: 0L else account.currentBalanceMinorUnits
+    val amount = if (isCreditCard) account.outstandingMinorUnits ?: 0L
+        else debitCardDisplayBalance(account.accountType, account.currentBalanceMinorUnits, linkedBankBalance)
     val subtitle = when {
         !account.active -> "Inactive"
         account.hide -> "Hidden from totals"
         account.balanceSource == AccountBalanceSource.REPORTED && account.lastReportedAtEpochMillis != null ->
             "Reported ${formatDayMonth(account.lastReportedAtEpochMillis)}"
         isCreditCard -> "Outstanding"
+        account.accountType == AccountType.DEBIT_CARD && linkedBankBalance != null -> "Linked bank balance"
         else -> "Available balance"
     }
     val issuer = account.institutionName.orEmpty().ifBlank { account.nickname.orEmpty() }

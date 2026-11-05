@@ -49,9 +49,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.domain.model.AccountType
+import com.moneymanager.app.ui.accounts.matchesBankIssuer
+import com.moneymanager.app.ui.accounts.maskedBankAccountNumber
+import com.moneymanager.app.domain.model.Money
+import com.moneymanager.app.ui.components.MoneyFormat
 import com.moneymanager.app.domain.model.AccountTypeCatalog
 import com.moneymanager.app.domain.model.BusinessPersonal
 import com.moneymanager.app.ui.components.MmAmountField
+import com.moneymanager.app.ui.components.MmOption
+import com.moneymanager.app.ui.components.MmPickerSheet
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmBankLogo
 import com.moneymanager.app.ui.components.MmWalletCard
@@ -82,6 +88,7 @@ fun AccountEditScreen(
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
     LaunchedEffect(state.deleted) { if (state.deleted) onDeleted() }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showBankAccountPicker by remember { mutableStateOf(false) }
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val headerInset = with(LocalDensity.current) {
         if (headerHeightPx > 0) headerHeightPx.toDp() else 100.dp
@@ -178,6 +185,47 @@ fun AccountEditScreen(
                     visualTransformation = if (sensitiveCardId) PasswordVisualTransformation()
                         else androidx.compose.ui.text.input.VisualTransformation.None
                 )
+            }
+
+            if (state.accountType == AccountType.DEBIT_CARD) {
+                val linkedBank = state.bankAccounts.firstOrNull { it.id == state.linkedBankAccountId }
+                MmCard {
+                    Text("Linked bank account", style = MmType.label, color = MmColors.textSecondary)
+                    Spacer(Modifier.height(MmSpacing.sm))
+                    OutlinedButton(
+                        onClick = { showBankAccountPicker = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(MmSpacing.radiusRow),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MmColors.textPrimary)
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                linkedBank?.let { it.nickname.ifBlank { it.institutionName } + " · " + it.maskedBankAccountNumber() }
+                                    ?: "No bank account linked",
+                                style = MmType.body,
+                                color = MmColors.textPrimary
+                            )
+                            Text(
+                                if (linkedBank == null) "Standalone debit card balance"
+                                else linkedBank.institutionName + " · " + MoneyFormat.rupeesNoDecimals(Money(linkedBank.currentBalanceMinorUnits)) + " available",
+                                style = MmType.caption,
+                                color = MmColors.textSecondary
+                            )
+                        }
+                        Text(
+                            if (linkedBank == null) "Link" else "Change",
+                            style = MmType.label,
+                            color = MmColors.accent
+                        )
+                    }
+                    Spacer(Modifier.height(MmSpacing.xs))
+                    Text(
+                        "New purchases made with this card will update the linked bank account. " +
+                            "Existing transactions and balances are not moved.",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
+                    )
+                }
             }
 
             if (supportsManualBalance) {
@@ -312,6 +360,30 @@ fun AccountEditScreen(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
+
+    if (showBankAccountPicker) {
+        MmPickerSheet(
+            title = "Link bank account",
+            options = state.bankAccounts.filter {
+                it.matchesBankIssuer(state.institutionName)
+            }.map { bank ->
+                MmOption(
+                    id = bank.id,
+                    label = bank.nickname.ifBlank { bank.institutionName } + " · " + bank.maskedBankAccountNumber(),
+                    subtitle = bank.institutionName + " · " + MoneyFormat.rupeesNoDecimals(Money(bank.currentBalanceMinorUnits))
+                )
+            },
+            selectedId = state.linkedBankAccountId,
+            onSelect = { option ->
+                viewModel.linkedBankAccount(option.id.takeIf { it >= 0L })
+                showBankAccountPicker = false
+            },
+            onDismiss = { showBankAccountPicker = false },
+            allowNone = true,
+            noneLabel = "Keep debit card unlinked",
+            searchHint = "Search bank accounts"
+        )
     }
 
     if (showDeleteConfirm) {

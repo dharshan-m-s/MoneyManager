@@ -39,6 +39,7 @@ import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
+import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.ui.components.revealOnAppear
 import androidx.compose.foundation.lazy.itemsIndexed
 
@@ -98,7 +99,8 @@ private val OTHER_BANKS = listOf(
 @Composable
 fun BankSelectionScreen(
     onBack: () -> Unit,
-    onBankSelected: (String) -> Unit
+    onBankSelected: (String) -> Unit,
+    accountType: AccountType = AccountType.BANK
 ) {
     var query by rememberSaveable { mutableStateOf("") }
 
@@ -111,8 +113,10 @@ fun BankSelectionScreen(
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
-            title = "Select bank",
-            subtitle = "Choose the bank this account belongs to",
+            title = if (accountType == AccountType.DEBIT_CARD) "Select card issuer" else "Select bank",
+            subtitle = if (accountType == AccountType.DEBIT_CARD)
+                "Choose the bank that issued this debit card"
+            else "Choose the bank this account belongs to",
             onBack = onBack,
             bottomContent = {
                 Row(
@@ -133,8 +137,10 @@ fun BankSelectionScreen(
 
         MmSpotlightPanel(
             eyebrow = "ACCOUNT SETUP",
-            title = "Choose your bank",
-            description = "Pick a popular institution or search the complete bank directory.",
+            title = if (accountType == AccountType.DEBIT_CARD) "Choose your card issuer" else "Choose your bank",
+            description = if (accountType == AccountType.DEBIT_CARD)
+                "Choose the bank printed on your debit card. You can link an existing account next."
+            else "Pick a popular institution or search the complete bank directory.",
             icon = Icons.Filled.AccountBalance,
             modifier = Modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.xs)
         )

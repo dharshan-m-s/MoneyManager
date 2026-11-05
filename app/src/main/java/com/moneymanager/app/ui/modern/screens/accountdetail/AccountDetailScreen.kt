@@ -72,6 +72,7 @@ import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.AccountTypeCatalog
+import com.moneymanager.app.ui.accounts.debitCardDisplayBalance
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmEmptyState
@@ -403,6 +404,12 @@ private fun AccountHeader(
 
             if (account == null) return@Column
 
+            val displayAccount = if (account.accountType == AccountType.DEBIT_CARD && state.linkedBankAccount != null) {
+                account.copy(currentBalanceMinorUnits = debitCardDisplayBalance(
+                    account.accountType, account.currentBalanceMinorUnits, state.linkedBankAccount.currentBalanceMinorUnits
+                ))
+            } else account
+
             val liftModifier = Modifier.graphicsLayer {
                 translationY = -12.dp.toPx() * collapseProgress.value.coerceIn(0f, 1f)
                 scaleX = 1f - 0.012f * collapseProgress.value.coerceIn(0f, 1f)
@@ -420,14 +427,14 @@ private fun AccountHeader(
                     ) { page ->
                         if (page == 0) {
                             MmWalletCard(
-                                account = account,
+                                account = displayAccount,
                                 modifier = Modifier.fillMaxWidth(),
                                 maskedNumberOverride = state.maskedCardNumber
                             )
                         } else {
                             CardBalancePage(
                                 state = state,
-                                account = account,
+                                account = displayAccount,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -475,7 +482,7 @@ private fun AccountHeader(
                 else -> {
                     CardBalancePage(
                         state = state,
-                        account = account,
+                        account = displayAccount,
                         modifier = Modifier.fillMaxWidth()
                             .padding(horizontal = MmSpacing.screen, vertical = MmSpacing.md)
                             .then(liftModifier)
@@ -493,7 +500,10 @@ private fun CardBalancePage(
     modifier: Modifier = Modifier
 ) {
     val creditCard = state.isCreditCard
-    val amount = if (creditCard) account.outstandingMinorUnits ?: 0L else account.currentBalanceMinorUnits
+    val amount = if (creditCard) account.outstandingMinorUnits ?: 0L
+        else debitCardDisplayBalance(
+            account.accountType, account.currentBalanceMinorUnits, state.linkedBankAccount?.currentBalanceMinorUnits
+        )
     val amountLabel = if (creditCard) "OUTSTANDING BALANCE" else "AVAILABLE BALANCE"
     val limit = account.creditLimitOverrideMinorUnits ?: account.creditLimitMinorUnits
     val available = limit?.let { (it - amount).coerceAtLeast(0L) }

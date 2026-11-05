@@ -61,12 +61,32 @@ class TransactionRepository @Inject constructor(
             val credit = if (input.isIncome) input.amount.minorUnits else 0L
             val debit = if (input.isIncome) 0L else input.amount.minorUnits
 
+            val selectedAccount = accountDao.findById(input.accountId)
+                ?: throw IllegalArgumentException("The selected account no longer exists")
+            // A linked debit card is a payment instrument, not a second money container. Keep
+            // the card ID as the user's selection, but post the ledger movement to its bank.
+            // An unlinked card remains a standalone balance-holding account.
+            val linkedBank = if (selectedAccount.accountType == AccountType.DEBIT_CARD) {
+                selectedAccount.parentAccountId?.let { parentId ->
+                    val bank = accountDao.findById(parentId)
+                        ?: throw IllegalStateException("The debit card's linked bank account no longer exists")
+                    require(bank.accountType == AccountType.BANK && !bank.deleted) {
+                        "The debit card is linked to an invalid bank account"
+                    }
+                    bank
+                }
+            } else null
+            val ledgerAccount = linkedBank ?: selectedAccount
+            val effectivePaymentType = if (selectedAccount.accountType == AccountType.DEBIT_CARD) {
+                PaymentType.DEBIT_CARD
+            } else input.paymentType
+
             val fingerprint = fingerprint(
                 input.occurredAtEpochMillis, input.accountId, credit, debit,
                 input.merchantReceiverSender, input.rawCategoryName
             )
 
-            val isCard = accountDao.findById(input.accountId)?.accountType == AccountType.CREDIT_CARD
+            val isCard = ledgerAccount.accountType == AccountType.CREDIT_CARD
             val entity = TransactionEntity(
                 occurredAtEpochMillis = input.occurredAtEpochMillis,
                 rawDateString = "",
@@ -81,13 +101,13 @@ class TransactionRepository @Inject constructor(
                         if (input.isIncome) TxnKind.CASH_INCOME else TxnKind.CASH_SPEND
                     else -> TxnKind.REGULAR
                 },
-                paymentType = input.paymentType,
-                rawPaymentType = input.paymentType.raw,
+                paymentType = effectivePaymentType,
+                rawPaymentType = effectivePaymentType.raw,
                 businessPersonal = input.businessPersonal,
                 merchantReceiverSender = input.merchantReceiverSender,
                 categoryId = input.categoryId,
                 rawCategoryName = input.rawCategoryName,
-                accountId = input.accountId,
+                accountId = ledgerAccount.id,
                 creditMinorUnits = credit,
                 debitMinorUnits = debit,
                 balanceSnapshotMinorUnits = null,
@@ -105,7 +125,7 @@ class TransactionRepository @Inject constructor(
             val id = transactionDao.insert(entity)
             // Recompute the account's derived balance through the ONE canonical accounting
             // engine - the same engine the CSV importer uses. No separate ledger formula.
-            accountingService.recalculateAccounts(setOf(input.accountId))
+            accountingService.recalculateAccounts(setOf(ledgerAccount.id))
             id
         }.also { backupManager.scheduleAfterWrite() }
     }
