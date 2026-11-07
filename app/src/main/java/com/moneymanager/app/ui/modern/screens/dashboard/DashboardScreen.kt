@@ -109,7 +109,6 @@ import com.moneymanager.app.ui.dashboard.DashboardUiState
 import com.moneymanager.app.ui.dashboard.DashboardViewModel
 import com.moneymanager.app.ui.dashboard.SafeToSpendMode
 import com.moneymanager.app.ui.settings.SettingsEntryPoint
-import com.moneymanager.app.ui.spendsummary.SpendSummaryViewModel
 
 private val dashboardZone: ZoneId = ZoneId.of("Asia/Kolkata")
 
@@ -137,8 +136,7 @@ fun DashboardScreen(
     onOpenCash: () -> Unit = {},
     onTransactionClick: (Long) -> Unit = {},
     onOpenBreakdown: (DashboardBreakdownKind) -> Unit = {},
-    viewModel: DashboardViewModel = hiltViewModel(),
-    spendViewModel: SpendSummaryViewModel = hiltViewModel()
+    viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     // Render the hero + a lightweight loader until the first real snapshot arrives, so a
