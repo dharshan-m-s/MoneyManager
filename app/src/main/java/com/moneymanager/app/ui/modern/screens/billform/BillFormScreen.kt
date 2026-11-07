@@ -236,8 +236,12 @@ fun BillFormScreen(
                             dueDate.monthValue - 1,
                             dueDate.dayOfMonth
                         ).show()
-                    },
-                    supportingText = "Choose the first occurrence. Future bills follow this date and your selected recurrence."
+                    }
+                )
+                Text(
+                    "Choose the first occurrence. Future bills follow this date and your selected recurrence.",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary
                 )
                 Spacer(Modifier.height(MmSpacing.md))
                 MmAmountField(
