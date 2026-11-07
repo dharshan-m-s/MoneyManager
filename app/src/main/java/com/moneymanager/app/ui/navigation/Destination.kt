@@ -1,4 +1,6 @@
 package com.moneymanager.app.ui.navigation
+
+import android.net.Uri
 import com.moneymanager.app.ui.dashboard.DashboardBreakdownKind
 
 import androidx.compose.material.icons.Icons
@@ -36,7 +38,15 @@ sealed class Destination(val route: String, val label: String, val icon: ImageVe
     ) {
         fun route(categoryId: Long? = null) = "category_editor?categoryId=${categoryId ?: -1L}"
     }
-    data object CategoryTransactions : Destination("category_transactions/{categoryId}", "Category Transactions", Icons.Filled.Description) { fun route(categoryId: Long) = "category_transactions/$categoryId" }
+    data object CategoryTransactions : Destination(
+        "category_transactions/{categoryId}?rawName={rawName}",
+        "Category Transactions",
+        Icons.Filled.Description
+    ) {
+        fun route(categoryId: Long, rawCategoryName: String? = null): String =
+            "category_transactions/$categoryId" +
+                (rawCategoryName?.takeIf { it.isNotBlank() }?.let { "?rawName=${Uri.encode(it)}" } ?: "")
+    }
     data object Reimbursements : Destination("reimbursements", "Reimbursements", Icons.Filled.SwapHoriz)
     data object Settings : Destination("settings", "Settings", Icons.Filled.Settings)
     data object AppUpdates : Destination("app_updates", "App Updates", Icons.Filled.Settings)
