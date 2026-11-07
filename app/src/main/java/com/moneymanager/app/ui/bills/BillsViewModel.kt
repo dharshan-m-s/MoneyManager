@@ -14,6 +14,7 @@ import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.Money
 import com.moneymanager.app.ui.components.MoneyFormat
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -86,6 +87,10 @@ class BillsViewModel @Inject constructor(
                 .thenBy { it.bill.billerName.lowercase() }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** All scheduled occurrences, including paid and partially paid history, newest first. */
+    fun historyForBill(billId: Long): Flow<List<BillInstanceEntity>> =
+        billDao.observeInstancesForBill(billId)
 
     // Automatic card-payment detection removed per requirements - only explicit selection+confirmation
 
