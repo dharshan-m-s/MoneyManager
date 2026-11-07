@@ -216,13 +216,13 @@ interface TransactionDao {
     fun observeTotalIncomeInRange(startInclusive: Long, endExclusive: Long): Flow<Long>
 
     @Query(
-        "SELECT t.categoryId as categoryId, t.rawCategoryName as rawCategoryName, COALESCE(SUM(t.debitMinorUnits - t.creditMinorUnits), 0) as total " +
+        "SELECT t.categoryId as categoryId, CASE WHEN t.categoryId IS NULL THEN t.rawCategoryName ELSE NULL END as rawCategoryName, COALESCE(SUM(t.debitMinorUnits - t.creditMinorUnits), 0) as total " +
             "FROM transactions t INNER JOIN accounts a ON a.id = t.accountId " +
             "WHERE (t.txnSubType = 'EXPENSE' OR t.txnKind = 'REFUND_REVERSAL') " +
             "AND t.includeInStatistics = 1 " +
             "AND $INCLUDED_ACCOUNT " +
             "AND t.occurredAtEpochMillis >= :startInclusive AND t.occurredAtEpochMillis < :endExclusive " +
-            "GROUP BY t.categoryId, t.rawCategoryName ORDER BY total DESC"
+            "GROUP BY t.categoryId, CASE WHEN t.categoryId IS NULL THEN t.rawCategoryName ELSE NULL END ORDER BY total DESC"
     )
     fun observeCategoryTotalsInRange(startInclusive: Long, endExclusive: Long): Flow<List<CategoryTotal>>
 
