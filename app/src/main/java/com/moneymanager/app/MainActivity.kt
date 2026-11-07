@@ -109,6 +109,7 @@ class MainActivity : FragmentActivity() {
                 appearance = selectedAppearance
                 applySystemBarAppearance(darkMode, selectedAppearance)
             }
+            val accentTheme by appearancePreferences.accentTheme.collectAsState()
             val glassEnabled by appearancePreferences.glassEnabled.collectAsState()
             val glassBlur by appearancePreferences.glassBlur.collectAsState()
             val glassRefraction by appearancePreferences.glassRefraction.collectAsState()
@@ -117,7 +118,8 @@ class MainActivity : FragmentActivity() {
                 darkTheme = darkMode,
                 glassEnabled = glassEnabled,
                 glassBlur = glassBlur,
-                glassRefraction = glassRefraction
+                glassRefraction = glassRefraction,
+                accentTheme = accentTheme
             )
         }
     }
