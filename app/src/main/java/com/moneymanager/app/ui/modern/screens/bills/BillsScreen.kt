@@ -68,6 +68,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -146,6 +147,7 @@ fun BillsScreen(
     viewModel: BillsViewModel = hiltViewModel()
 ) {
     val bills by viewModel.bills.collectAsState()
+    var historyBill by remember { mutableStateOf<BillRow?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     val scrollChrome = rememberScrollChromeState(collapseDistance = 112.dp)
     val pageGlassBackdrop = androidx.compose.runtime.key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
@@ -204,7 +206,8 @@ fun BillsScreen(
                         BillCard(
                             row = row,
                             modifier = Modifier.revealOnAppear(index = index),
-                            onClick = { onEditBiller(row.bill.id) },
+                            onClick = { historyBill = row },
+                            onEdit = { onEditBiller(row.bill.id) },
                             onMarkPaid = {
                                 row.nextInstance?.let { instance ->
                                     if (instance.amountDueMinorUnits == 0L && instance.paidAmountMinorUnits == 0L) {
@@ -254,6 +257,20 @@ fun BillsScreen(
                 )
           }
         }
+    }
+
+    val selectedHistoryBill = historyBill
+    if (selectedHistoryBill != null) {
+        val historyFlow = remember(selectedHistoryBill.bill.id) {
+            viewModel.historyForBill(selectedHistoryBill.bill.id)
+        }
+        val history by historyFlow.collectAsState(initial = emptyList())
+        BillHistoryDialog(
+            billName = selectedHistoryBill.bill.billerName,
+            instances = history,
+            onEdit = { onEditBiller(selectedHistoryBill.bill.id); historyBill = null },
+            onDismiss = { historyBill = null }
+        )
     }
 
     val pendingRow = paymentSearch.billRow
@@ -758,9 +775,76 @@ private fun BillPaymentCandidateRow(
 }
 
 @Composable
+private fun BillHistoryDialog(
+    billName: String,
+    instances: List<com.moneymanager.app.data.local.entity.BillInstanceEntity>,
+    onEdit: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val zone = ZoneId.of("Asia/Kolkata")
+    val dateFormat = DateTimeFormatter.ofPattern("dd MMM yyyy")
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("$billName · History") },
+        text = {
+            if (instances.isEmpty()) {
+                Text("No bill occurrences have been generated yet.")
+            } else {
+                Column(
+                    Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    instances.sortedByDescending { it.dueDateEpochMillis }.forEach { item ->
+                        val due = dateFormat.format(Instant.ofEpochMilli(item.dueDateEpochMillis).atZone(zone))
+                        val paidAt = item.paidAtEpochMillis?.let {
+                            dateFormat.format(Instant.ofEpochMilli(it).atZone(zone))
+                        }
+                        Column(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                                .background(MmColors.surfaceContainer).padding(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(due, style = MmType.label, color = MmColors.textPrimary, modifier = Modifier.weight(1f))
+                                Text(
+                                    when {
+                                        item.paid -> "Paid"
+                                        item.paidAmountMinorUnits > 0L -> "Partly paid"
+                                        item.dueDateEpochMillis < System.currentTimeMillis() -> "Overdue"
+                                        else -> "Upcoming"
+                                    },
+                                    style = MmType.caption,
+                                    color = if (item.paid) MmColors.income else MmColors.warning
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text("Due: " + MoneyFormat.rupeesNoDecimals(Money(item.amountDueMinorUnits)),
+                                style = MmType.caption, color = MmColors.textSecondary)
+                            if (item.paidAmountMinorUnits > 0L || item.paid) {
+                                Text("Paid: " + MoneyFormat.rupeesNoDecimals(Money(item.paidAmountMinorUnits)),
+                                    style = MmType.caption, color = MmColors.income)
+                            }
+                            if (paidAt != null) {
+                                Text("Paid on: $paidAt", style = MmType.caption, color = MmColors.textSecondary)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onEdit) { Text("Edit bill") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        }
+    )
+}
+
+@Composable
 private fun BillCard(
     row: BillRow,
     onClick: () -> Unit,
+    onEdit: () -> Unit,
     onMarkPaid: () -> Unit,
     onDelete: () -> Unit,
     onConfirmDetectedPayment: () -> Unit = {},
@@ -893,6 +977,9 @@ private fun BillCard(
                     tint = MmColors.income,
                     modifier = Modifier.size(18.dp)
                 )
+            }
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Filled.Edit, contentDescription = "Edit bill", tint = MmColors.textSecondary)
             }
         }
 
