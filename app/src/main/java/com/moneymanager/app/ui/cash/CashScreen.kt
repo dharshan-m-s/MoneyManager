@@ -244,7 +244,7 @@ fun CashScreen(
                             CashForwardRow(Money(forwardedAmount))
                         }
                     }
-                    if (month == currentMonth && realRows.isEmpty()) {
+                    if (month == currentMonth && realRows.isEmpty() && query.isBlank()) {
                         item(key = "empty-$month") {
                             Row(Modifier.fillMaxWidth().padding(vertical = MmSpacing.lg)) {
                                 Text(
