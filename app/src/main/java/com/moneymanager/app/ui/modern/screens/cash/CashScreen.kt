@@ -279,6 +279,13 @@ fun CashScreen(
                                     onClick = { onEditCash(cashAccountId) }
                                 )
                             }
+                            state.primaryCashAccountId?.let { cashAccountId ->
+                                MmTopBarAction(
+                                    icon = Icons.Filled.SwapVert,
+                                    contentDescription = "Transfer money into cash",
+                                    onClick = { onTransferToCash(cashAccountId) }
+                                )
+                            }
                             MmTopBarAction(
                                 icon = Icons.Filled.Search,
                                 contentDescription = "Search cash",
