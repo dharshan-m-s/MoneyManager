@@ -238,10 +238,10 @@ interface TransactionDao {
     fun observeCardPaymentLegs(): Flow<List<TransactionEntity>>
 
     @Query(
-        "SELECT t.categoryId as categoryId, COALESCE(SUM(t.debitMinorUnits - t.creditMinorUnits), 0) as total " +
+        "SELECT t.categoryId as categoryId, t.rawCategoryName as rawCategoryName, COALESCE(SUM(t.debitMinorUnits - t.creditMinorUnits), 0) as total " +
             "FROM transactions t INNER JOIN accounts a ON a.id = t.accountId " +
             "WHERE a.accountType = 'CASH' AND t.txnSubType = 'EXPENSE' AND t.includeInStatistics = 1 " +
-            "GROUP BY t.categoryId ORDER BY total DESC"
+            "GROUP BY t.categoryId, t.rawCategoryName ORDER BY total DESC"
     )
     fun observeCashCategoryTotals(): Flow<List<CategoryTotal>>
 
