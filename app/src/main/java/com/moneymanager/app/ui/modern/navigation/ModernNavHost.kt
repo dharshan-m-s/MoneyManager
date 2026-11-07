@@ -276,7 +276,11 @@ fun ModernNavHost(
             )
         }
         composable(Destination.SpendSummary.route) {
-            SpendSummaryScreen(onBack = { safeBack() }, onCategoryClick = { id -> go(Destination.CategoryTransactions.route(id)) })
+            SpendSummaryScreen(
+                onBack = { safeBack() },
+                onCategoryClick = { id -> go(Destination.CategoryTransactions.route(id)) },
+                onRawCategoryClick = { name -> go(Destination.CategoryTransactions.route(-1L, name)) }
+            )
         }
         composable(Destination.Categories.route) {
             CategoryManagerScreen(
@@ -315,9 +319,21 @@ fun ModernNavHost(
                 onSaved = { safeBack() }
             )
         }
-        composable(Destination.CategoryTransactions.route, arguments = listOf(navArgument("categoryId") { type = NavType.LongType })) { entry ->
+        composable(
+            Destination.CategoryTransactions.route,
+            arguments = listOf(
+                navArgument("categoryId") { type = NavType.LongType },
+                navArgument("rawName") { type = NavType.StringType; nullable = true; defaultValue = null }
+            )
+        ) { entry ->
             val id = entry.arguments?.getLong("categoryId") ?: -1L
-            CategoryTransactionsScreen(categoryId = id, onBack = { safeBack() }, onTransactionClick = { tx -> go(Destination.TransactionDetail.route(tx)) })
+            val rawName = entry.arguments?.getString("rawName")
+            CategoryTransactionsScreen(
+                categoryId = id,
+                rawCategoryName = rawName,
+                onBack = { safeBack() },
+                onTransactionClick = { tx -> go(Destination.TransactionDetail.route(tx)) }
+            )
         }
         composable(Destination.Reimbursements.route) {
             ReimbursementsScreen(
