@@ -38,6 +38,17 @@ internal val DarkTextPrimary = Color(0xFFF3F3F0)
 internal val DarkTextSecondary = Color(0xFFB7BBC4)
 internal val DarkTextTertiary = Color(0xFF898F99)
 
+// User-selectable app-wide accent palettes. Semantic income/expense colours remain fixed.
+enum class MmAccentTheme(val label: String, val light: Color, val dark: Color) {
+    INDIGO("Indigo", Color(0xFF6266D8), Color(0xFFB8BCFF)),
+    BLUE("Blue", Color(0xFF1769C2), Color(0xFF8DBBFF)),
+    TEAL("Teal", Color(0xFF087F8C), Color(0xFF67D5DC)),
+    EMERALD("Emerald", Color(0xFF087A55), Color(0xFF62D6A5)),
+    ROSE("Rose", Color(0xFFB83263), Color(0xFFFF9DBB)),
+    AMBER("Amber", Color(0xFF9A5B00), Color(0xFFFFC36B))
+}
+val LocalMmAccentTheme = androidx.compose.runtime.staticCompositionLocalOf { MmAccentTheme.INDIGO }
+
 // Accents
 internal val PrimaryLight = Color(0xFF6266D8)
 internal val PrimaryDark = Color(0xFFB8BCFF)
@@ -92,8 +103,8 @@ object MmColors {
     val textSecondary: Color @Composable get() = if (light) LightTextSecondary else DarkTextSecondary
     val textTertiary: Color @Composable get() = if (light) LightTextTertiary else DarkTextTertiary
 
-    val accent: Color @Composable get() = if (light) PrimaryLight else PrimaryDark
-    val accentFill: Color @Composable get() = if (light) PrimaryLight else PrimaryFillDark
+    val accent: Color @Composable get() = if (light) LocalMmAccentTheme.current.light else LocalMmAccentTheme.current.dark
+    val accentFill: Color @Composable get() = if (light) LocalMmAccentTheme.current.light else androidx.compose.ui.graphics.lerp(LocalMmAccentTheme.current.light, Color.Black, 0.28f)
     val accentGlow: Color @Composable get() = accent
     val onAccent: Color get() = OnPrimary
 
@@ -110,20 +121,24 @@ object MmColors {
     // Rich, multi-stop surfaces: the former single-colour lists rendered as flat bands.
     // These are content-safe brand gradients, not substitutes for the sampled Liquid Glass layer.
     val brandGradient: List<Color> @Composable get() = if (light) {
-        listOf(Color(0xFF777CF5), Color(0xFF5054C8), Color(0xFF292D72))
+        listOf(
+            androidx.compose.ui.graphics.lerp(LocalMmAccentTheme.current.light, Color.White, 0.30f),
+            LocalMmAccentTheme.current.light,
+            androidx.compose.ui.graphics.lerp(LocalMmAccentTheme.current.light, Color.Black, 0.55f)
+        )
     } else {
-        listOf(Color(0xFF5E63D9), Color(0xFF393E91), Color(0xFF1A1D49))
+        listOf(
+            androidx.compose.ui.graphics.lerp(LocalMmAccentTheme.current.dark, Color.Black, 0.35f),
+            androidx.compose.ui.graphics.lerp(LocalMmAccentTheme.current.light, Color.Black, 0.35f),
+            androidx.compose.ui.graphics.lerp(LocalMmAccentTheme.current.light, Color.Black, 0.72f)
+        )
     }
     val glassChromeGradient: List<Color> @Composable get() = if (light) {
         listOf(Color(0xFFFDFEFF), Color(0xFFE8ECF7), Color(0xFFDCE2F1))
     } else {
         listOf(Color(0xFF303A54), Color(0xFF1D263A), Color(0xFF111827))
     }
-    val heroGradient: List<Color> @Composable get() = if (light) {
-        listOf(Color(0xFF858AFF), Color(0xFF565BD4), Color(0xFF22265F))
-    } else {
-        listOf(Color(0xFF6268E5), Color(0xFF383D99), Color(0xFF171B43))
-    }
+    val heroGradient: List<Color> @Composable get() = brandGradient
     val glassHeroGradient: List<Color> @Composable get() = heroGradient
     val cardHeaderGradient: List<Color> @Composable get() = if (light) {
         listOf(Color(0xFF3978C9), Color(0xFF24549B), Color(0xFF183B72))
@@ -208,13 +223,15 @@ object ModernSystemColors {
 @Composable
 fun ModernTheme(
     darkTheme: Boolean = false,
+    accentTheme: MmAccentTheme = MmAccentTheme.INDIGO,
     content: @Composable () -> Unit
 ) {
+    val accent = if (darkTheme) accentTheme.dark else accentTheme.light
     val colors: Colors = if (darkTheme) {
         darkColors(
-            primary = PrimaryDark,
-            primaryVariant = PrimaryDark,
-            secondary = PrimaryDark,
+            primary = accent,
+            primaryVariant = accent,
+            secondary = accent,
             background = DarkBackground,
             surface = DarkSurface,
             error = ExpenseDark,
@@ -226,9 +243,9 @@ fun ModernTheme(
         )
     } else {
         lightColors(
-            primary = PrimaryLight,
-            primaryVariant = PrimaryLight,
-            secondary = PrimaryLight,
+            primary = accent,
+            primaryVariant = accent,
+            secondary = accent,
             background = LightBackground,
             surface = LightSurface,
             error = ExpenseLight,
