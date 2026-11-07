@@ -23,7 +23,14 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
-data class SpendCategoryRow(val categoryId: Long?, val name: String, val total: Long, val colorHex: String, val category: CategoryEntity? = null)
+data class SpendCategoryRow(
+    val categoryId: Long?,
+    val name: String,
+    val total: Long,
+    val colorHex: String,
+    val category: CategoryEntity? = null,
+    val rawCategoryName: String? = null
+)
 
 /** One selectable time window. */
 data class MonthWindow(val startInclusive: Long, val endExclusive: Long, val label: String)
@@ -81,7 +88,16 @@ class SpendSummaryViewModel @Inject constructor(
         // calculation. Consumers render negative rows as credits rather than dropping them.
         totals.filter { it.total != 0L }.map { t ->
             val cat = t.categoryId?.let { byId[it] }
-            SpendCategoryRow(t.categoryId, cat?.name ?: "Uncategorized", t.total, cat?.colorHex ?: "#9E9E9E", cat)
+            val importedName = t.rawCategoryName?.trim()?.takeIf { it.isNotEmpty() }
+            val name = cat?.name ?: importedName ?: "Uncategorized"
+            SpendCategoryRow(
+                categoryId = t.categoryId,
+                name = name,
+                total = t.total,
+                colorHex = cat?.colorHex ?: "#9E9E9E",
+                category = cat,
+                rawCategoryName = importedName
+            )
         }.sortedByDescending { it.total }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
