@@ -55,6 +55,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
  */
 val LocalMmGlassBackdrop = staticCompositionLocalOf<Backdrop?> { null }
 val LocalMmGlassEnabled = staticCompositionLocalOf { true }
+val LocalMmGlassBlurMultiplier = staticCompositionLocalOf { 1f }
+val LocalMmGlassRefractionMultiplier = staticCompositionLocalOf { 1f }
 /** Root-owned stills are disabled on pages that already record a live page layer. */
 val LocalMmGlassAutoCaptureAllowed = staticCompositionLocalOf { true }
 
@@ -87,8 +89,7 @@ fun MmGlassPageHost(content: @Composable () -> Unit) {
     val backdrop = key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
     Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
         CompositionLocalProvider(
-            LocalMmGlassBackdrop provides backdrop,
-            LocalMmGlassEnabled provides true
+            LocalMmGlassBackdrop provides backdrop
         ) {
             content()
         }
@@ -199,9 +200,18 @@ fun Modifier.mmLiquidGlass(
     val edge = if (light) Color.White.copy(alpha = 0.32f) else Color.White.copy(alpha = 0.09f)
     val safeIntensity = intensity.coerceIn(0.25f, 1.25f)
     val safeTintOpacity = tintOpacity.coerceIn(0.5f, 3f)
+    val userBlurMultiplier = LocalMmGlassBlurMultiplier.current.coerceIn(0f, 2.5f)
+    val userRefractionMultiplier = LocalMmGlassRefractionMultiplier.current.coerceIn(0f, 2.5f)
+
+    // Explicitly disabled means a genuinely opaque, theme-aware surface.
+    if (!enabled) {
+        return clip(shape)
+            .background(MmColors.surface, shape)
+            .border(0.7.dp, MmColors.outline.copy(alpha = 0.42f), shape)
+    }
 
     if (
-        !enabled ||
+        !isMmLiquidGlassSupported() ||
         !isMmLiquidGlassSupported() ||
         backdrop == null ||
         (backdrop as? LayerBackdrop)?.captureUnavailable == true ||
@@ -219,11 +229,12 @@ fun Modifier.mmLiquidGlass(
     // Refraction must dominate the blur. The old 18dp blur softened the sampled page
     // before the lens shader ran, making the surface look like a frosted sheet.
     // All pixel-space parameters are scaled with the capture resolution.
-    val safeBlurMultiplier = blurMultiplier.coerceIn(0.75f, 1.6f)
+    val safeBlurMultiplier = (blurMultiplier * userBlurMultiplier).coerceIn(0f, 2.5f)
     val blurRadius = with(density) { MM_GLASS_BLUR_RADIUS_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity * safeBlurMultiplier }
     val lensHeight = with(density) { 26.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
     val lensAmount = with(density) {
-        MM_GLASS_REFRACTION_AMOUNT_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity * refractionMultiplier.coerceIn(0.15f, 1.5f)
+        MM_GLASS_REFRACTION_AMOUNT_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity *
+            refractionMultiplier.coerceIn(0f, 1.5f) * userRefractionMultiplier
     }
 
     // Clip before the backdrop draw as well as after it. Without the leading clip the
@@ -296,6 +307,7 @@ fun Modifier.mmGlassHighlight(
     intensity: Float = 1f
 ): Modifier {
     val shape = RoundedCornerShape(cornerRadius)
+    if (!LocalMmGlassEnabled.current) return this
     val light = MaterialTheme.colors.isLight
     val alpha = (0.075f * intensity.coerceIn(0.25f, 1.25f)).coerceIn(0.018f, 0.10f)
     val rim = if (light) Color.White.copy(alpha = 0.54f) else Color.White.copy(alpha = 0.11f)
