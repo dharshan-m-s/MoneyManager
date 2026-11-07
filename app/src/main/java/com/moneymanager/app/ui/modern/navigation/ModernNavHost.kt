@@ -272,7 +272,8 @@ fun ModernNavHost(
             CashScreen(
                 onBack = { safeBack() },
                 onEditCash = { id -> go(Destination.AccountEdit.route(id)) },
-                onTransactionClick = { id -> go(Destination.TransactionDetail.route(id)) }
+                onTransactionClick = { id -> go(Destination.TransactionDetail.route(id)) },
+                onTransferToCash = { cashAccountId -> go(Destination.Transfer.route(cashAccountId)) }
             )
         }
         composable(Destination.SpendSummary.route) {
