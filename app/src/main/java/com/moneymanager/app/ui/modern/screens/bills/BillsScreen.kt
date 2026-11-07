@@ -205,7 +205,15 @@ fun BillsScreen(
                             row = row,
                             modifier = Modifier.revealOnAppear(index = index),
                             onClick = { onEditBiller(row.bill.id) },
-                            onMarkPaid = { if (row.nextInstance != null) viewModel.findPaymentTransactions(row) },
+                            onMarkPaid = {
+                                row.nextInstance?.let { instance ->
+                                    if (instance.amountDueMinorUnits == 0L && instance.paidAmountMinorUnits == 0L) {
+                                        viewModel.markAsPaidDirect(instance, 0L)
+                                    } else {
+                                        viewModel.findPaymentTransactions(row)
+                                    }
+                                }
+                            },
                             onDelete = { viewModel.deleteBill(row.bill.id) }
                         )
                     }
