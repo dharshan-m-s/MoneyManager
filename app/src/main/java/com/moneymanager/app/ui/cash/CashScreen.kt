@@ -102,10 +102,12 @@ fun CashScreen(
     val oldestMonth = state.transactions.minOfOrNull {
         Instant.ofEpochMilli(it.occurredAtEpochMillis).atZone(zone).toLocalDate().withDayOfMonth(1)
     } ?: currentMonth
-    var monthCursor = oldestMonth
-    while (!monthCursor.isAfter(currentMonth)) {
-        grouped.putIfAbsent(monthCursor, emptyList())
-        monthCursor = monthCursor.plusMonths(1)
+    if (query.isBlank()) {
+        var monthCursor = oldestMonth
+        while (!monthCursor.isAfter(currentMonth)) {
+            grouped.putIfAbsent(monthCursor, emptyList())
+            monthCursor = monthCursor.plusMonths(1)
+        }
     }
     if (!grouped.containsKey(currentMonth)) grouped[currentMonth] = emptyList()
 
@@ -237,7 +239,7 @@ fun CashScreen(
                             modifier = Modifier.revealOnAppear(index = 0)
                         )
                     }
-                    if (forward != null || forwardedAmount != 0L) {
+                    if (query.isBlank() && (forward != null || forwardedAmount != 0L)) {
                         item(key = "forward-$month") {
                             CashForwardRow(Money(forwardedAmount))
                         }
