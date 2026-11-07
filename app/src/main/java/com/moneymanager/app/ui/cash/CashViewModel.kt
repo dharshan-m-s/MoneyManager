@@ -23,6 +23,7 @@ data class CashMonthTotals(val spendMinor: Long, val incomeMinor: Long)
 data class CashUiState(
     val cashInHand: Money = Money.ZERO,
     val openingBalanceMinorUnits: Long = 0L,
+    val openingBalancesByAccount: Map<Long, Long> = emptyMap(),
     val monthSpend: Money = Money.ZERO,
     val monthIncome: Money = Money.ZERO,
     val primaryCashAccountId: Long? = null,
@@ -115,6 +116,7 @@ class CashViewModel @Inject constructor(
         CashUiState(
             cashInHand = Money(totalBalance),
             openingBalanceMinorUnits = includedCashAccounts.sumOf { it.openingBalanceMinorUnits },
+            openingBalancesByAccount = includedCashAccounts.associate { it.id to it.openingBalanceMinorUnits },
             monthSpend = Money(spend),
             monthIncome = Money(income),
             primaryCashAccountId = includedCashAccounts.firstOrNull()?.id,
