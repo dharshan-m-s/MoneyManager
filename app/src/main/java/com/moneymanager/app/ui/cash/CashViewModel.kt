@@ -116,7 +116,9 @@ class CashViewModel @Inject constructor(
         CashUiState(
             cashInHand = Money(totalBalance),
             openingBalanceMinorUnits = includedCashAccounts.sumOf { it.openingBalanceMinorUnits },
-            openingBalancesByAccount = includedCashAccounts.associate { it.id to it.openingBalanceMinorUnits },
+            openingBalancesByAccount = includedCashAccounts.associate {
+                it.id to (it.openingBalanceMinorUnits + (it.manualBalanceAdjustmentMinorUnits ?: 0L))
+            },
             monthSpend = Money(spend),
             monthIncome = Money(income),
             primaryCashAccountId = includedCashAccounts.firstOrNull()?.id,
