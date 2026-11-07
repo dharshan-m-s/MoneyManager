@@ -224,9 +224,9 @@ fun CashScreen(
                     val monthIncome = totals?.incomeMinor ?: 0L
                     val realRows = rows.filterNot { it.txnSubType.name.contains("CASH_FORWARD") }
                     val forward = rows.firstOrNull { it.txnSubType.name == "CREDIT_CASH_FORWARD" }
-                    val openingCash = remember(month, state.transactions, state.openingBalancesByAccount) {
-                        cashOpeningBalanceForMonth(month, state.transactions, state.openingBalancesByAccount, zone)
-                    }
+                    val openingCash = cashOpeningBalanceForMonth(
+                        month, state.transactions, state.openingBalancesByAccount, zone
+                    )
                     val forwardedAmount = forward?.let { it.creditMinorUnits - it.debitMinorUnits } ?: openingCash
 
                     item(key = "header-$month") {
