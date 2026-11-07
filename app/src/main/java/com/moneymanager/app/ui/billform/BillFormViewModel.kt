@@ -34,6 +34,7 @@ data class BillFormState(
     val linkedAccountId: Long? = null,
     val billingCycle: BillingCycle = BillingCycle.MONTHLY,
     val dueDay: String = "1",
+    val firstDueDateEpochMillis: Long = LocalDate.now(ZoneId.of("Asia/Kolkata")).atStartOfDay(ZoneId.of("Asia/Kolkata")).toInstant().toEpochMilli(),
     val estimatedAmount: String = "",
     val reminderEnabled: Boolean = true,
     val reminderDaysBefore: String = "10",
@@ -81,6 +82,7 @@ class BillFormViewModel @Inject constructor(
                 linkedAccountId = b.linkedAccountId,
                 billingCycle = b.billingCycle,
                 dueDay = dueDay.toString(),
+                firstDueDateEpochMillis = b.nextDueDateEpochMillis,
                 estimatedAmount = Money(b.estimatedAmountMinorUnits).toBigDecimal().toPlainString(),
                 reminderEnabled = b.reminderEnabled,
                 reminderDaysBefore = b.reminderDaysBefore.toString(),
@@ -106,8 +108,11 @@ class BillFormViewModel @Inject constructor(
         val s = _ui.value
         if (s.saving || s.saved) return
         if (s.billerName.isBlank()) { _ui.value = s.copy(error = "Biller name is required"); return }
-        val day = s.dueDay.toIntOrNull()
-        if (day == null || day !in 1..31) { _ui.value = s.copy(error = "Due day must be between 1 and 31"); return }
+        val selectedDate = runCatching {
+            Instant.ofEpochMilli(s.firstDueDateEpochMillis).atZone(ZoneId.of("Asia/Kolkata")).toLocalDate()
+        }.getOrNull()
+        if (selectedDate == null) { _ui.value = s.copy(error = "Choose a valid first due date"); return }
+        val day = selectedDate.dayOfMonth
         val reminderDays = s.reminderDaysBefore.toIntOrNull()
         if (reminderDays == null || reminderDays !in 0..30) { _ui.value = s.copy(error = "Reminder days must be between 0 and 30"); return }
 
@@ -125,19 +130,16 @@ class BillFormViewModel @Inject constructor(
                     it.scheduleAnchorDay
                         ?: Instant.ofEpochMilli(it.nextDueDateEpochMillis).atZone(zone).dayOfMonth
                 }
+                val selectedDueDate = selectedDate
+                val existingDueDate = existing?.let {
+                    Instant.ofEpochMilli(it.nextDueDateEpochMillis).atZone(zone).toLocalDate()
+                }
                 val scheduleUnchanged = existing != null && day == existingAnchor &&
-                    s.billingCycle == existing.billingCycle
+                    s.billingCycle == existing.billingCycle && selectedDueDate == existingDueDate
                 val dueMillis = if (scheduleUnchanged) {
-                    existing.nextDueDateEpochMillis
+                    existing!!.nextDueDateEpochMillis
                 } else {
-                    val monthStart = today.withDayOfMonth(1)
-                    val safeDay = day.coerceAtMost(monthStart.lengthOfMonth())
-                    var dueDate = monthStart.withDayOfMonth(safeDay)
-                    if (dueDate.isBefore(today)) {
-                        val nextMonth = today.plusMonths(1).withDayOfMonth(1)
-                        dueDate = nextMonth.withDayOfMonth(day.coerceAtMost(nextMonth.lengthOfMonth()))
-                    }
-                    dueDate.atStartOfDay(zone).toInstant().toEpochMilli()
+                    selectedDueDate.atStartOfDay(zone).toInstant().toEpochMilli()
                 }
                 val amount = runCatching { BigDecimal(s.estimatedAmount.trim()) }
                     .getOrNull()?.let { Money.fromRupees(it).minorUnits } ?: 0L
