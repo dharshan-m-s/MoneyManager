@@ -537,9 +537,10 @@ fun SettingsScreen(
                         Text("Accent color", style = MmType.body, color = MmColors.textPrimary)
                         Text("Applies to highlights, actions, navigation and themed surfaces", style = MmType.caption, color = MmColors.textSecondary)
                         Spacer(Modifier.height(12.dp))
-                        androidx.compose.foundation.layout.FlowRow(
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             MmAccentTheme.entries.forEach { option ->
                                 val selected = accentTheme == option
