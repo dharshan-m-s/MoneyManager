@@ -173,6 +173,7 @@ internal fun aggregateSummaryHistory(
 fun SpendSummaryScreen(
     onBack: () -> Unit,
     onCategoryClick: (Long) -> Unit = {},
+    onRawCategoryClick: (String) -> Unit = {},
     viewModel: SpendSummaryViewModel = hiltViewModel()
 ) {
     val rows by viewModel.categoryRows.collectAsState()
@@ -328,7 +329,13 @@ fun SpendSummaryScreen(
                         fraction = if (row.total > 0L && positiveCategoryTotal > 0L) {
                             row.total.toFloat() / positiveCategoryTotal.toFloat()
                         } else 0f,
-                        onClick = { row.categoryId?.let(onCategoryClick) }
+                        onClick = {
+                            when {
+                                row.categoryId != null -> onCategoryClick(row.categoryId)
+                                !row.rawCategoryName.isNullOrBlank() -> onRawCategoryClick(row.rawCategoryName)
+                                else -> onCategoryClick(-1L)
+                            }
+                        }
                     )
                 }
             }
