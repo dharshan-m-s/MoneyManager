@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import com.moneymanager.app.ui.modern.navigation.ModernRoot
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.LocalMmGlassUserEnabled
 import com.moneymanager.app.ui.components.LocalMmGlassBlurMultiplier
 import com.moneymanager.app.ui.components.LocalMmGlassRefractionMultiplier
 import com.moneymanager.app.ui.theme.ModernSystemColors
@@ -37,6 +38,7 @@ fun AppRoot(
     ModernTheme(darkTheme = darkTheme) {
         CompositionLocalProvider(
             LocalMmGlassEnabled provides glassEnabled,
+            LocalMmGlassUserEnabled provides glassEnabled,
             LocalMmGlassBlurMultiplier provides glassBlur.coerceIn(0f, 2.5f),
             LocalMmGlassRefractionMultiplier provides glassRefraction.coerceIn(0f, 2.5f)
         ) {
