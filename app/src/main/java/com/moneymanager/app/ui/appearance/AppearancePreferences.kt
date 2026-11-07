@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.moneymanager.app.ui.theme.MmAccentTheme
 
 /**
  * Modern UI is now the only UI of Money Manager.
@@ -39,6 +40,17 @@ class AppearancePreferences @Inject constructor(
 
     private val _appearance = MutableStateFlow(MmAppearance.MODERN)
     val appearance: StateFlow<MmAppearance> = _appearance.asStateFlow()
+
+    private val _accentTheme = MutableStateFlow(
+        runCatching { MmAccentTheme.valueOf(prefs.getString(KEY_ACCENT_THEME, MmAccentTheme.INDIGO.name) ?: MmAccentTheme.INDIGO.name) }
+            .getOrDefault(MmAccentTheme.INDIGO)
+    )
+    val accentTheme: StateFlow<MmAccentTheme> = _accentTheme.asStateFlow()
+
+    fun setAccentTheme(theme: MmAccentTheme) {
+        prefs.edit { putString(KEY_ACCENT_THEME, theme.name) }
+        _accentTheme.value = theme
+    }
 
     private val _glassEnabled = MutableStateFlow(prefs.getBoolean(KEY_GLASS_ENABLED, true))
     val glassEnabled: StateFlow<Boolean> = _glassEnabled.asStateFlow()
@@ -80,6 +92,7 @@ class AppearancePreferences @Inject constructor(
 
         /** Public so the storage contract can be asserted by tests without magic strings. */
         const val KEY_APPEARANCE = "appearance_look"
+        const val KEY_ACCENT_THEME = "accent_theme"
         const val KEY_GLASS_ENABLED = "glass_enabled"
         const val KEY_GLASS_BLUR = "glass_blur"
         const val KEY_GLASS_REFRACTION = "glass_refraction"
