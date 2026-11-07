@@ -107,6 +107,8 @@ import com.moneymanager.app.ui.home.HomePreferences
 import com.moneymanager.app.ui.modern.screens.security.PinSetupDialog
 import com.moneymanager.app.ui.modern.screens.security.SystemLockPrompt
 import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmAccentTheme
+import com.moneymanager.app.ui.theme.LocalMmAccentTheme
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
@@ -378,6 +380,7 @@ fun SettingsScreen(
     val hideAmounts by homePreferences.hideAmounts.collectAsState()
     var darkMode by remember { mutableStateOf(homePreferences.isDarkMode()) }
     var appearance by remember { mutableStateOf(appearancePreferences.current()) }
+    val accentTheme by appearancePreferences.accentTheme.collectAsState()
     val glassEnabled by appearancePreferences.glassEnabled.collectAsState()
     val glassBlur by appearancePreferences.glassBlur.collectAsState()
     val glassRefraction by appearancePreferences.glassRefraction.collectAsState()
@@ -526,6 +529,39 @@ fun SettingsScreen(
                         grouped = true,
                         showDivider = false
                     )
+                }
+
+                SettingsSectionHeader("Color theme", "Choose an accent for the entire app")
+                SettingsGroup {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                        Text("Accent color", style = MmType.body, color = MmColors.textPrimary)
+                        Text("Applies to highlights, actions, navigation and themed surfaces", style = MmType.caption, color = MmColors.textSecondary)
+                        Spacer(Modifier.height(12.dp))
+                        androidx.compose.foundation.layout.FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            MmAccentTheme.entries.forEach { option ->
+                                val selected = accentTheme == option
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(if (selected) MmColors.surfaceContainerHigh else Color.Transparent)
+                                        .pressableClick { appearancePreferences.setAccentTheme(option) }
+                                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                                ) {
+                                    Box(
+                                        Modifier.size(34.dp).clip(CircleShape)
+                                            .background(option.light)
+                                            .then(if (selected) Modifier.border(2.dp, MmColors.textPrimary, CircleShape) else Modifier)
+                                    )
+                                    Spacer(Modifier.height(5.dp))
+                                    Text(option.label, style = MmType.caption, color = MmColors.textPrimary)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 SettingsSectionHeader("Liquid Glass", "Personalize blur and optical distortion")
