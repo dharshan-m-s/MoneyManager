@@ -23,6 +23,8 @@ import com.moneymanager.app.ui.components.LocalMmGlassRefractionMultiplier
 import com.moneymanager.app.ui.theme.ModernSystemColors
 import com.moneymanager.app.ui.theme.ModernTheme
 import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmAccentTheme
+import com.moneymanager.app.ui.theme.LocalMmAccentTheme
 
 /**
  * Modern UI is now the only UI of Money Manager.
@@ -33,10 +35,12 @@ fun AppRoot(
     darkTheme: Boolean,
     glassEnabled: Boolean = true,
     glassBlur: Float = 1f,
-    glassRefraction: Float = 1f
+    glassRefraction: Float = 1f,
+    accentTheme: MmAccentTheme = MmAccentTheme.INDIGO
 ) {
-    ModernTheme(darkTheme = darkTheme) {
+    ModernTheme(darkTheme = darkTheme, accentTheme = accentTheme) {
         CompositionLocalProvider(
+            LocalMmAccentTheme provides accentTheme,
             LocalMmGlassEnabled provides glassEnabled,
             LocalMmGlassUserEnabled provides glassEnabled,
             LocalMmGlassBlurMultiplier provides glassBlur.coerceIn(0f, 2.5f),
