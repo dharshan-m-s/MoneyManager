@@ -55,6 +55,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
  */
 val LocalMmGlassBackdrop = staticCompositionLocalOf<Backdrop?> { null }
 val LocalMmGlassEnabled = staticCompositionLocalOf { true }
+/** User-level master switch; screen-local glass hosts cannot override this preference. */
+val LocalMmGlassUserEnabled = staticCompositionLocalOf { true }
 val LocalMmGlassBlurMultiplier = staticCompositionLocalOf { 1f }
 val LocalMmGlassRefractionMultiplier = staticCompositionLocalOf { 1f }
 /** Root-owned stills are disabled on pages that already record a live page layer. */
@@ -192,7 +194,7 @@ fun Modifier.mmLiquidGlass(
     tintOpacity: Float = 1f
 ): Modifier {
     val shape: CornerBasedShape = RoundedCornerShape(cornerRadius)
-    val enabled = LocalMmGlassEnabled.current
+    val enabled = LocalMmGlassEnabled.current && LocalMmGlassUserEnabled.current
     val backdrop = LocalMmGlassBackdrop.current
     val hardwareAccelerated = LocalView.current.isHardwareAccelerated
     val light = MaterialTheme.colors.isLight
@@ -307,7 +309,7 @@ fun Modifier.mmGlassHighlight(
     intensity: Float = 1f
 ): Modifier {
     val shape = RoundedCornerShape(cornerRadius)
-    if (!LocalMmGlassEnabled.current) return this
+    if (!LocalMmGlassEnabled.current || !LocalMmGlassUserEnabled.current) return this
     val light = MaterialTheme.colors.isLight
     val alpha = (0.075f * intensity.coerceIn(0.25f, 1.25f)).coerceIn(0.018f, 0.10f)
     val rim = if (light) Color.White.copy(alpha = 0.54f) else Color.White.copy(alpha = 0.11f)
