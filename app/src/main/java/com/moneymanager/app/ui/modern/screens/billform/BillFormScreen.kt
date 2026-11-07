@@ -1,5 +1,6 @@
 package com.moneymanager.app.ui.modern.screens.billform
 
+import android.app.DatePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.input.KeyboardType
@@ -71,6 +73,9 @@ import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.components.MmPrimaryButton
 import com.moneymanager.app.ui.billform.BillFormViewModel
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * Add/edit a bill or EMI. Rows are grouped by the question they answer (what is it, when is it
@@ -86,6 +91,12 @@ fun BillFormScreen(
     viewModel: BillFormViewModel = hiltViewModel()
 ) {
     val state by viewModel.ui.collectAsState()
+    val context = LocalContext.current
+    val billZone = remember { ZoneId.of("Asia/Kolkata") }
+    val dueDate = remember(state.firstDueDateEpochMillis) {
+        Instant.ofEpochMilli(state.firstDueDateEpochMillis).atZone(billZone).toLocalDate()
+    }
+    val dueDateLabel = remember(dueDate) { DateTimeFormatter.ofPattern("dd MMM yyyy").format(dueDate) }
     LaunchedEffect(editingBillId, initialBillerType) {
         if (editingBillId != null) viewModel.loadForEdit(editingBillId)
         else initialBillerType?.let(viewModel::setInitialBillerType)
@@ -205,11 +216,32 @@ fun BillFormScreen(
                     onClick = { showBillingCycleSheet = true }
                 )
                 Spacer(Modifier.height(MmSpacing.md))
-                MmStepper(
-                    label = "Due day of the month",
-                    value = state.dueDay.toIntOrNull(),
-                    onChange = { viewModel.onField { copy(dueDay = it.toString()) } },
-                    supportingText = "1 = the 1st, 31 = the end of the month"
+                MmPickerField(
+                    label = "First due date",
+                    value = dueDateLabel,
+                    onClick = {
+                        DatePickerDialog(
+                            context,
+                            { _, year, month, day ->
+                                val selected = java.time.LocalDate.of(year, month + 1, day)
+                                    .atStartOfDay(billZone).toInstant().toEpochMilli()
+                                viewModel.onField {
+                                    copy(
+                                        firstDueDateEpochMillis = selected,
+                                        dueDay = day.toString()
+                                    )
+                                }
+                            },
+                            dueDate.year,
+                            dueDate.monthValue - 1,
+                            dueDate.dayOfMonth
+                        ).show()
+                    }
+                )
+                Text(
+                    "Choose the first occurrence. Future bills follow this date and your selected recurrence.",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary
                 )
                 Spacer(Modifier.height(MmSpacing.md))
                 MmAmountField(
@@ -328,7 +360,9 @@ fun BillFormScreen(
     if (showBillingCycleSheet) {
         MmPickerSheet(
             title = "Billing cycle",
-            options = BillingCycle.entries.map {
+            options = BillingCycle.entries.filterNot {
+                it == BillingCycle.WEEKLY || it == BillingCycle.CUSTOM
+            }.map {
                 MmOption(
                     id = it.ordinal.toLong(),
                     label = com.moneymanager.app.domain.billing.BillSchedule.label(it)

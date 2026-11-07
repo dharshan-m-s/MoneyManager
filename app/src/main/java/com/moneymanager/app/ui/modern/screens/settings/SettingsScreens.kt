@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.AlertDialog
@@ -39,6 +41,7 @@ import androidx.compose.material.SnackbarHost
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Switch
 import androidx.compose.material.Surface
+import androidx.compose.material.Slider
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
@@ -106,6 +109,7 @@ import com.moneymanager.app.ui.home.HomePreferences
 import com.moneymanager.app.ui.modern.screens.security.PinSetupDialog
 import com.moneymanager.app.ui.modern.screens.security.SystemLockPrompt
 import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmAccentTheme
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
@@ -377,6 +381,10 @@ fun SettingsScreen(
     val hideAmounts by homePreferences.hideAmounts.collectAsState()
     var darkMode by remember { mutableStateOf(homePreferences.isDarkMode()) }
     var appearance by remember { mutableStateOf(appearancePreferences.current()) }
+    val accentTheme by appearancePreferences.accentTheme.collectAsState()
+    val glassEnabled by appearancePreferences.glassEnabled.collectAsState()
+    val glassBlur by appearancePreferences.glassBlur.collectAsState()
+    val glassRefraction by appearancePreferences.glassRefraction.collectAsState()
     var autoBackup by remember { mutableStateOf(backupManager.autoBackupEnabled()) }
     var lockEnabled by remember { mutableStateOf(appLock.isEnabled()) }
     var lockMethod by remember { mutableStateOf(appLock.method()) }
@@ -522,6 +530,95 @@ fun SettingsScreen(
                         grouped = true,
                         showDivider = false
                     )
+                }
+
+                SettingsSectionHeader("Color theme", "Choose an accent for the entire app")
+                SettingsGroup {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                        Text("Accent color", style = MmType.body, color = MmColors.textPrimary)
+                        Text("Applies to highlights, actions, navigation and themed surfaces", style = MmType.caption, color = MmColors.textSecondary)
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            MmAccentTheme.entries.forEach { option ->
+                                val selected = accentTheme == option
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(if (selected) MmColors.surfaceContainerHigh else Color.Transparent)
+                                        .pressableClick { appearancePreferences.setAccentTheme(option) }
+                                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                                ) {
+                                    Box(
+                                        Modifier.size(34.dp).clip(CircleShape)
+                                            .background(option.light)
+                                            .then(if (selected) Modifier.border(2.dp, MmColors.textPrimary, CircleShape) else Modifier)
+                                    )
+                                    Spacer(Modifier.height(5.dp))
+                                    Text(option.label, style = MmType.caption, color = MmColors.textPrimary)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                SettingsSectionHeader("Liquid Glass", "Personalize blur and optical distortion")
+                SettingsGroup {
+                    SettingsSwitchRow(
+                        title = "Liquid Glass",
+                        subtitle = if (glassEnabled) {
+                            "Translucent surfaces with live backdrop effects"
+                        } else {
+                            "Off · surfaces use fully opaque theme colors"
+                        },
+                        icon = Icons.Filled.Info,
+                        checked = glassEnabled,
+                        onCheckedChange = appearancePreferences::setGlassEnabled,
+                        grouped = true,
+                        showDivider = glassEnabled
+                    )
+                    if (glassEnabled) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Blur intensity", style = MmType.body, color = MmColors.textPrimary)
+                                    Text("Controls how softly the content behind glass is diffused", style = MmType.caption, color = MmColors.textSecondary)
+                                }
+                                Text("${(glassBlur * 100).toInt()}%", style = MmType.label, color = MmColors.accent)
+                            }
+                            Slider(
+                                value = glassBlur,
+                                onValueChange = appearancePreferences::setGlassBlur,
+                                valueRange = 0f..2.5f,
+                                steps = 24
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Refraction", style = MmType.body, color = MmColors.textPrimary)
+                                    Text("Controls the lens-like bending of the backdrop", style = MmType.caption, color = MmColors.textSecondary)
+                                }
+                                Text("${(glassRefraction * 100).toInt()}%", style = MmType.label, color = MmColors.accent)
+                            }
+                            Slider(
+                                value = glassRefraction,
+                                onValueChange = appearancePreferences::setGlassRefraction,
+                                valueRange = 0f..2.5f,
+                                steps = 24
+                            )
+                            Text(
+                                "Higher values create stronger effects and may use more GPU power. Refraction requires Android 13 or later.",
+                                style = MmType.caption,
+                                color = MmColors.textTertiary
+                            )
+                        }
+                    }
                 }
 
                 SettingsSectionHeader("Money & planning", "Keep your monthly picture clear")

@@ -16,9 +16,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import com.moneymanager.app.ui.modern.navigation.ModernRoot
+import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.LocalMmGlassUserEnabled
+import com.moneymanager.app.ui.components.LocalMmGlassBlurMultiplier
+import com.moneymanager.app.ui.components.LocalMmGlassRefractionMultiplier
 import com.moneymanager.app.ui.theme.ModernSystemColors
 import com.moneymanager.app.ui.theme.ModernTheme
 import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.MmAccentTheme
+import com.moneymanager.app.ui.theme.LocalMmAccentTheme
 
 /**
  * Modern UI is now the only UI of Money Manager.
@@ -26,9 +32,20 @@ import com.moneymanager.app.ui.theme.MmColors
 @Composable
 fun AppRoot(
     appearance: MmAppearance = MmAppearance.MODERN,
-    darkTheme: Boolean
+    darkTheme: Boolean,
+    glassEnabled: Boolean = true,
+    glassBlur: Float = 1f,
+    glassRefraction: Float = 1f,
+    accentTheme: MmAccentTheme = MmAccentTheme.INDIGO
 ) {
-    ModernTheme(darkTheme = darkTheme) {
+    ModernTheme(darkTheme = darkTheme, accentTheme = accentTheme) {
+        CompositionLocalProvider(
+            LocalMmAccentTheme provides accentTheme,
+            LocalMmGlassEnabled provides glassEnabled,
+            LocalMmGlassUserEnabled provides glassEnabled,
+            LocalMmGlassBlurMultiplier provides glassBlur.coerceIn(0f, 2.5f),
+            LocalMmGlassRefractionMultiplier provides glassRefraction.coerceIn(0f, 2.5f)
+        ) {
         // Keep the platform stretch effect enabled across every scrollable in the app.
         // Android 12+ renders the native elastic stretch; older supported versions retain
         // a restrained brand-coloured edge glow instead of silently disabling overscroll.
@@ -44,6 +61,7 @@ fun AppRoot(
             ) {
                 ModernRoot()
             }
+        }
         }
     }
 }

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -136,6 +137,7 @@ fun CashScreen(
     onBack: () -> Unit,
     onEditCash: (Long) -> Unit = {},
     onTransactionClick: (Long) -> Unit = {},
+    onTransferToCash: (Long) -> Unit = {},
     viewModel: CashViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -275,6 +277,13 @@ fun CashScreen(
                                     icon = Icons.Filled.Edit,
                                     contentDescription = "Edit cash balance",
                                     onClick = { onEditCash(cashAccountId) }
+                                )
+                            }
+                            state.primaryCashAccountId?.let { cashAccountId ->
+                                MmTopBarAction(
+                                    icon = Icons.Filled.SwapVert,
+                                    contentDescription = "Transfer money into cash",
+                                    onClick = { onTransferToCash(cashAccountId) }
                                 )
                             }
                             MmTopBarAction(

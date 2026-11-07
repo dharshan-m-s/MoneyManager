@@ -97,6 +97,18 @@ fun CashScreen(
     val grouped = filtered.groupBy {
         Instant.ofEpochMilli(it.occurredAtEpochMillis).atZone(zone).toLocalDate().withDayOfMonth(1)
     }.toSortedMap(compareByDescending { it }).toMutableMap()
+    // Keep every month in the cash ledger timeline, even when there were no new movements:
+    // an existing wallet balance is still carried into the next month.
+    val oldestMonth = state.transactions.minOfOrNull {
+        Instant.ofEpochMilli(it.occurredAtEpochMillis).atZone(zone).toLocalDate().withDayOfMonth(1)
+    } ?: currentMonth
+    if (query.isBlank()) {
+        var monthCursor = oldestMonth
+        while (!monthCursor.isAfter(currentMonth)) {
+            grouped.putIfAbsent(monthCursor, emptyList())
+            monthCursor = monthCursor.plusMonths(1)
+        }
+    }
     if (!grouped.containsKey(currentMonth)) grouped[currentMonth] = emptyList()
 
     Box(Modifier.fillMaxSize().background(MmColors.background)) {
@@ -214,6 +226,10 @@ fun CashScreen(
                     val monthIncome = totals?.incomeMinor ?: 0L
                     val realRows = rows.filterNot { it.txnSubType.name.contains("CASH_FORWARD") }
                     val forward = rows.firstOrNull { it.txnSubType.name == "CREDIT_CASH_FORWARD" }
+                    val openingCash = cashOpeningBalanceForMonth(
+                        month, state.transactions, state.openingBalancesByAccount, zone
+                    )
+                    val forwardedAmount = forward?.let { it.creditMinorUnits - it.debitMinorUnits } ?: openingCash
 
                     item(key = "header-$month") {
                         CashMonthHeader(
@@ -223,12 +239,12 @@ fun CashScreen(
                             modifier = Modifier.revealOnAppear(index = 0)
                         )
                     }
-                    if (forward != null) {
+                    if (query.isBlank() && (forward != null || forwardedAmount != 0L)) {
                         item(key = "forward-$month") {
-                            CashForwardRow(Money(forward.creditMinorUnits - forward.debitMinorUnits))
+                            CashForwardRow(Money(forwardedAmount))
                         }
                     }
-                    if (month == currentMonth && realRows.isEmpty()) {
+                    if (month == currentMonth && realRows.isEmpty() && query.isBlank()) {
                         item(key = "empty-$month") {
                             Row(Modifier.fillMaxWidth().padding(vertical = MmSpacing.lg)) {
                                 Text(
@@ -360,6 +376,48 @@ private fun CashMonthHeader(
  * Month-end cash rollover marker. Previously drawn on a fixed pale-yellow background, which
  * became a bright block in dark mode; it now uses the themed warning tint on the surface colour.
  */
+private fun cashOpeningBalanceForMonth(
+    month: LocalDate,
+    transactions: List<com.moneymanager.app.data.local.entity.TransactionEntity>,
+    openingBalancesByAccount: Map<Long, Long>,
+    zone: ZoneId
+): Long {
+    val monthStart = month.withDayOfMonth(1).atStartOfDay(zone).toInstant().toEpochMilli()
+    return openingBalancesByAccount.entries.sumOf { (accountId, baseOpening) ->
+        val rows = transactions.filter { it.accountId == accountId }
+        val thisMonthRestore = rows
+            .filter {
+                it.txnSubType.name == "CREDIT_CASH_FORWARD" &&
+                    it.occurredAtEpochMillis >= monthStart
+            }
+            .minByOrNull { it.occurredAtEpochMillis }
+        if (thisMonthRestore != null) {
+            thisMonthRestore.creditMinorUnits - thisMonthRestore.debitMinorUnits
+        } else {
+            val previousRestore = rows
+                .filter {
+                    it.txnSubType.name == "CREDIT_CASH_FORWARD" &&
+                        it.occurredAtEpochMillis < monthStart
+                }
+                .maxByOrNull { it.occurredAtEpochMillis }
+            if (previousRestore != null) {
+                val laterMovements = rows.filter {
+                    it.occurredAtEpochMillis > previousRestore.occurredAtEpochMillis &&
+                        it.occurredAtEpochMillis < monthStart &&
+                        !it.txnSubType.name.contains("CASH_FORWARD")
+                }
+                previousRestore.creditMinorUnits - previousRestore.debitMinorUnits +
+                    laterMovements.sumOf { it.creditMinorUnits - it.debitMinorUnits }
+            } else {
+                baseOpening + rows.filter {
+                    it.occurredAtEpochMillis < monthStart &&
+                        !it.txnSubType.name.contains("CASH_FORWARD")
+                }.sumOf { it.creditMinorUnits - it.debitMinorUnits }
+            }
+        }
+    }
+}
+
 @Composable
 private fun CashForwardRow(amount: Money) {
     MmCard(contentPadding = PaddingValues(MmSpacing.md)) {
@@ -369,7 +427,7 @@ private fun CashForwardRow(amount: Money) {
             Column(Modifier.weight(1f)) {
                 Text("Forwarded cash balance", style = MmType.body, color = MmColors.textPrimary)
                 Text(
-                    "Carried into the next month by your statement",
+                    "Opening balance carried forward from the previous month",
                     style = MmType.caption,
                     color = MmColors.textSecondary
                 )

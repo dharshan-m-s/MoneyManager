@@ -14,7 +14,7 @@ import com.moneymanager.app.domain.model.BusinessPersonal
  * twice-monthly rule would be a separate, explicitly named rule with two occurrence days per
  * month and is intentionally not represented here.
  */
-enum class BillingCycle { WEEKLY, MONTHLY, BIMONTHLY, QUARTERLY, YEARLY, CUSTOM }
+enum class BillingCycle { WEEKLY, MONTHLY, BIMONTHLY, QUARTERLY, HALF_YEARLY, YEARLY, CUSTOM }
 
 enum class BillPaymentAllocationType { PAYMENT, DISCOUNT }
 

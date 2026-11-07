@@ -38,6 +38,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import android.app.DatePickerDialog
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.BillerType
@@ -81,6 +87,14 @@ fun BillFormScreen(
     var showBillerTypeSheet by remember { mutableStateOf(false) }
     var showBillingCycleSheet by remember { mutableStateOf(false) }
     var showCardSheet by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val dateZone = ZoneId.of("Asia/Kolkata")
+    val selectedDueDate = remember(state.firstDueDateEpochMillis) {
+        Instant.ofEpochMilli(state.firstDueDateEpochMillis).atZone(dateZone).toLocalDate()
+    }
+    val dueDateLabel = remember(selectedDueDate) {
+        selectedDueDate.format(DateTimeFormatter.ofPattern("d MMMM yyyy"))
+    }
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
@@ -165,11 +179,31 @@ fun BillFormScreen(
                     onClick = { showBillingCycleSheet = true }
                 )
                 Spacer(Modifier.height(MmSpacing.md))
-                MmStepper(
-                    label = "Due day of the month",
-                    value = state.dueDay.toIntOrNull(),
-                    onChange = { viewModel.onField { copy(dueDay = it.toString()) } },
-                    supportingText = "1 = the 1st, 31 = the end of the month"
+                MmPickerField(
+                    label = "First due date",
+                    value = dueDateLabel,
+                    onClick = {
+                        DatePickerDialog(
+                            context,
+                            { _, year, month, day ->
+                                val chosen = LocalDate.of(year, month + 1, day)
+                                viewModel.onField {
+                                    copy(firstDueDateEpochMillis = chosen.atStartOfDay(dateZone).toInstant().toEpochMilli())
+                                }
+                            },
+                            selectedDueDate.year,
+                            selectedDueDate.monthValue - 1,
+                            selectedDueDate.dayOfMonth
+                        ).apply {
+                            datePicker.minDate = 0L
+                        }.show()
+                    }
+                )
+                Text(
+                    "The first bill is due on this exact date. Future bills follow the selected cycle.",
+                    style = MmType.caption,
+                    color = MmColors.textSecondary,
+                    modifier = Modifier.padding(top = 6.dp)
                 )
                 Spacer(Modifier.height(MmSpacing.md))
                 MmAmountField(
@@ -288,7 +322,7 @@ fun BillFormScreen(
     if (showBillingCycleSheet) {
         MmPickerSheet(
             title = "Billing cycle",
-            options = BillingCycle.entries.map {
+            options = BillingCycle.entries.filterNot { it == BillingCycle.WEEKLY || it == BillingCycle.CUSTOM }.map {
                 MmOption(
                     id = it.ordinal.toLong(),
                     label = com.moneymanager.app.domain.billing.BillSchedule.label(it)

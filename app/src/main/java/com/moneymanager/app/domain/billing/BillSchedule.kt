@@ -60,6 +60,7 @@ object BillSchedule {
             BillingCycle.CUSTOM -> plusMonthsClamped(current, 1, day)
             BillingCycle.BIMONTHLY -> plusMonthsClamped(current, 2, day)
             BillingCycle.QUARTERLY -> plusMonthsClamped(current, 3, day)
+            BillingCycle.HALF_YEARLY -> plusMonthsClamped(current, 6, day)
             BillingCycle.YEARLY -> {
                 val target = YearMonth.from(current).plusYears(1)
                 target.atDay(day.coerceAtMost(target.lengthOfMonth()))
@@ -104,6 +105,7 @@ object BillSchedule {
         BillingCycle.MONTHLY -> "Every month"
         BillingCycle.BIMONTHLY -> "Every 2 months (bimonthly)"
         BillingCycle.QUARTERLY -> "Every 3 months (quarterly)"
+        BillingCycle.HALF_YEARLY -> "Every 6 months (half-yearly)"
         BillingCycle.YEARLY -> "Every year"
         BillingCycle.CUSTOM -> "Custom (monthly)"
     }

@@ -58,17 +58,18 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun CategoryTransactionsScreen(
     categoryId: Long,
+    rawCategoryName: String? = null,
     onBack: () -> Unit,
     onTransactionClick: (Long) -> Unit,
     viewModel: CategoryTransactionsViewModel = hiltViewModel()
 ) {
     val zone = remember { ZoneId.of("Asia/Kolkata") }
-    val rowsFlow = remember(categoryId, viewModel) { viewModel.transactions(categoryId) }
+    val rowsFlow = remember(categoryId, rawCategoryName, viewModel) { viewModel.transactions(categoryId, rawCategoryName) }
     val rows by rowsFlow.collectAsState()
-    val historyFlow = remember(categoryId, viewModel) { viewModel.categoryHistory(categoryId) }
+    val historyFlow = remember(categoryId, rawCategoryName, viewModel) { viewModel.categoryHistory(categoryId, rawCategoryName) }
     val history by historyFlow.collectAsState()
     var title by remember { mutableStateOf("Category") }
-    LaunchedEffect(categoryId) { title = viewModel.categoryName(categoryId) }
+    LaunchedEffect(categoryId, rawCategoryName) { title = viewModel.categoryName(categoryId, rawCategoryName) }
 
     var rangeName by rememberSaveable { mutableStateOf(SpendSummaryRange.MONTHLY.name) }
     val range = SpendSummaryRange.valueOf(rangeName)
@@ -93,11 +94,11 @@ fun CategoryTransactionsScreen(
         }, date.year, date.monthValue - 1, date.dayOfMonth).show()
     }
 
-    val customHistoryFlow = remember(categoryId, customStartMillis, customEndMillis, viewModel) {
+    val customHistoryFlow = remember(categoryId, rawCategoryName, customStartMillis, customEndMillis, viewModel) {
         val start = customStartMillis
         val end = customEndMillis
         if (start != null && end != null && end >= start) {
-            viewModel.customCategoryHistory(categoryId, start, end + 86_400_000L)
+            viewModel.customCategoryHistory(categoryId, start, end + 86_400_000L, rawCategoryName)
         } else {
             flowOf(DashboardSpendHistory(emptyList(), emptyList()))
         }

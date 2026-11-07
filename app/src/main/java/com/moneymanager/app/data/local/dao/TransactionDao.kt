@@ -216,13 +216,13 @@ interface TransactionDao {
     fun observeTotalIncomeInRange(startInclusive: Long, endExclusive: Long): Flow<Long>
 
     @Query(
-        "SELECT t.categoryId as categoryId, COALESCE(SUM(t.debitMinorUnits - t.creditMinorUnits), 0) as total " +
+        "SELECT t.categoryId as categoryId, CASE WHEN t.categoryId IS NULL THEN t.rawCategoryName ELSE NULL END as rawCategoryName, COALESCE(SUM(t.debitMinorUnits - t.creditMinorUnits), 0) as total " +
             "FROM transactions t INNER JOIN accounts a ON a.id = t.accountId " +
             "WHERE (t.txnSubType = 'EXPENSE' OR t.txnKind = 'REFUND_REVERSAL') " +
             "AND t.includeInStatistics = 1 " +
             "AND $INCLUDED_ACCOUNT " +
             "AND t.occurredAtEpochMillis >= :startInclusive AND t.occurredAtEpochMillis < :endExclusive " +
-            "GROUP BY t.categoryId ORDER BY total DESC"
+            "GROUP BY t.categoryId, CASE WHEN t.categoryId IS NULL THEN t.rawCategoryName ELSE NULL END ORDER BY total DESC"
     )
     fun observeCategoryTotalsInRange(startInclusive: Long, endExclusive: Long): Flow<List<CategoryTotal>>
 
@@ -238,10 +238,10 @@ interface TransactionDao {
     fun observeCardPaymentLegs(): Flow<List<TransactionEntity>>
 
     @Query(
-        "SELECT t.categoryId as categoryId, COALESCE(SUM(t.debitMinorUnits - t.creditMinorUnits), 0) as total " +
+        "SELECT t.categoryId as categoryId, CASE WHEN t.categoryId IS NULL THEN t.rawCategoryName ELSE NULL END as rawCategoryName, COALESCE(SUM(t.debitMinorUnits - t.creditMinorUnits), 0) as total " +
             "FROM transactions t INNER JOIN accounts a ON a.id = t.accountId " +
             "WHERE a.accountType = 'CASH' AND t.txnSubType = 'EXPENSE' AND t.includeInStatistics = 1 " +
-            "GROUP BY t.categoryId ORDER BY total DESC"
+            "GROUP BY t.categoryId, CASE WHEN t.categoryId IS NULL THEN t.rawCategoryName ELSE NULL END ORDER BY total DESC"
     )
     fun observeCashCategoryTotals(): Flow<List<CategoryTotal>>
 
@@ -255,14 +255,20 @@ interface TransactionDao {
     /** Month-bounded variant used by the Spend Areas drill-down (selected month only). */
     @Query(
         "SELECT t.* FROM transactions t INNER JOIN accounts a ON a.id = t.accountId " +
-            "WHERE ((:categoryId IS NULL AND t.categoryId IS NULL) OR t.categoryId = :categoryId) " +
+            "WHERE ((:categoryId IS NOT NULL AND t.categoryId = :categoryId) OR " +
+            "(:categoryId IS NULL AND t.categoryId IS NULL AND (:rawCategoryName IS NULL OR t.rawCategoryName = :rawCategoryName))) " +
             "AND (t.txnSubType = 'EXPENSE' OR t.txnKind = 'REFUND_REVERSAL') " +
             "AND t.includeInStatistics = 1 " +
             "AND $INCLUDED_ACCOUNT " +
             "AND t.occurredAtEpochMillis >= :startInclusive AND t.occurredAtEpochMillis < :endExclusive " +
             "ORDER BY t.occurredAtEpochMillis DESC"
     )
-    fun observeByCategoryInRange(categoryId: Long?, startInclusive: Long, endExclusive: Long): Flow<List<TransactionEntity>>
+    fun observeByCategoryInRange(
+        categoryId: Long?,
+        startInclusive: Long,
+        endExclusive: Long,
+        rawCategoryName: String? = null
+    ): Flow<List<TransactionEntity>>
 
 
     @Query(
@@ -286,6 +292,6 @@ interface TransactionDao {
     fun observeFullAccountHistory(accountId: Long): Flow<List<TransactionEntity>>
 }
 
-data class CategoryTotal(val categoryId: Long?, val total: Long)
+data class CategoryTotal(val categoryId: Long?, val total: Long, val rawCategoryName: String? = null)
 
 data class MonthlySpendTotal(val yearMonth: String, val total: Long)
