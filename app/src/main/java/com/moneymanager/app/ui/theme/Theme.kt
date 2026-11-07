@@ -134,17 +134,21 @@ object MmColors {
         )
     }
     val glassChromeGradient: List<Color> @Composable get() = if (light) {
-        listOf(Color(0xFFFDFEFF), Color(0xFFE8ECF7), Color(0xFFDCE2F1))
+        listOf(
+            androidx.compose.ui.graphics.lerp(Color.White, LocalMmAccentTheme.current.light, 0.10f),
+            Color(0xFFE8ECF7),
+            androidx.compose.ui.graphics.lerp(Color(0xFFDCE2F1), LocalMmAccentTheme.current.light, 0.08f)
+        )
     } else {
-        listOf(Color(0xFF303A54), Color(0xFF1D263A), Color(0xFF111827))
+        listOf(
+            androidx.compose.ui.graphics.lerp(Color(0xFF303A54), LocalMmAccentTheme.current.dark, 0.12f),
+            Color(0xFF1D263A),
+            androidx.compose.ui.graphics.lerp(Color(0xFF111827), LocalMmAccentTheme.current.light, 0.08f)
+        )
     }
     val heroGradient: List<Color> @Composable get() = brandGradient
     val glassHeroGradient: List<Color> @Composable get() = heroGradient
-    val cardHeaderGradient: List<Color> @Composable get() = if (light) {
-        listOf(Color(0xFF3978C9), Color(0xFF24549B), Color(0xFF183B72))
-    } else {
-        listOf(Color(0xFF467EC5), Color(0xFF294F88), Color(0xFF1A3157))
-    }
+    val cardHeaderGradient: List<Color> @Composable get() = brandGradient
 
     val categoryPalette: List<Color> @Composable get() = if (light) CategoryLight else CategoryDark
 
