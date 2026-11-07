@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.AlertDialog
@@ -108,7 +109,6 @@ import com.moneymanager.app.ui.modern.screens.security.PinSetupDialog
 import com.moneymanager.app.ui.modern.screens.security.SystemLockPrompt
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmAccentTheme
-import com.moneymanager.app.ui.theme.LocalMmAccentTheme
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 import dagger.hilt.android.EntryPointAccessors
