@@ -59,6 +59,17 @@ class BillScheduleTest {
     }
 
     @Test
+    fun halfYearlyAdvancesSixCalendarMonthsAndKeepsDayAnchor() {
+        val jan31 = epoch(2026, 1, 31)
+        val jul31 = BillSchedule.nextOccurrence(jan31, BillingCycle.HALF_YEARLY, 31)
+        assertEquals(epoch(2026, 7, 31), jul31)
+        assertEquals(
+            epoch(2027, 1, 31),
+            BillSchedule.nextOccurrence(jul31, BillingCycle.HALF_YEARLY, 31)
+        )
+    }
+
+    @Test
     fun weeklyIsSevenCalendarDaysAcrossYearBoundary() {
         assertEquals(
             epoch(2027, 1, 4),
