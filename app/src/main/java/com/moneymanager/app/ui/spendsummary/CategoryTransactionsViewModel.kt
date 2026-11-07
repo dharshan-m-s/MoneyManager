@@ -27,11 +27,11 @@ class CategoryTransactionsViewModel @Inject constructor(
     val spendAreasSelection: SpendAreasSelection
 ) : ViewModel() {
 
-    fun transactions(categoryId: Long): StateFlow<List<TransactionEntity>> {
+    fun transactions(categoryId: Long, rawCategoryName: String? = null): StateFlow<List<TransactionEntity>> {
         val flow = spendAreasSelection.window.flatMapLatest { window ->
             if (window != null) {
                 transactionDao.observeByCategoryInRange(
-                    categoryId.takeIf { it >= 0L }, window.first, window.second
+                    categoryId.takeIf { it >= 0L }, window.first, window.second, rawCategoryName
                 )
             } else {
                 val now = java.time.ZonedDateTime.now(zone)
@@ -50,7 +50,7 @@ class CategoryTransactionsViewModel @Inject constructor(
      * Complete category history, zero-filled from the oldest recorded month through the current
      * month. This intentionally avoids the former fixed 18-month category-only window.
      */
-    fun categoryHistory(categoryId: Long): StateFlow<DashboardSpendHistory> {
+    fun categoryHistory(categoryId: Long, rawCategoryName: String? = null): StateFlow<DashboardSpendHistory> {
         val flow = transactionDao.observeMonthlySpendTotals().flatMapLatest { rows ->
             val oldest = rows.mapNotNull { row ->
                 runCatching { java.time.YearMonth.parse(row.yearMonth) }.getOrNull()
@@ -69,7 +69,7 @@ class CategoryTransactionsViewModel @Inject constructor(
                 month = month.minusMonths(1)
             }
             val streams = windows.map { window ->
-                transactionDao.observeByCategoryInRange(categoryId.takeIf { it >= 0L }, window.startInclusive, window.endExclusive)
+                transactionDao.observeByCategoryInRange(categoryId.takeIf { it >= 0L }, window.startInclusive, window.endExclusive, rawCategoryName)
             }
             if (streams.isEmpty()) flowOf(DashboardSpendHistory(emptyList(), emptyList()))
             else combine(streams) { monthRows ->
@@ -85,7 +85,12 @@ class CategoryTransactionsViewModel @Inject constructor(
     }
 
     /** Category history clipped to an exact custom date range, grouped by calendar month. */
-    fun customCategoryHistory(categoryId: Long, startInclusive: Long, endExclusive: Long): StateFlow<DashboardSpendHistory> {
+    fun customCategoryHistory(
+        categoryId: Long,
+        startInclusive: Long,
+        endExclusive: Long,
+        rawCategoryName: String? = null
+    ): StateFlow<DashboardSpendHistory> {
         val startDate = java.time.Instant.ofEpochMilli(startInclusive).atZone(zone).toLocalDate()
         val endDate = java.time.Instant.ofEpochMilli(endExclusive - 1L).atZone(zone).toLocalDate()
         val windows = mutableListOf<MonthWindow>()
@@ -102,7 +107,7 @@ class CategoryTransactionsViewModel @Inject constructor(
             month = month.plusMonths(1)
         }
         val streams = windows.map { window ->
-            transactionDao.observeByCategoryInRange(categoryId.takeIf { it >= 0L }, window.startInclusive, window.endExclusive)
+            transactionDao.observeByCategoryInRange(categoryId.takeIf { it >= 0L }, window.startInclusive, window.endExclusive, rawCategoryName)
         }
         val flow = if (streams.isEmpty()) flowOf(DashboardSpendHistory(emptyList(), emptyList()))
         else combine(streams) { monthRows ->
@@ -116,8 +121,10 @@ class CategoryTransactionsViewModel @Inject constructor(
         return flow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardSpendHistory(emptyList(), emptyList()))
     }
 
-    suspend fun categoryName(categoryId: Long): String =
-        categoryId.takeIf { it >= 0 }?.let { categoryDao.findById(it)?.name } ?: "Uncategorized"
+    suspend fun categoryName(categoryId: Long, rawCategoryName: String? = null): String =
+        categoryId.takeIf { it >= 0 }?.let { categoryDao.findById(it)?.name }
+            ?: rawCategoryName?.takeIf { it.isNotBlank() }
+            ?: "Uncategorized"
 
     /** Human label of the window this drill-down is scoped to, e.g. "Sep '26". */
     fun monthLabel(window: Pair<Long, Long>? = spendAreasSelection.window.value): String {
