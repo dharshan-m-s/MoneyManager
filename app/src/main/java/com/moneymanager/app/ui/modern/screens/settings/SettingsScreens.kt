@@ -39,6 +39,7 @@ import androidx.compose.material.SnackbarHost
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Switch
 import androidx.compose.material.Surface
+import androidx.compose.material.Slider
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
@@ -377,6 +378,9 @@ fun SettingsScreen(
     val hideAmounts by homePreferences.hideAmounts.collectAsState()
     var darkMode by remember { mutableStateOf(homePreferences.isDarkMode()) }
     var appearance by remember { mutableStateOf(appearancePreferences.current()) }
+    val glassEnabled by appearancePreferences.glassEnabled.collectAsState()
+    val glassBlur by appearancePreferences.glassBlur.collectAsState()
+    val glassRefraction by appearancePreferences.glassRefraction.collectAsState()
     var autoBackup by remember { mutableStateOf(backupManager.autoBackupEnabled()) }
     var lockEnabled by remember { mutableStateOf(appLock.isEnabled()) }
     var lockMethod by remember { mutableStateOf(appLock.method()) }
@@ -522,6 +526,61 @@ fun SettingsScreen(
                         grouped = true,
                         showDivider = false
                     )
+                }
+
+                SettingsSectionHeader("Liquid Glass", "Personalize blur and optical distortion")
+                SettingsGroup {
+                    SettingsSwitchRow(
+                        title = "Liquid Glass",
+                        subtitle = if (glassEnabled) {
+                            "Translucent surfaces with live backdrop effects"
+                        } else {
+                            "Off · surfaces use fully opaque theme colors"
+                        },
+                        icon = Icons.Filled.Info,
+                        checked = glassEnabled,
+                        onCheckedChange = appearancePreferences::setGlassEnabled,
+                        grouped = true,
+                        showDivider = glassEnabled
+                    )
+                    if (glassEnabled) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Blur intensity", style = MmType.body, color = MmColors.textPrimary)
+                                    Text("Controls how softly the content behind glass is diffused", style = MmType.caption, color = MmColors.textSecondary)
+                                }
+                                Text("${(glassBlur * 100).toInt()}%", style = MmType.label, color = MmColors.accent)
+                            }
+                            Slider(
+                                value = glassBlur,
+                                onValueChange = appearancePreferences::setGlassBlur,
+                                valueRange = 0f..2.5f,
+                                steps = 24
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Refraction", style = MmType.body, color = MmColors.textPrimary)
+                                    Text("Controls the lens-like bending of the backdrop", style = MmType.caption, color = MmColors.textSecondary)
+                                }
+                                Text("${(glassRefraction * 100).toInt()}%", style = MmType.label, color = MmColors.accent)
+                            }
+                            Slider(
+                                value = glassRefraction,
+                                onValueChange = appearancePreferences::setGlassRefraction,
+                                valueRange = 0f..2.5f,
+                                steps = 24
+                            )
+                            Text(
+                                "Higher values create stronger effects and may use more GPU power. Refraction requires Android 13 or later.",
+                                style = MmType.caption,
+                                color = MmColors.textTertiary
+                            )
+                        }
+                    }
                 }
 
                 SettingsSectionHeader("Money & planning", "Keep your monthly picture clear")
