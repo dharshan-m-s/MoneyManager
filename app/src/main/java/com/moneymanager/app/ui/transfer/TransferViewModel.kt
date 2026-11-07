@@ -38,10 +38,16 @@ class TransferViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             accountDao.observeActive().collect { accounts ->
+                val selectedTo = _ui.value.toAccountId?.takeIf { id -> accounts.any { it.id == id } }
+                    ?: accounts.getOrNull(1)?.id
+                    ?: accounts.firstOrNull()?.id
+                val selectedFrom = _ui.value.fromAccountId?.takeIf { id ->
+                    id != selectedTo && accounts.any { it.id == id }
+                } ?: accounts.firstOrNull { it.id != selectedTo }?.id
                 _ui.value = _ui.value.copy(
                     accounts = accounts,
-                    fromAccountId = _ui.value.fromAccountId ?: accounts.firstOrNull()?.id,
-                    toAccountId = _ui.value.toAccountId ?: accounts.getOrNull(1)?.id
+                    fromAccountId = selectedFrom,
+                    toAccountId = selectedTo
                 )
             }
         }
