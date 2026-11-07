@@ -91,7 +91,8 @@ fun MmGlassPageHost(content: @Composable () -> Unit) {
     val backdrop = key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
     Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
         CompositionLocalProvider(
-            LocalMmGlassBackdrop provides backdrop
+            LocalMmGlassBackdrop provides backdrop,
+            LocalMmGlassEnabled provides true
         ) {
             content()
         }
@@ -213,7 +214,6 @@ fun Modifier.mmLiquidGlass(
     }
 
     if (
-        !isMmLiquidGlassSupported() ||
         !isMmLiquidGlassSupported() ||
         backdrop == null ||
         (backdrop as? LayerBackdrop)?.captureUnavailable == true ||
