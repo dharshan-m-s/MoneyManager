@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Text
@@ -195,14 +196,14 @@ private fun BillHistoryBarGraph(months: List<BillHistoryMonth>) {
                 Text("The chart will appear when bill occurrences are generated.", style = MmType.caption, color = MmColors.textSecondary)
             } else {
                 val maxValue = months.maxOf { maxOf(it.due, it.paid) }.coerceAtLeast(1L)
-                Row(
+                LazyRow(
                     modifier = Modifier.fillMaxWidth().height(174.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.Bottom
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp)
                 ) {
-                    months.takeLast(18).forEach { month ->
+                    items(months, key = { it.label }) { month ->
                         Column(
-                            modifier = Modifier.weight(1f).fillMaxSize(),
+                            modifier = Modifier.width(58.dp).height(174.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Bottom
                         ) {
@@ -215,27 +216,25 @@ private fun BillHistoryBarGraph(months: List<BillHistoryMonth>) {
                             )
                             Spacer(Modifier.height(5.dp))
                             Box(
-                                Modifier
-                                    .fillMaxWidth(0.72f)
-                                    .weight(1f, fill = true)
+                                Modifier.width(34.dp).height(120.dp)
                                     .clip(RoundedCornerShape(topStart = 7.dp, topEnd = 7.dp))
                                     .background(MmColors.surfaceContainerHigh),
                                 contentAlignment = Alignment.BottomCenter
                             ) {
                                 Box(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .fillMaxHeightFraction((month.due.toFloat() / maxValue).coerceIn(0f, 1f))
+                                    Modifier.fillMaxWidth()
+                                        .height((120f * (month.due.toFloat() / maxValue).coerceIn(0f, 1f)).dp)
                                         .clip(RoundedCornerShape(topStart = 7.dp, topEnd = 7.dp))
                                         .background(MmColors.textTertiary.copy(alpha = 0.42f))
                                 )
-                                Box(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .fillMaxHeightFraction((month.paid.toFloat() / maxValue).coerceIn(0f, 1f))
-                                        .clip(RoundedCornerShape(topStart = 7.dp, topEnd = 7.dp))
-                                        .background(MmColors.accent)
-                                )
+                                if (month.paid > 0L) {
+                                    Box(
+                                        Modifier.fillMaxWidth()
+                                            .height((120f * (month.paid.toFloat() / maxValue).coerceIn(0f, 1f)).dp)
+                                            .clip(RoundedCornerShape(topStart = 7.dp, topEnd = 7.dp))
+                                            .background(MmColors.accent)
+                                    )
+                                }
                             }
                             Spacer(Modifier.height(7.dp))
                             Text(month.label, style = MmType.caption, color = MmColors.textSecondary, maxLines = 1, softWrap = false)
@@ -254,19 +253,12 @@ private fun BillHistoryBarGraph(months: List<BillHistoryMonth>) {
                         Text("Paid", style = MmType.caption, color = MmColors.textSecondary)
                     }
                     Spacer(Modifier.weight(1f))
-                    Text("${months.size} months", style = MmType.caption, color = MmColors.textTertiary)
-                }
-                if (months.size > 18) {
-                    Text("Chart shows the latest 18 months. The full occurrence timeline below is not limited.", style = MmType.caption, color = MmColors.textTertiary)
+                    Text("${months.size} months · scroll", style = MmType.caption, color = MmColors.textTertiary)
                 }
             }
         }
     }
 }
-
-@Composable
-private fun Modifier.fillMaxHeightFraction(fraction: Float): Modifier =
-    this.then(Modifier.height((120f * fraction).dp))
 
 @Composable
 private fun BillHistoryOccurrence(instance: BillInstanceEntity) {
