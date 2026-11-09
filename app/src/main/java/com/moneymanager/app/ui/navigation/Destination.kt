@@ -100,6 +100,10 @@ sealed class Destination(val route: String, val label: String, val icon: ImageVe
     data object BankLinking : Destination("bank_linking?bankName={bankName}", "Link Bank Account", Icons.Filled.AccountBalance) {
         fun route(bankName: String) = "bank_linking?bankName=$bankName"
     }
+    data object BillHistory : Destination("bill_history/{billId}?billName={billName}", "Bill History", Icons.Filled.Description) {
+        fun route(billId: Long, billName: String) =
+            "bill_history/$billId?billName=${Uri.encode(billName)}"
+    }
     data object BillTypeSelection : Destination("bill_type_selection", "Select Bill Type", Icons.Filled.Description)
     data object DashboardBreakdown : Destination(
         "dashboard_breakdown/{kind}",
