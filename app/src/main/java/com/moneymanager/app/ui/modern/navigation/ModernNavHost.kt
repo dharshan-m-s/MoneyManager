@@ -26,6 +26,7 @@ import com.moneymanager.app.ui.addtransaction.AddTransactionEntryPoint
 import com.moneymanager.app.ui.modern.screens.addtransaction.AddTransactionScreen
 import com.moneymanager.app.ui.modern.screens.billform.BillFormScreen
 import com.moneymanager.app.ui.modern.screens.bills.BillsScreen
+import com.moneymanager.app.ui.modern.screens.bills.BillHistoryScreen
 import com.moneymanager.app.ui.modern.screens.bills.BillTypeSelectionScreen
 import com.moneymanager.app.ui.modern.screens.budget.BudgetScreen
 import com.moneymanager.app.ui.modern.screens.cash.CashScreen
@@ -201,6 +202,7 @@ fun ModernNavHost(
                 onBack = { safeBack() },
                 // The "Bill & EMI Type" picker runs first so the form opens on the right template.
                 onAddBiller = { go(Destination.BillTypeSelection.route) },
+                onOpenBillHistory = { id, name -> go(Destination.BillHistory.route(id, name)) },
                 onEditBiller = { id -> go(Destination.BillForm.route(id)) },
                 onAddAccountIncome = {
                     go(Destination.AccountSelection.route("ACCOUNT_INCOME"))
@@ -410,6 +412,23 @@ fun ModernNavHost(
                 onSaved = {
                     safeBack()
                 }
+            )
+        }
+
+        composable(
+            route = Destination.BillHistory.route,
+            arguments = listOf(
+                navArgument("billId") { type = NavType.LongType },
+                navArgument("billName") { type = NavType.StringType; defaultValue = "Bill" }
+            )
+        ) { entry ->
+            val billId = entry.arguments?.getLong("billId") ?: return@composable
+            val billName = entry.arguments?.getString("billName") ?: "Bill"
+            BillHistoryScreen(
+                billId = billId,
+                billName = billName,
+                onBack = { safeBack() },
+                onEdit = { id -> go(Destination.BillForm.route(id)) }
             )
         }
 
