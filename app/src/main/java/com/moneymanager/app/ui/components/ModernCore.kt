@@ -251,7 +251,7 @@ fun MmBalancePanel(
     Column(
         modifier
             .fillMaxWidth()
-            .then(if (glass) Modifier.mmLiquidGlass(cornerRadius = 28.dp, intensity = 0.88f) else Modifier)
+            .then(if (glass) Modifier.mmLiquidGlass(cornerRadius = 28.dp) else Modifier)
             .clip(shape)
             // mmLiquidGlass already paints its optical tint over the sampled page.
             // A near-opaque gradient here covered that sample and made the card read as

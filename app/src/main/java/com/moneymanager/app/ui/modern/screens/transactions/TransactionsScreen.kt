@@ -540,7 +540,7 @@ private fun InViewSummary(income: Long, expense: Long, modifier: Modifier = Modi
             .padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)
             // The page source excludes this whole surface while recording, so its live blur
             // follows ledger content without reflecting old routes or its own labels.
-            .mmLiquidGlass(cornerRadius = 26.dp, intensity = 0.72f, blurMultiplier = 0.78f)
+            .mmLiquidGlass(cornerRadius = 26.dp)
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {

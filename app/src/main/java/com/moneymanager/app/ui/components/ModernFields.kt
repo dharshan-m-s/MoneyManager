@@ -366,7 +366,7 @@ fun MmDateField(
                 .clip(mmFieldShape)
                 .background(MmColors.surfaceContainer)
                 .border(0.8.dp, MmColors.outline.copy(alpha = 0.68f), mmFieldShape)
-                .mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.34f)
+                .mmGlassHighlight(cornerRadius = 18.dp)
                 .pressableClick {
                     showDatePicker(context, epochMillis, includeTime) { picked -> onChange(picked) }
                 }
@@ -446,7 +446,7 @@ fun MmStepper(
                 .clip(mmFieldShape)
                 .background(MmColors.surfaceContainer)
                 .border(0.8.dp, MmColors.outline.copy(alpha = 0.68f), mmFieldShape)
-                .mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.28f)
+                .mmGlassHighlight(cornerRadius = 18.dp)
                 .padding(horizontal = MmSpacing.sm, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween

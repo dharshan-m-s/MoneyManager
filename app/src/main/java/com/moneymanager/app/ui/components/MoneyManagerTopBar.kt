@@ -91,14 +91,10 @@ fun MoneyManagerTopBar(
                             solidChrome -> Modifier
                                 .clip(RoundedCornerShape(24.dp))
                                 .background(MmColors.surfaceContainer, RoundedCornerShape(24.dp))
-                            glassChrome -> Modifier.mmLiquidGlass(
-                                cornerRadius = 24.dp,
-                                intensity = 1.0f,
-                                blurMultiplier = 1.6f,
-                                refractionMultiplier = 0.42f,
-                                edgeHighlight = false,
-                                tintOpacity = 3.0f
-                            )
+                            // Reference top chrome: the same material as every other surface.
+                            // The old 3x tint ramp painted a bright white band across the
+                            // status bar and read as a thick white border around the bar.
+                            glassChrome -> Modifier.mmLiquidGlass(cornerRadius = 24.dp)
                             else -> Modifier.mmTopBarSurface(accentStrength = 0.72f)
                         }
                     )

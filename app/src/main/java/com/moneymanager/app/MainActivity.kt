@@ -111,14 +111,10 @@ class MainActivity : FragmentActivity() {
             }
             val accentTheme by appearancePreferences.accentTheme.collectAsState()
             val glassEnabled by appearancePreferences.glassEnabled.collectAsState()
-            val glassBlur by appearancePreferences.glassBlur.collectAsState()
-            val glassRefraction by appearancePreferences.glassRefraction.collectAsState()
             AppRoot(
                 appearance = selectedAppearance,
                 darkTheme = darkMode,
                 glassEnabled = glassEnabled,
-                glassBlur = glassBlur,
-                glassRefraction = glassRefraction,
                 accentTheme = accentTheme
             )
         }

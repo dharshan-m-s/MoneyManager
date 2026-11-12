@@ -358,13 +358,7 @@ private fun AccountHeader(
             Modifier.fillMaxWidth()
                 .then(
                     if (account != null) {
-                        Modifier.mmLiquidGlass(
-                            cornerRadius = 32.dp,
-                            intensity = 1.02f,
-                            blurMultiplier = 1.25f,
-                            edgeHighlight = false,
-                            tintOpacity = 0.82f
-                        )
+                        Modifier.mmLiquidGlass(cornerRadius = 32.dp)
                     } else Modifier
                 )
                 .padding(bottom = MmSpacing.md)
@@ -521,7 +515,7 @@ private fun CardBalancePage(
             .aspectRatio(1.64f)
             .clip(shape)
             .background(Brush.linearGradient(cardColors))
-            .then(if (paymentCard) Modifier.mmGlassHighlight(cornerRadius = 25.dp, intensity = 1.15f) else Modifier)
+            .then(if (paymentCard) Modifier.mmGlassHighlight(cornerRadius = 25.dp) else Modifier)
     ) {
         if (paymentCard) {
             Box(

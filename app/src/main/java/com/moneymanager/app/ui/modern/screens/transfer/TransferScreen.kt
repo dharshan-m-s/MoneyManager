@@ -145,7 +145,7 @@ fun TransferScreen(
                             .size(40.dp)
                             .clip(CircleShape)
                             .background(MmColors.surfaceContainerHigh)
-                            .mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.56f)
+                            .mmGlassHighlight(cornerRadius = 20.dp)
                             .pressableClick {
                                 val from = state.fromAccountId
                                 val to = state.toAccountId

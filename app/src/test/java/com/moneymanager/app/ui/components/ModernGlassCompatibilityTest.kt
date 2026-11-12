@@ -14,10 +14,11 @@ class ModernGlassCompatibilityTest {
         assertTrue(isMmLiquidGlassSupported(32))
         assertTrue(isMmLiquidGlassSupported(33))
     }
-    @Test fun captureResolutionPreservesDetailForRefraction() {
-        assertEquals(0.5f, mmGlassBackdropScale(), 0.001f)
+    @Test fun captureRunsAtTheReferenceThirdResolution() {
+        assertEquals(0.33f, mmGlassBackdropScale(), 0.001f)
     }
-    @Test fun lensDominatesBlurForLiquidGlass() {
-        assertTrue(mmGlassRefractionAmountDp() > mmGlassBlurRadiusDp() * 4f)
+    @Test fun materialMatchesTheReferenceBlurAndLens() {
+        assertEquals(8f, mmGlassBlurRadiusDp(), 0.001f)
+        assertEquals(24f, mmGlassRefractionAmountDp(), 0.001f)
     }
 }

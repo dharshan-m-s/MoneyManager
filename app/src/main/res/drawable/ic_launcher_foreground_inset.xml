@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/money_manager_app_icon"
-    android:insetLeft="5%"
-    android:insetTop="5%"
-    android:insetRight="5%"
-    android:insetBottom="5%" />
+    android:insetLeft="7%"
+    android:insetTop="7%"
+    android:insetRight="7%"
+    android:insetBottom="7%" />

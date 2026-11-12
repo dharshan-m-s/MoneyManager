@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
@@ -114,7 +116,7 @@ internal fun ModernDock(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(72.dp)
-                .mmLiquidGlass(cornerRadius = 36.dp, intensity = 0.60f)
+                .mmLiquidGlass(cornerRadius = 36.dp)
         ) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val unit = maxWidth / 4.8f
@@ -130,19 +132,22 @@ internal fun ModernDock(
                     animationSpec = spring(dampingRatio = 0.72f, stiffness = 320f),
                     label = "dockSelectionPosition"
                 )
-                // The pill draws out a little while it is travelling, then gathers back
-                // to its resting shape. This is driven by the spring's remaining distance,
-                // not a second animation, so rapid taps retarget naturally.
-                val travelLag = (
-                    kotlin.math.abs((indicatorTarget - indicatorX).value) /
-                        unit.value.coerceAtLeast(1f)
-                    ).coerceIn(0f, 1f)
+                // The pill draws out a little while it is travelling, then gathers back to its
+                // resting shape. Both the offset and the squash read the spring in the layout
+                // and draw phases rather than in composition: reading them here recomposed the
+                // whole tab row — four icons, four labels and the glass surface — on every
+                // frame of the animation, which is what made a tab change feel slow.
+                val stepPx = with(LocalDensity.current) { unit.toPx() }.coerceAtLeast(1f)
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
-                        .offset(x = indicatorX)
+                        .offset { IntOffset(indicatorX.roundToPx(), 0) }
                         .size(width = 62.dp, height = 58.dp)
                         .graphicsLayer {
+                            val travelLag = (
+                                kotlin.math.abs(indicatorTarget.value - indicatorX.value) /
+                                    stepPx
+                                ).coerceIn(0f, 1f)
                             scaleX = 1f + travelLag * 0.22f
                             scaleY = 1f - travelLag * 0.10f
                         }
@@ -151,7 +156,7 @@ internal fun ModernDock(
                         .clip(RoundedCornerShape(27.dp))
                         .background(MmColors.accent.copy(alpha = 0.10f))
                         .border(0.6.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(27.dp))
-                        .mmGlassHighlight(cornerRadius = 27.dp, intensity = 0.62f)
+                        .mmGlassHighlight(cornerRadius = 27.dp)
                 )
 
                 Row(
@@ -212,7 +217,7 @@ private fun AddOrb(
                     )
                 )
             )
-            .mmGlassHighlight(cornerRadius = 27.dp, intensity = 0.62f)
+            .mmGlassHighlight(cornerRadius = 27.dp)
             .pressableClick(haptic = true, onClick = onClick)
             .semantics {
                 contentDescription = if (expanded) "Close add menu" else "Add transaction"

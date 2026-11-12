@@ -57,8 +57,6 @@ val LocalMmGlassBackdrop = staticCompositionLocalOf<Backdrop?> { null }
 val LocalMmGlassEnabled = staticCompositionLocalOf { true }
 /** User-level master switch; screen-local glass hosts cannot override this preference. */
 val LocalMmGlassUserEnabled = staticCompositionLocalOf { true }
-val LocalMmGlassBlurMultiplier = staticCompositionLocalOf { 1f }
-val LocalMmGlassRefractionMultiplier = staticCompositionLocalOf { 1f }
 /** Root-owned stills are disabled on pages that already record a live page layer. */
 val LocalMmGlassAutoCaptureAllowed = staticCompositionLocalOf { true }
 
@@ -169,190 +167,25 @@ fun Modifier.mmTopBarSurface(
         .background(Brush.verticalGradient(listOf(top, middle, bottom)), shape)
         .border(0.8.dp, rim, shape)
 }
-internal const val MM_GLASS_BACKDROP_SCALE = 0.5f
-internal const val MM_GLASS_BLUR_RADIUS_DP = 8.2f
-internal const val MM_GLASS_REFRACTION_AMOUNT_DP = 52f
 
-internal fun mmGlassBackdropScale(): Float = MM_GLASS_BACKDROP_SCALE
-internal fun mmGlassBlurRadiusDp(): Float = MM_GLASS_BLUR_RADIUS_DP
-internal fun mmGlassRefractionAmountDp(): Float = MM_GLASS_REFRACTION_AMOUNT_DP
+/**
+ * Liquid Glass surface — BitChord's `liquidGlass(shape)`, the exact same material
+ * (vibrancy, 8dp blur, lens refraction, 40% theme tint, highlight rim, default
+ * shadow). Kept as a corner-radius wrapper because every call site in this app is a
+ * rounded rectangle.
+ */
+@Composable
+fun Modifier.mmLiquidGlass(cornerRadius: Dp = 30.dp, surfaceTint: Color? = null): Modifier =
+    liquidGlass(RoundedCornerShape(cornerRadius), surfaceTint)
+
+/** BitChord's `liquidGlassRim(shape)` for a control that keeps its own fill. */
+@Composable
+fun Modifier.mmGlassHighlight(cornerRadius: Dp = 20.dp): Modifier =
+    liquidGlassRim(RoundedCornerShape(cornerRadius))
+
+@Composable
+fun Modifier.mmGlassRim(cornerRadius: Dp = 22.dp): Modifier =
+    liquidGlassRim(RoundedCornerShape(cornerRadius))
 
 fun isMmLiquidGlassSupported(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
-    sdkInt >= Build.VERSION_CODES.S
-
-/**
- * Full Liquid Glass material: samples the real app content, applies downsampled RenderEffect
- * blur and (on Android 13+) rounded-lens refraction, then layers theme tint, edge highlight
- * and a restrained shadow. Unsupported devices receive a low-opacity material fallback.
- */
-@Composable
-fun Modifier.mmLiquidGlass(
-    cornerRadius: Dp = 30.dp,
-    intensity: Float = 1f,
-    blurMultiplier: Float = 1f,
-    refractionMultiplier: Float = 1f,
-    edgeHighlight: Boolean = true,
-    tintOpacity: Float = 1f
-): Modifier {
-    val shape: CornerBasedShape = RoundedCornerShape(cornerRadius)
-    val enabled = LocalMmGlassEnabled.current && LocalMmGlassUserEnabled.current
-    val backdrop = LocalMmGlassBackdrop.current
-    val hardwareAccelerated = LocalView.current.isHardwareAccelerated
-    val light = MaterialTheme.colors.isLight
-    val tint = if (light) Color(0xFFFDFEFF) else Color(0xFF111722)
-    val edge = if (light) Color.White.copy(alpha = 0.32f) else Color.White.copy(alpha = 0.09f)
-    val safeIntensity = intensity.coerceIn(0.25f, 1.25f)
-    val safeTintOpacity = tintOpacity.coerceIn(0.5f, 3f)
-    val userBlurMultiplier = LocalMmGlassBlurMultiplier.current.coerceIn(0f, 2.5f)
-    val userRefractionMultiplier = LocalMmGlassRefractionMultiplier.current.coerceIn(0f, 2.5f)
-
-    // Explicitly disabled means a genuinely opaque, theme-aware surface.
-    if (!enabled) {
-        return clip(shape)
-            .background(MmColors.surface, shape)
-            .border(0.7.dp, MmColors.outline.copy(alpha = 0.42f), shape)
-    }
-
-    if (
-        !isMmLiquidGlassSupported() ||
-        backdrop == null ||
-        (backdrop as? LayerBackdrop)?.captureUnavailable == true ||
-        (backdrop as? SnapshotBackdrop)?.hasStill == false ||
-        !hardwareAccelerated
-    ) {
-        // Keep unavailable glass translucent too. An opaque fallback reads like a sheet and
-        // hides the same scrolling content this surface is meant to reveal.
-        return clip(shape)
-            .background(tint.copy(alpha = (if (light) 0.18f else 0.24f) * safeTintOpacity), shape)
-            .then(if (edgeHighlight) Modifier.border(0.55.dp, edge.copy(alpha = 0.72f), shape) else Modifier)
-    }
-
-    val density = LocalDensity.current
-    // Refraction must dominate the blur. The old 18dp blur softened the sampled page
-    // before the lens shader ran, making the surface look like a frosted sheet.
-    // All pixel-space parameters are scaled with the capture resolution.
-    val safeBlurMultiplier = (blurMultiplier * userBlurMultiplier).coerceIn(0f, 2.5f)
-    val blurRadius = with(density) { MM_GLASS_BLUR_RADIUS_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity * safeBlurMultiplier }
-    val lensHeight = with(density) { 26.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity }
-    val lensAmount = with(density) {
-        MM_GLASS_REFRACTION_AMOUNT_DP.dp.toPx() * MM_GLASS_BACKDROP_SCALE * safeIntensity *
-            refractionMultiplier.coerceIn(0f, 1.5f) * userRefractionMultiplier
-    }
-
-    // Clip before the backdrop draw as well as after it. Without the leading clip the
-    // sampled RenderNode can bleed into the dock's rectangular parent and look like a sheet.
-    return clip(shape).drawBackdrop(
-        backdrop = backdrop,
-        shape = { shape },
-        effects = {
-            colorControls(saturation = 1.0f + (0.12f * safeIntensity))
-            // A small base blur gives the glass depth while preserving page detail.
-            blur(blurRadius)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                lens(
-                    refractionHeight = lensHeight,
-                    refractionAmount = lensAmount,
-                    depthEffect = true,
-                    // A single-sample lens is sharper and cheaper than seven chromatic
-                    // samples; the edge highlight provides the spectral glass cue.
-                    chromaticAberration = false
-                )
-            }
-        },
-        highlight = if (edgeHighlight) {
-            { Highlight(width = 0.8.dp, blurRadius = 0.65.dp, alpha = 0.30f) }
-        } else null,
-        shadow = {
-            Shadow(
-                radius = 27.dp,
-                offset = androidx.compose.ui.unit.DpOffset(0.dp, 9.dp),
-                color = Color.Black.copy(alpha = if (light) 0.12f else 0.19f)
-            )
-        },
-        onDrawSurface = {
-            // Draw the tint in the lens geometry itself. A full rectangular wash here can
-            // leak outside the pill on renderers that do not preserve the backdrop layer clip.
-            // A restrained vertical optical tint adds body to the lens without hiding
-            // the sampled page. The upper specular band and darker lower falloff create
-            // depth; both are drawn inside the rounded glass geometry.
-            drawRoundRect(
-                brush = Brush.verticalGradient(
-                    colors = if (light) {
-                        listOf(
-                            Color.White.copy(alpha = 0.105f * safeTintOpacity),
-                            tint.copy(alpha = 0.045f * safeTintOpacity),
-                            Color(0xFF64748B).copy(alpha = 0.055f * safeTintOpacity)
-                        )
-                    } else {
-                        listOf(
-                            Color(0xFFB9C9E8).copy(alpha = 0.085f * safeTintOpacity),
-                            tint.copy(alpha = 0.055f * safeTintOpacity),
-                            Color.Black.copy(alpha = 0.105f * safeTintOpacity)
-                        )
-                    }
-                ),
-                cornerRadius = CornerRadius(cornerRadius.toPx())
-            )
-        },
-        backdropScale = MM_GLASS_BACKDROP_SCALE
-    ).clip(shape)
-        .then(if (edgeHighlight) Modifier.border(0.55.dp, edge.copy(alpha = 0.50f), shape) else Modifier)
-}
-
-/**
- * Lightweight specular treatment for selected pills, small chips and compact actions. It does
- * not record or blur the page; use mmLiquidGlass only for a few prominent floating surfaces.
- */
-@Composable
-fun Modifier.mmGlassHighlight(
-    cornerRadius: Dp = 20.dp,
-    intensity: Float = 1f
-): Modifier {
-    val shape = RoundedCornerShape(cornerRadius)
-    if (!LocalMmGlassEnabled.current || !LocalMmGlassUserEnabled.current) return this
-    val light = MaterialTheme.colors.isLight
-    val alpha = (0.075f * intensity.coerceIn(0.25f, 1.25f)).coerceIn(0.018f, 0.10f)
-    val rim = if (light) Color.White.copy(alpha = 0.54f) else Color.White.copy(alpha = 0.11f)
-    return clip(shape).drawWithCache {
-        val radius = CornerRadius(cornerRadius.toPx())
-        val sheen = Brush.linearGradient(
-            colors = listOf(
-                Color.White.copy(alpha = alpha),
-                Color.White.copy(alpha = alpha * 0.32f),
-                Color.Transparent
-            ),
-            start = Offset(0f, 0f),
-            end = Offset(size.width * 0.9f, size.height)
-        )
-        onDrawWithContent {
-            drawContent()
-            drawRoundRect(brush = sheen, cornerRadius = radius)
-            drawRoundRect(
-                color = rim,
-                cornerRadius = radius,
-                style = Stroke(width = 0.8.dp.toPx())
-            )
-            drawRoundRect(
-                color = if (light) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.025f),
-                topLeft = Offset(1.dp.toPx(), 1.dp.toPx()),
-                size = androidx.compose.ui.geometry.Size(
-                    (size.width - 2.dp.toPx()).coerceAtLeast(0f),
-                    (size.height - 2.dp.toPx()).coerceAtLeast(0f)
-                ),
-                cornerRadius = CornerRadius((cornerRadius - 1.dp).coerceAtLeast(0.dp).toPx()),
-                style = Stroke(width = 0.45.dp.toPx())
-            )
-        }
-    }
-}
-
-/** Small stable-surface rim; unlike full glass this never samples the page behind it. */
-@Composable
-fun Modifier.mmGlassRim(
-    cornerRadius: Dp = 20.dp,
-    alpha: Float = 0.18f
-): Modifier {
-    val shape = RoundedCornerShape(cornerRadius)
-    val color = if (MaterialTheme.colors.isLight) Color.White else Color.White.copy(alpha = alpha)
-    return clip(shape).border(0.75.dp, color, shape)
-}
+    isGlassSupported(sdkInt)

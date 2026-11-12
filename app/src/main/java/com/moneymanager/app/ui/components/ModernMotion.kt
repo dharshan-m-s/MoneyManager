@@ -272,7 +272,7 @@ fun MmPrimaryButton(
                     )
                 }
             )
-            .then(if (enabled) Modifier.mmGlassHighlight(cornerRadius = 18.dp, intensity = 0.75f) else Modifier)
+            .then(if (enabled) Modifier.mmGlassHighlight(cornerRadius = 18.dp) else Modifier)
             .clickable(
                 enabled = enabled,
                 role = Role.Button,

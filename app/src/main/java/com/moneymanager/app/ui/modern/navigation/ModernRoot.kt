@@ -353,7 +353,13 @@ fun ModernRoot() {
                 .layerBackdrop(glassBackdrop)
                 .snapshotBackdropSource(
                     pageGlassBackdrop,
-                    autoCapture = pageCaptureReady && !pageOwnsLiveGlassBackdrop
+                    // Reference behaviour: a still is taken when a destination appears and is
+                    // kept until the page changes, never re-recorded while the page draws.
+                    // MM's 32 ms auto-capture re-recorded the whole page up to 30 times a
+                    // second and hid every glass surface for the duration of each capture —
+                    // the stutter, the blank cards and the slow dock selection all came from
+                    // that loop.
+                    autoCapture = false
                 )
         ) {
                         // A subtle ambient page wash gives the floating dock and the

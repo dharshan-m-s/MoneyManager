@@ -221,7 +221,10 @@ fun Modifier.snapshotBackdropSource(
  * The still's resolution against its source's. Half resolution matches the resolution the
  * glass effect records its own backdrop at, so blur and lens refraction keep the same detail.
  */
-private const val SNAPSHOT_SCALE = 0.5f
+// Reference resolution: a blur is low-frequency, so a quarter-resolution still carries the
+// same picture at a sixteenth of the pixels of a full-record. MM used 0.5, four times the
+// fill cost of the reference for no visible gain under an 8dp blur.
+private const val SNAPSHOT_SCALE = 0.25f
 
 /** Minimum gap between automatic captures; ~30 fps is enough for scrolling page chrome. */
 private const val AUTO_CAPTURE_INTERVAL_NS = 32_000_000L

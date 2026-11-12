@@ -55,7 +55,7 @@ fun CashFab(
             backgroundColor = MmColors.accentFill,
             contentColor = MmColors.onAccent,
             shape = MmFabShape,
-            modifier = modifier.mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.42f),
+            modifier = modifier.mmGlassHighlight(cornerRadius = 20.dp),
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
         ) {
             Icon(
@@ -83,7 +83,7 @@ fun AddBillerFab(
             backgroundColor = MmColors.accentFill,
             contentColor = MmColors.onAccent,
             shape = MmFabShape,
-            modifier = modifier.mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.7f),
+            modifier = modifier.mmGlassHighlight(cornerRadius = 20.dp),
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
         ) {
             Icon(
@@ -109,7 +109,7 @@ fun AccountsFab(
             backgroundColor = MmColors.accentFill,
             contentColor = MmColors.onAccent,
             shape = MmFabShape,
-            modifier = modifier.mmGlassHighlight(cornerRadius = 20.dp, intensity = 0.7f),
+            modifier = modifier.mmGlassHighlight(cornerRadius = 20.dp),
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
         ) {
             Icon(
