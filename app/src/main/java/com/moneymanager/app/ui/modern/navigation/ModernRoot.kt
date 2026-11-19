@@ -75,6 +75,7 @@ import com.moneymanager.app.ui.components.MmMotion
 import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
 import com.moneymanager.app.ui.components.LocalMmGlassAutoCaptureAllowed
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
+import com.moneymanager.app.ui.components.rememberMmGlassBackdropFloor
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberSnapshotBackdrop
@@ -303,18 +304,17 @@ fun ModernRoot() {
             return@PredictiveBackHandler
         }
 
-        // One root-level policy covers tab destinations and detail flows. A valid previous
-        // entry is preferred; orphaned/restored routes return to Dashboard.
-        if (!navController.popBackStack()) {
-            navController.navigate(Destination.Dashboard.route) { launchSingleTop = true }
-        }
+        // Pop exactly one entry. Deliberately no fallback to Home or Spend Summary:
+        // a missing previous entry is a no-op, never a jump to an unrelated screen.
+        navController.popBackStack()
         sheetDragOffset = 0f
         sheetIsMoving = false
     }
 
     // The floating dock, overlays and menus live outside the page capture and can safely
     // sample this live layer of the finished page.
-    val glassBackdrop = rememberLayerBackdrop()
+    val glassBackdropFloor = rememberMmGlassBackdropFloor()
+    val glassBackdrop = rememberLayerBackdrop(onDraw = glassBackdropFloor)
 
     // Pages with their own live content layer keep it separate from the root dock layer. Other
     // routes use a destination-keyed still so their glass cannot sample the enclosing RenderNode.
@@ -481,7 +481,9 @@ fun ModernRoot() {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.32f))
+                    // BitChord's dark IosMenu scrim is Black @0.30f; that extra darkness is
+                    // what lets the blurred, black slab read as glass rather than grey paper.
+                    .background(Color.Black.copy(alpha = 0.30f))
                     .clickable(
                         indication = null,
                         interactionSource = remember { MutableInteractionSource() }
@@ -549,32 +551,27 @@ fun ModernRoot() {
                     AddAction(
                         "Expense",
                         Icons.AutoMirrored.Filled.TrendingDown,
-                        MmColors.expense,
-                        "Paid from an account"
+                        MmColors.expense
                     ),
                     AddAction(
                         "Income",
                         Icons.AutoMirrored.Filled.TrendingUp,
-                        MmColors.income,
-                        "Received into an account"
+                        MmColors.income
                     ),
                     AddAction(
                         "Cash expense",
                         Icons.Filled.Payments,
-                        MmColors.expense,
-                        "Cash you handed over"
+                        MmColors.expense
                     ),
                     AddAction(
                         "Cash income",
                         Icons.Filled.Savings,
-                        MmColors.income,
-                        "Cash you received"
+                        MmColors.income
                     ),
                     AddAction(
                         "Transfer",
                         Icons.Filled.SwapHoriz,
-                        MmColors.transfer,
-                        "Move money between accounts"
+                        MmColors.transfer
                     )
                 ),
                 onSelect = { index ->

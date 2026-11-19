@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -31,15 +33,21 @@ import kotlin.math.sin
 fun FinanceArtwork(
     kind: String,
     tint: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Static artwork is used inside captured glass pages so they do not re-record forever. */
+    animate: Boolean = true
 ) {
     val transition = rememberInfiniteTransition(label = "financeArtwork")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2600), RepeatMode.Reverse),
-        label = "financeArtworkPhase"
-    )
+    val phase by if (animate) {
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(2600), RepeatMode.Reverse),
+            label = "financeArtworkPhase"
+        )
+    } else {
+        remember { mutableFloatStateOf(0.5f) }
+    }
     val normalized = kind.lowercase()
     val secondary = when {
         normalized.contains("credit") || normalized.contains("debit") || normalized.contains("card") -> Color(0xFF8A9CFF)

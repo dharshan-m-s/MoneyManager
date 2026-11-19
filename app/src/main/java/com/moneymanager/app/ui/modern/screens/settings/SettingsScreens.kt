@@ -45,6 +45,7 @@ import androidx.compose.material.Slider
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
@@ -335,12 +336,151 @@ private fun SettingsSwitchRow(
     }
 }
 
+/**
+ * The appearance controls, split out of the main Settings list so that page stays a short
+ * index and this page can hold the theme, accent and glass choices without crowding.
+ */
+@Composable
+fun AppearanceSettingsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val entryPoint = remember {
+        EntryPointAccessors.fromApplication(context.applicationContext, SettingsEntryPoint::class.java)
+    }
+    val homePreferences: HomePreferences = remember { entryPoint.homePreferences() }
+    val appearancePreferences: AppearancePreferences = remember {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            AppearanceEntryPoint::class.java
+        ).appearancePreferences()
+    }
+
+    val scrollChrome = rememberScrollChromeState(collapseDistance = 96.dp)
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) {
+        if (headerHeightPx > 0) headerHeightPx.toDp() else 100.dp
+    }
+    var darkMode by remember { mutableStateOf(homePreferences.isDarkMode()) }
+    val accentTheme by appearancePreferences.accentTheme.collectAsState()
+    val glassEnabled by appearancePreferences.glassEnabled.collectAsState()
+    val amoledEnabled by appearancePreferences.amoledEnabled.collectAsState()
+
+    Column(Modifier.fillMaxSize().background(MmColors.background)) {
+        MoneyManagerTopBar(
+            title = "Appearance",
+            onBack = onBack,
+            collapseProgress = scrollChrome.progress,
+            keepTitleOnCollapse = true,
+            modifier = Modifier
+                .overlayWithoutLayoutSpace()
+                .onSizeChanged { headerHeightPx = it.height }
+        )
+        Column(
+            Modifier
+                .fillMaxSize()
+                .nestedScroll(scrollChrome.connection)
+                .verticalScroll(rememberScrollState())
+                .padding(top = headerInset)
+                .padding(bottom = MmSpacing.xxl + LocalDockContentPadding.current)
+        ) {
+            SettingsSectionHeader("Theme", "Choose how Money Manager feels")
+            SettingsGroup {
+                SettingsSwitchRow(
+                    title = "Dark mode",
+                    subtitle = "Use graphite surfaces and softer contrast at night",
+                    icon = Icons.Filled.DarkMode,
+                    checked = darkMode,
+                    onCheckedChange = {
+                        darkMode = it
+                        homePreferences.setDarkMode(it)
+                    },
+                    grouped = true
+                )
+                SettingsSwitchRow(
+                    title = "AMOLED black",
+                    subtitle = if (darkMode) {
+                        "Pure black canvas with deeper contrast"
+                    } else {
+                        "Turn on dark mode to see pure black"
+                    },
+                    icon = Icons.Filled.Brightness4,
+                    checked = amoledEnabled,
+                    onCheckedChange = appearancePreferences::setAmoledEnabled,
+                    grouped = true,
+                    showDivider = false
+                )
+            }
+
+            SettingsSectionHeader("Color theme", "Choose an accent for the entire app")
+            SettingsGroup {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                    Text("Accent color", style = MmType.body, color = MmColors.textPrimary)
+                    Text(
+                        "Applies to highlights, actions, navigation and themed surfaces",
+                        style = MmType.caption,
+                        color = MmColors.textSecondary
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MmAccentTheme.entries.forEach { option ->
+                            val selected = accentTheme == option
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (selected) MmColors.surfaceContainerHigh else Color.Transparent)
+                                    .pressableClick { appearancePreferences.setAccentTheme(option) }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                            ) {
+                                Box(
+                                    Modifier.size(34.dp).clip(CircleShape)
+                                        .background(option.light)
+                                        .then(
+                                            if (selected) {
+                                                Modifier.border(2.dp, MmColors.textPrimary, CircleShape)
+                                            } else {
+                                                Modifier
+                                            }
+                                        )
+                                )
+                                Spacer(Modifier.height(5.dp))
+                                Text(option.label, style = MmType.caption, color = MmColors.textPrimary)
+                            }
+                        }
+                    }
+                }
+            }
+
+            SettingsSectionHeader("Liquid Glass", "Personalize blur and optical distortion")
+            SettingsGroup {
+                SettingsSwitchRow(
+                    title = "Liquid Glass",
+                    subtitle = if (glassEnabled) {
+                        "Translucent surfaces with live backdrop effects"
+                    } else {
+                        "Off · surfaces use fully opaque theme colors"
+                    },
+                    icon = Icons.Filled.Info,
+                    checked = glassEnabled,
+                    onCheckedChange = appearancePreferences::setGlassEnabled,
+                    grouped = true,
+                    showDivider = false
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
     onImportStatement: () -> Unit,
     onBudget: () -> Unit = {},
-    onAppUpdates: () -> Unit = {}
+    onAppUpdates: () -> Unit = {},
+    onAppearance: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val backupManager = remember {
@@ -354,12 +494,6 @@ fun SettingsScreen(
     }
     val homePreferences: HomePreferences = remember { entryPoint.homePreferences() }
     val appLock: AppLock = remember { entryPoint.appLock() }
-    val appearancePreferences: AppearancePreferences = remember {
-        EntryPointAccessors.fromApplication(
-            context.applicationContext,
-            AppearanceEntryPoint::class.java
-        ).appearancePreferences()
-    }
 
     val scope = rememberCoroutineScope()
     val scrollChrome = rememberScrollChromeState(collapseDistance = 144.dp)
@@ -379,10 +513,6 @@ fun SettingsScreen(
     val showIncome by homePreferences.showIncome.collectAsState()
     val showCashSummary by homePreferences.showCashSummary.collectAsState()
     val hideAmounts by homePreferences.hideAmounts.collectAsState()
-    var darkMode by remember { mutableStateOf(homePreferences.isDarkMode()) }
-    var appearance by remember { mutableStateOf(appearancePreferences.current()) }
-    val accentTheme by appearancePreferences.accentTheme.collectAsState()
-    val glassEnabled by appearancePreferences.glassEnabled.collectAsState()
     var autoBackup by remember { mutableStateOf(backupManager.autoBackupEnabled()) }
     var lockEnabled by remember { mutableStateOf(appLock.isEnabled()) }
     var lockMethod by remember { mutableStateOf(appLock.method()) }
@@ -516,66 +646,11 @@ fun SettingsScreen(
                 )
                 SettingsSectionHeader("Appearance", "Choose how Money Manager feels")
                 SettingsGroup {
-                    SettingsSwitchRow(
-                        title = "Dark mode",
-                        subtitle = "Use graphite surfaces and softer contrast at night",
-                        icon = Icons.Filled.DarkMode,
-                        checked = darkMode,
-                        onCheckedChange = {
-                            darkMode = it
-                            homePreferences.setDarkMode(it)
-                        },
-                        grouped = true,
-                        showDivider = false
-                    )
-                }
-
-                SettingsSectionHeader("Color theme", "Choose an accent for the entire app")
-                SettingsGroup {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-                        Text("Accent color", style = MmType.body, color = MmColors.textPrimary)
-                        Text("Applies to highlights, actions, navigation and themed surfaces", style = MmType.caption, color = MmColors.textSecondary)
-                        Spacer(Modifier.height(12.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            MmAccentTheme.entries.forEach { option ->
-                                val selected = accentTheme == option
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(if (selected) MmColors.surfaceContainerHigh else Color.Transparent)
-                                        .pressableClick { appearancePreferences.setAccentTheme(option) }
-                                        .padding(horizontal = 10.dp, vertical = 8.dp)
-                                ) {
-                                    Box(
-                                        Modifier.size(34.dp).clip(CircleShape)
-                                            .background(option.light)
-                                            .then(if (selected) Modifier.border(2.dp, MmColors.textPrimary, CircleShape) else Modifier)
-                                    )
-                                    Spacer(Modifier.height(5.dp))
-                                    Text(option.label, style = MmType.caption, color = MmColors.textPrimary)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                SettingsSectionHeader("Liquid Glass", "Personalize blur and optical distortion")
-                SettingsGroup {
-                    SettingsSwitchRow(
-                        title = "Liquid Glass",
-                        subtitle = if (glassEnabled) {
-                            "Translucent surfaces with live backdrop effects"
-                        } else {
-                            "Off · surfaces use fully opaque theme colors"
-                        },
-                        icon = Icons.Filled.Info,
-                        checked = glassEnabled,
-                        onCheckedChange = appearancePreferences::setGlassEnabled,
+                    SettingsRow(
+                        title = "Appearance",
+                        subtitle = "Dark mode, AMOLED, accent color and Liquid Glass",
+                        icon = Icons.Filled.Brightness4,
+                        onClick = onAppearance,
                         grouped = true,
                         showDivider = false
                     )

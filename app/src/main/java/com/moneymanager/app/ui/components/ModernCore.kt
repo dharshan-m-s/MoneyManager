@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
@@ -61,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.moneymanager.app.ui.theme.LocalMmAmoledEnabled
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -91,7 +93,13 @@ fun MmCard(
             ),
         shape = cardShape,
         color = backgroundColor,
-        border = null,
+        // AMOLED keeps the page black but the card itself is elevated; the hairline makes
+        // that elevation explicit instead of relying on a shadow that black cannot show.
+        border = if (LocalMmAmoledEnabled.current) {
+            BorderStroke(0.6.dp, MmColors.cardBorder.copy(alpha = 0.55f))
+        } else {
+            null
+        },
         elevation = 0.dp
     ) {
         Column(
@@ -231,7 +239,14 @@ fun MmBalancePanel(
 ) {
     val shape = RoundedCornerShape(28.dp)
     val maxVisual = visualValues.maxOfOrNull { kotlin.math.abs(it) }?.coerceAtLeast(1L) ?: 1L
-    val compact = (compactProgress?.value ?: 0f).coerceIn(0f, 1f)
+    // Quantise the collapse read: a continuous State read here recomposed this whole glass
+    // panel (springs, artwork, bars) on every scroll pixel inside the captured page.
+    val compact by remember(compactProgress) {
+        derivedStateOf {
+            val raw = (compactProgress?.value ?: 0f).coerceIn(0f, 1f)
+            kotlin.math.round(raw * 8f) / 8f
+        }
+    }
     val panelPadding by animateDpAsState(
         targetValue = MmSpacing.xl - (8.dp * compact),
         animationSpec = MmMotion.standardSpring(),
@@ -251,7 +266,7 @@ fun MmBalancePanel(
     Column(
         modifier
             .fillMaxWidth()
-            .then(if (glass) Modifier.mmLiquidGlass(cornerRadius = 28.dp) else Modifier)
+            .then(if (glass) Modifier.mmLiquidGlass(cornerRadius = 28.dp, drawDuringCapture = true) else Modifier)
             .clip(shape)
             // mmLiquidGlass already paints its optical tint over the sampled page.
             // A near-opaque gradient here covered that sample and made the card read as
@@ -319,7 +334,8 @@ fun MmBalancePanel(
                 FinanceArtwork(
                     kind = artworkKind,
                     tint = tint,
-                    modifier = Modifier.size(artworkSize)
+                    modifier = Modifier.size(artworkSize),
+                    animate = false
                 )
                 if (compact < 0.72f && !visualLabel.isNullOrBlank()) {
                     Text(

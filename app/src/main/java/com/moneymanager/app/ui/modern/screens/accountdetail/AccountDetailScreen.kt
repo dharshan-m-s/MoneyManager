@@ -94,7 +94,7 @@ import com.moneymanager.app.ui.components.mmSharedElement
 import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
 import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
-import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.mmFrostTopBar
 import com.moneymanager.app.ui.components.mmGlassHighlight
 import com.moneymanager.app.ui.components.mmPageBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
@@ -358,7 +358,7 @@ private fun AccountHeader(
             Modifier.fillMaxWidth()
                 .then(
                     if (account != null) {
-                        Modifier.mmLiquidGlass(cornerRadius = 32.dp)
+                        Modifier.mmFrostTopBar(cornerRadius = 32.dp)
                     } else Modifier
                 )
                 .padding(bottom = MmSpacing.md)

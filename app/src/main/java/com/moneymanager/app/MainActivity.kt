@@ -37,6 +37,7 @@ class MainActivity : FragmentActivity() {
 
     private val settingsPrefsName = "moneymanager_settings"
     private val darkModeKey = "dark_mode"
+    private val amoledKey = AppearancePreferences.KEY_AMOLED_ENABLED
     private val accountingRepairKey = "accounting_repair_version"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,6 +66,7 @@ class MainActivity : FragmentActivity() {
         }
 
         var darkMode by mutableStateOf(prefs.getBoolean(darkModeKey, false))
+        var amoledMode by mutableStateOf(prefs.getBoolean(amoledKey, false))
         var appearance by mutableStateOf(MmAppearance.MODERN)
         fun applySystemBarAppearance(isDark: Boolean, look: MmAppearance = MmAppearance.MODERN) {
             // Modern UI is the only UI.
@@ -74,7 +76,9 @@ class MainActivity : FragmentActivity() {
             window.navigationBarColor = android.graphics.Color.TRANSPARENT
             window.isNavigationBarContrastEnforced = false
         } else {
-            window.navigationBarColor = navigationBarColor(MmAppearance.MODERN, isDark)
+            window.navigationBarColor = navigationBarColor(
+                MmAppearance.MODERN, isDark, amoledEnabled = isDark && amoledMode
+            )
         }
         val controller = WindowInsetsControllerCompat(window, window.decorView)
         controller.isAppearanceLightStatusBars = !isDark
@@ -82,8 +86,9 @@ class MainActivity : FragmentActivity() {
         }
 
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == darkModeKey) {
+            if (key == darkModeKey || key == amoledKey) {
                 darkMode = prefs.getBoolean(darkModeKey, false)
+                amoledMode = prefs.getBoolean(amoledKey, false)
                 applySystemBarAppearance(darkMode, MmAppearance.MODERN)
             }
         }
@@ -105,17 +110,19 @@ class MainActivity : FragmentActivity() {
             }
             // Modern UI is the only UI.
             val selectedAppearance = MmAppearance.MODERN
-            androidx.compose.runtime.LaunchedEffect(selectedAppearance, darkMode) {
+            androidx.compose.runtime.LaunchedEffect(selectedAppearance, darkMode, amoledMode) {
                 appearance = selectedAppearance
                 applySystemBarAppearance(darkMode, selectedAppearance)
             }
             val accentTheme by appearancePreferences.accentTheme.collectAsState()
             val glassEnabled by appearancePreferences.glassEnabled.collectAsState()
+            val amoledEnabled by appearancePreferences.amoledEnabled.collectAsState()
             AppRoot(
                 appearance = selectedAppearance,
                 darkTheme = darkMode,
                 glassEnabled = glassEnabled,
-                accentTheme = accentTheme
+                accentTheme = accentTheme,
+                amoledEnabled = amoledEnabled
             )
         }
     }

@@ -32,10 +32,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.IconButton
 import androidx.compose.material.Divider
 import androidx.compose.material.Surface
@@ -58,8 +56,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,12 +93,12 @@ import com.moneymanager.app.ui.components.rememberScrollChromeState
 import com.moneymanager.app.ui.components.scrollCollapse
 import com.moneymanager.app.ui.components.scrollCompactField
 import com.moneymanager.app.ui.components.scrollCompactHeight
+import com.moneymanager.app.ui.components.scrollCompactPadding
 import com.moneymanager.app.ui.components.MmWalletCard
 import com.moneymanager.app.ui.components.MmBankLogo
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.MmBalancePanel
-import com.moneymanager.app.ui.components.mmGlassHighlight
-import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.mmFrostTopBar
 import com.moneymanager.app.ui.components.MmChip
 import com.moneymanager.app.ui.components.MmEmptyState
 import com.moneymanager.app.ui.components.MmIconBadge
@@ -113,14 +111,10 @@ import com.moneymanager.app.ui.components.LocalMmGlassEnabled
 import com.moneymanager.app.ui.components.LocalMmGlassBackdrop
 import com.moneymanager.app.ui.components.rememberVisiblePageGlassBackdrop
 import com.moneymanager.app.ui.components.overlayWithoutLayoutSpace
-import com.moneymanager.app.ui.components.mmSharedElement
-import com.moneymanager.app.ui.components.mmPageBackdrop
-import com.moneymanager.app.ui.components.mmTopBarSurface
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.moneymanager.app.ui.components.pressableClick
 import com.moneymanager.app.ui.components.pressScale
-import com.moneymanager.app.ui.components.revealOnAppear
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.ui.theme.MmSpacing
@@ -137,8 +131,8 @@ fun AccountsScreen(
     onAccountSettings: () -> Unit = {},
     onEditAccount: (Long) -> Unit = {},
     onEditCreditCard: (Long) -> Unit = onEditAccount,
-    // The dock Add is transaction-only, so the Accounts list keeps its own add row for
-    // accounts and credit cards. Hidden only for embedded/read-only presentations.
+    // The dock Add is transaction-only, so the Accounts top bar carries its own add action
+    // for accounts and credit cards. Hidden only for embedded/read-only presentations.
     showInlineAdd: Boolean = true,
     viewModel: AccountsViewModel = hiltViewModel()
 ) {
@@ -147,12 +141,23 @@ fun AccountsScreen(
     var editMode by rememberSaveable { mutableStateOf(false) }
     var showInactive by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    val accountsGlassBackdrop = key(LocalMmGlassBackdrop.current) { rememberVisiblePageGlassBackdrop() }
+    val accountsGlassBackdrop = rememberVisiblePageGlassBackdrop()
     val scrollChrome = rememberScrollChromeState(collapseDistance = 132.dp)
+    // Thresholds are derived states: reading progress directly in composition recomposed the
+    // captured page on every scroll pixel. The boolean only changes at the threshold.
+    val overviewExpanded by remember(scrollChrome.progress) {
+        derivedStateOf { scrollChrome.progress.value <= 0.015f }
+    }
     var accountsHeaderHeightPx by remember { mutableIntStateOf(0) }
-    val accountsHeaderInset = with(androidx.compose.ui.platform.LocalDensity.current) { accountsHeaderHeightPx.toDp() }
     var accountsOverviewHeightPx by remember { mutableIntStateOf(0) }
-    val accountsOverviewInset = with(androidx.compose.ui.platform.LocalDensity.current) { accountsOverviewHeightPx.toDp() }
+    // The measured heights shrink on every collapse frame. Feeding raw pixels into the list's
+    // contentPadding made each frame re-measure the LazyColumn. Round up to 32dp buckets so
+    // geometry only changes a couple of times over the whole collapse and never overlaps.
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val headerInsetPx by remember { derivedStateOf { (accountsHeaderHeightPx + 31) / 32 * 32 } }
+    val overviewInsetPx by remember { derivedStateOf { (accountsOverviewHeightPx + 31) / 32 * 32 } }
+    val accountsHeaderInset = with(density) { headerInsetPx.toDp() }
+    val accountsOverviewInset = with(density) { overviewInsetPx.toDp() }
     val tab = AccountsTab.entries[selectedTab]
     val filtered = accounts.filter { it.accountType in tab.types && !it.deleted }
     val visible = filtered.filter { account ->
@@ -189,11 +194,9 @@ fun AccountsScreen(
 
     Box(
         Modifier.fillMaxSize()
-            .mmPageBackdrop()
             .testTag("screen.accounts")
     ) {
         Box(Modifier.fillMaxSize().layerBackdrop(accountsGlassBackdrop)) {
-            Box(Modifier.fillMaxSize().mmPageBackdrop())
             if (tab == AccountsTab.ALL && !inactiveView) {
                 ModernAllAccountTypesBrowser(
                     modifier = Modifier.fillMaxSize().nestedScroll(scrollChrome.connection),
@@ -268,7 +271,7 @@ fun AccountsScreen(
                         itemsIndexed(shown, key = { _, account -> account.id }) { index, account ->
                             AccountRow(
                                 account = account,
-                                modifier = Modifier.revealOnAppear(index = index),
+                                modifier = Modifier,
                                 isCreditCard = account.accountType == AccountType.CREDIT_CARD,
                                 editMode = editMode,
                                 showTopDivider = index > 0,
@@ -279,21 +282,10 @@ fun AccountsScreen(
                                 }
                             )
                         }
-                        if (showInlineAdd && !editMode) {
-                            item(key = "add-account") {
-                                Box(Modifier.padding(horizontal = MmSpacing.sm)) {
-                                    AddAccountRow(
-                                        label = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account",
-                                        onClick = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount
-                                    )
-                                }
-                            }
-                        }
                     }
                 }
             }
         }
-        key(accountsGlassBackdrop) {
         CompositionLocalProvider(LocalMmGlassBackdrop provides accountsGlassBackdrop) {
         AccountsHeader(
             showingInactive = inactiveView,
@@ -304,6 +296,9 @@ fun AccountsScreen(
             onBack = onBack,
             onSettings = onAccountSettings,
             onToggleEdit = { editMode = !editMode },
+            showAdd = showInlineAdd,
+            onAdd = if (tab == AccountsTab.CREDIT_CARDS) onAddCreditCard else onAddAccount,
+            addContentDescription = if (tab == AccountsTab.CREDIT_CARDS) "Add credit card" else "Add account",
             showBack = false,
             onHeaderHeightChanged = { accountsHeaderHeightPx = it }
         )
@@ -333,7 +328,7 @@ fun AccountsScreen(
                     modifier = Modifier.padding(vertical = MmSpacing.md).testTag("accounts.overview")
                 )
                 AnimatedVisibility(
-                    visible = scrollChrome.progress.value <= 0.015f,
+                    visible = overviewExpanded,
                     enter = fadeIn(tween(150)) + expandVertically(tween(180)),
                     exit = fadeOut(tween(100)) + shrinkVertically(tween(150))
                 ) {
@@ -351,7 +346,7 @@ fun AccountsScreen(
                         )
                     }
                 }
-                if (inactiveAccounts.isNotEmpty() && scrollChrome.progress.value <= 0.015f) {
+                if (inactiveAccounts.isNotEmpty() && overviewExpanded) {
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = MmSpacing.sm),
                         horizontalArrangement = Arrangement.spacedBy(MmSpacing.sm)
@@ -382,7 +377,6 @@ fun AccountsScreen(
             accountsStickyHeader()
         }
         }
-        }
 }
 
 }
@@ -410,9 +404,15 @@ private fun AccountsHeader(
     onBack: () -> Unit,
     onSettings: () -> Unit,
     onToggleEdit: () -> Unit,
+    showAdd: Boolean = true,
+    onAdd: () -> Unit = {},
+    addContentDescription: String = "Add account",
     showBack: Boolean = true,
     onHeaderHeightChanged: (Int) -> Unit = {}
 ) {
+    val searchVisible by remember(collapseProgress) {
+        derivedStateOf { collapseProgress.value < 0.88f }
+    }
     CompositionLocalProvider(LocalMmGlassEnabled provides true) {
         Box(
             Modifier
@@ -422,13 +422,19 @@ private fun AccountsHeader(
                 .zIndex(3f)
                 .onSizeChanged { onHeaderHeightChanged(it.height) }
         ) {
-            Column(
+            // Frost owns the full top rectangle (status bar included); the inset only pads
+            // the controls inside it so no transparent strip remains above the bar.
+            Box(
                 Modifier
                     .fillMaxWidth()
-                    .mmLiquidGlass(cornerRadius = 24.dp)
-                    .modernTopInsets()
-                    .padding(horizontal = MmSpacing.sm)
+                    .mmFrostTopBar(cornerRadius = 24.dp)
             ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .modernTopInsets()
+                        .padding(horizontal = MmSpacing.sm)
+                ) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -437,11 +443,14 @@ private fun AccountsHeader(
                     expandedHeight = 74.dp,
                     compactHeight = 54.dp
                 )
-                .padding(
+                .scrollCompactPadding(
+                    progress = collapseProgress,
                     start = if (showBack) MmSpacing.sm else MmSpacing.md,
                     end = MmSpacing.md,
-                    top = MmSpacing.sm - (4.dp * collapseProgress.value.coerceIn(0f, 1f)),
-                    bottom = MmSpacing.xs - (4.dp * collapseProgress.value.coerceIn(0f, 1f))
+                    top = MmSpacing.sm,
+                    bottom = MmSpacing.xs,
+                    topCollapse = 4.dp,
+                    bottomCollapse = 4.dp
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -463,12 +472,15 @@ private fun AccountsHeader(
                     modifier = Modifier.scrollCollapse(collapseProgress)
                 )
             }
-            AccountsCircleAction(
-                icon = Icons.Filled.Settings,
-                contentDescription = "Account settings",
-                onClick = onSettings
-            )
-            Spacer(Modifier.width(MmSpacing.xs))
+            if (showAdd) {
+                AccountsCircleAction(
+                    icon = Icons.Filled.Add,
+                    contentDescription = addContentDescription,
+                    onClick = onAdd,
+                    active = true
+                )
+                Spacer(Modifier.width(MmSpacing.xs))
+            }
             AccountsCircleAction(
                 icon = if (editMode) Icons.Filled.Done else Icons.Filled.Edit,
                 contentDescription = if (editMode) "Done editing" else "Edit accounts",
@@ -477,7 +489,7 @@ private fun AccountsHeader(
             )
         }
         AnimatedVisibility(
-            visible = collapseProgress.value < 0.88f,
+            visible = searchVisible,
             enter = fadeIn(tween(140)) + expandVertically(tween(180)),
             exit = fadeOut(tween(100)) + shrinkVertically(tween(180))
         ) {
@@ -494,6 +506,7 @@ private fun AccountsHeader(
                     glassField = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
             }
         }
     }
@@ -663,35 +676,6 @@ private fun AccountRow(
             } else {
                 Icon(Icons.Filled.ChevronRight, contentDescription = "Open account", tint = MmColors.textTertiary, modifier = Modifier.size(18.dp))
             }
-        }
-    }
-}
-
-@Composable
-private fun AddAccountRow(
-    label: String,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(MmColors.accentFill.copy(alpha = if (MaterialTheme.colors.isLight) 0.10f else 0.14f))
-            .background(MmColors.surfaceContainer)
-            .pressableClick(onClick = onClick)
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = MmSpacing.md, vertical = MmSpacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MmSpacing.md)
-        ) {
-            Box(
-                modifier = Modifier.size(40.dp).clip(CircleShape).background(MmColors.accentFill),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null, tint = MmColors.onAccent)
-            }
-            Text(label, style = MmType.body, fontWeight = FontWeight.SemiBold, color = MmColors.textPrimary)
         }
     }
 }

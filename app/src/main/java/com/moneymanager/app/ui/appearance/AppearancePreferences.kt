@@ -60,6 +60,15 @@ class AppearancePreferences @Inject constructor(
         _glassEnabled.value = enabled
     }
 
+    /** AMOLED black is only applied on top of dark mode; the preference persists independently. */
+    private val _amoledEnabled = MutableStateFlow(prefs.getBoolean(KEY_AMOLED_ENABLED, false))
+    val amoledEnabled: StateFlow<Boolean> = _amoledEnabled.asStateFlow()
+
+    fun setAmoledEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_AMOLED_ENABLED, enabled) }
+        _amoledEnabled.value = enabled
+    }
+
     /** Synchronous read for places that cannot collect (e.g. system-bar tinting at launch). */
     fun current(): MmAppearance = MmAppearance.MODERN
 
@@ -76,5 +85,6 @@ class AppearancePreferences @Inject constructor(
         const val KEY_APPEARANCE = "appearance_look"
         const val KEY_ACCENT_THEME = "accent_theme"
         const val KEY_GLASS_ENABLED = "glass_enabled"
+        const val KEY_AMOLED_ENABLED = "amoled_enabled"
     }
 }

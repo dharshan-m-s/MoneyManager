@@ -2,10 +2,12 @@ package com.moneymanager.app.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,6 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.moneymanager.app.R
+import com.moneymanager.app.ui.theme.MmColors
 
 /**
  * Uses bundled issuer artwork where a current, verifiable local mark is available.
@@ -27,7 +30,17 @@ import com.moneymanager.app.R
  * approximation. No logo is loaded from the network at runtime.
  */
 @Composable
-fun MmBankLogo(bankName: String, modifier: Modifier = Modifier) {
+fun MmBankLogo(
+    bankName: String,
+    modifier: Modifier = Modifier,
+    /**
+     * The animated wallet card always paints its own light plate behind the mark, so it asks
+     * for the light chip. Everywhere else the chip follows the theme: a dark plate on the black
+     * page (so list rows are not bright white squares) and the conventional white plate in
+     * light mode.
+     */
+    lightPlate: Boolean = false
+) {
     val name = bankName.trim()
     val logo = when {
         name.contains("FEDERAL", ignoreCase = true) -> R.drawable.bank_logo_federal
@@ -86,10 +99,26 @@ fun MmBankLogo(bankName: String, modifier: Modifier = Modifier) {
         else -> null
     }
 
+    // The animated wallet card asks for the light chip because it paints a light plate itself.
+    // Everywhere else the chip follows the theme: dark plate on the black page, white in light
+    // mode, so account list rows never read as bright white squares at night.
+    val light = lightPlate || MaterialTheme.colors.isLight
+    val plate = if (light) {
+        if (logo != null) Color.White else Color(0xFFF0F2F6)
+    } else {
+        Color(0xFF1C1C1E)
+    }
     val shape = RoundedCornerShape(9.dp)
     Box(
         modifier.clip(shape)
-            .background(if (logo != null) Color.White else Color(0xFFF0F2F6), shape)
+            .background(plate, shape)
+            .then(
+                if (light) {
+                    Modifier
+                } else {
+                    Modifier.border(0.6.dp, MmColors.outline.copy(alpha = 0.45f), shape)
+                }
+            )
             .padding(if (logo != null) 5.dp else 7.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -109,7 +138,7 @@ fun MmBankLogo(bankName: String, modifier: Modifier = Modifier) {
                 .ifBlank { "BK" }
             Text(
                 initials,
-                color = Color(0xFF39475C),
+                color = if (light) Color(0xFF39475C) else Color.White,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.35.sp,

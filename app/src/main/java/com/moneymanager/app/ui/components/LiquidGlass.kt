@@ -12,6 +12,7 @@
 package com.moneymanager.app.ui.components
 
 import android.os.Build
+import androidx.compose.animation.core.EaseInOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CornerBasedShape
@@ -20,6 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -32,6 +35,7 @@ import com.moneymanager.app.ui.components.glass.backdrop.highlight.Highlight
 import com.moneymanager.app.ui.components.glass.backdrop.highlight.HighlightElement
 import com.moneymanager.app.ui.components.glass.backdrop.internal.ShapeProvider
 import com.moneymanager.app.ui.components.glass.backdrop.shadow.Shadow
+import com.moneymanager.app.ui.theme.MmColors
 
 /**
  * The backdrop blur pipeline requires [android.graphics.RenderEffect] on a
@@ -56,6 +60,28 @@ private const val SURFACE_OPACITY = 0.4f
  */
 private const val GLASS_RESOLUTION_SCALE = 0.33f
 
+/** BitChord's `glassPerformance` recipe: frost the sample instead of refracting it. */
+private const val FROST_BLUR_RADIUS_DP = 16f
+private const val FROST_RESOLUTION_SCALE = 0.25f
+
+/**
+ * BitChord's scroll-edge recipe ([TopFadeBlur] in the reference app): 24dp blur at a third
+ * resolution, no tint and no scrim, eased out below the controls. The material itself is
+ * blurred page only; the alpha ramp below simply fades that material into the page.
+ */
+private const val TOP_FADE_BLUR_DP = 24f
+private const val TOP_FADE_RESOLUTION_SCALE = 0.33f
+private const val TOP_FADE_FOOT_START = 0.6f
+private const val TOP_FADE_STEPS = 8
+/** A touch of black over the frost in dark themes, so the bar reads as dark glass on content. */
+private const val TOP_FADE_DARK_TINT_ALPHA = 0.12f
+private val TOP_FADE_STOPS: Array<Pair<Float, Color>> =
+    Array(TOP_FADE_STEPS + 1) { i ->
+        val t = i / TOP_FADE_STEPS.toFloat()
+        (TOP_FADE_FOOT_START + (1f - TOP_FADE_FOOT_START) * t) to
+            Color.Black.copy(alpha = 1f - EaseInOut.transform(t))
+    }
+
 /**
  * The hairline along a bar's edge, and what stands in for the glass rim wherever the
  * glass itself is not drawn.
@@ -68,10 +94,19 @@ internal fun mmGlassBackdropScale(): Float = GLASS_RESOLUTION_SCALE
 internal fun mmGlassBlurRadiusDp(): Float = BLUR_RADIUS_DP
 internal fun mmGlassRefractionAmountDp(): Float = LENS_AMOUNT * LENS_MAX_DP
 
-/** The surface tint: light glass on a light theme, dark glass on a dark one. */
+/**
+ * The surface tint: light glass on a light theme, black glass on a dark one. On a black page a
+ * grey veil is what reads as a white wash, so the dark tint stays black and lets the blurred
+ * backdrop carry the material.
+ */
 @Composable
 internal fun glassThemeTint(): Color =
-    if (MaterialTheme.colors.isLight) Color(0xFFFAFAFA) else Color(0xFF121212)
+    if (MaterialTheme.colors.isLight) Color(0xFFFAFAFA) else Color(0xFF000000)
+
+/** Dark glass stays thin; a heavier veil turns the sampled page into an opaque grey sheet. */
+@Composable
+internal fun glassSurfaceAlpha(): Float =
+    if (MaterialTheme.colors.isLight) SURFACE_OPACITY else 0.34f
 
 /**
  * Icon and label colour for content sitting on a glass surface.
@@ -119,7 +154,7 @@ fun Modifier.lightweightLiquidGlass(
 
     return clip(shape)
         .background(
-            color = if (useGlass) glassThemeTint().copy(alpha = SURFACE_OPACITY) else fallbackColor,
+            color = if (useGlass) glassThemeTint().copy(alpha = glassSurfaceAlpha()) else fallbackColor,
             shape = shape,
         )
         .then(
@@ -168,40 +203,93 @@ fun Modifier.liquidGlass(
     shape: CornerBasedShape,
     /** Drawn over the glass in place of the theme's default tint, when set. */
     surfaceTint: Color? = null,
+    /**
+     * BitChord draws a hairline rim on its glass. Top bars opt out: against a full-width
+     * strip that same rim reads as a border around the bar, so callers setting this to
+     * false get the identical material without the outline. Everything else keeps it.
+     */
+    rim: Boolean = true,
+    /**
+     * BitChord's `glassPerformance` branch: heavier blur at a lower sample scale and no
+     * refraction. The app uses it for chrome, where dispersion reads as a rainbow band.
+     */
+    frost: Boolean = false,
+    /**
+     * Chrome that runs under the status bar needs a vertical veil: dense frost at y=0,
+     * fading to near-clear at the lower edge so the bar melts into the page instead of
+     * ending on a flat translucent sheet.
+     */
+    topFade: Boolean = false,
+    /** Set for chrome outside the page recorder so it is redrawn after capture ends. */
+    redrawAfterCapture: Boolean = false,
+    /** Set for sibling chrome that must never disappear while a page layer is recording. */
+    drawDuringCapture: Boolean = false,
 ): Modifier {
     val backdrop = LocalMmGlassBackdrop.current
     if (!isGlassSupported() || backdrop == null || !LocalMmGlassUserEnabled.current || !LocalMmGlassEnabled.current) {
-        return background(MaterialTheme.colors.surface, shape)
-            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+        return background(MmColors.surface, shape)
+            .then(if (rim) Modifier.border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape) else Modifier)
     }
     val density = LocalDensity.current
-    val resolutionScale = GLASS_RESOLUTION_SCALE
-    val blurPx = with(density) { BLUR_RADIUS_DP.dp.toPx() } * resolutionScale
+    val resolutionScale = when {
+        topFade -> TOP_FADE_RESOLUTION_SCALE
+        frost -> FROST_RESOLUTION_SCALE
+        else -> GLASS_RESOLUTION_SCALE
+    }
+    val blurDp = when {
+        topFade -> TOP_FADE_BLUR_DP
+        frost -> FROST_BLUR_RADIUS_DP
+        else -> BLUR_RADIUS_DP
+    }
+    val blurPx = with(density) { blurDp.dp.toPx() } * resolutionScale
     val lensHeightPx = with(density) { (LENS_HEIGHT * LENS_MAX_DP).dp.toPx() } * resolutionScale
     val lensAmountPx = with(density) { (LENS_AMOUNT * LENS_MAX_DP).dp.toPx() } * resolutionScale
-    val surfaceTintColor = surfaceTint ?: glassThemeTint().copy(alpha = SURFACE_OPACITY)
+    val surfaceTintColor = surfaceTint ?: glassThemeTint().copy(alpha = glassSurfaceAlpha())
+    val topFadeBrush = if (topFade) Brush.verticalGradient(*TOP_FADE_STOPS) else null
+    // Dark themes get a whisper of black over the frost; a white veil is what made the bar
+    // look washed out, but a slightly deeper black lets it sit on bright page content.
+    val topFadeTint = if (topFade && !MaterialTheme.colors.isLight) {
+        Color.Black.copy(alpha = TOP_FADE_DARK_TINT_ALPHA)
+    } else {
+        Color.Transparent
+    }
 
     return drawBackdrop(
         backdrop = backdrop,
         shape = { shape },
         effects = {
-            colorControls(saturation = 1f + 0.5f * VIBRANCY)
+            // The scroll edge is blur only: BitChord's TopFadeBlur adds no saturation or
+            // tint, so a black page stays black instead of picking up a white wash.
+            colorControls(saturation = if (topFade) 1f else 1f + 0.5f * VIBRANCY)
             blur(blurPx)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Dispersion is off everywhere: on chrome it reads as a rainbow fringe. Frost
+            // mode and the scroll edge have no lens at all.
+            if (!frost && !topFade && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 lens(
                     refractionHeight = lensHeightPx,
                     refractionAmount = lensAmountPx,
                     depthEffect = true,
-                    chromaticAberration = true,
+                    chromaticAberration = false,
                 )
             }
         },
-        highlight = { Highlight.Default },
+        highlight = if (rim) ({ Highlight.Default }) else null,
         shadow = { Shadow.Default },
         onDrawSurface = {
-            drawRect(color = surfaceTintColor, size = size)
+            if (topFadeBrush != null) {
+                if (topFadeTint.alpha > 0f) {
+                    drawRect(color = topFadeTint, size = size)
+                }
+                // BitChord's FootFade: mask the material itself, not the controls drawn on
+                // top of it, so the frost is whole at y=0 and gone below the bar.
+                drawRect(brush = topFadeBrush, blendMode = BlendMode.DstIn, size = size)
+            } else {
+                drawRect(color = surfaceTintColor, size = size)
+            }
         },
         backdropScale = resolutionScale,
+        redrawAfterCapture = redrawAfterCapture,
+        drawDuringCapture = drawDuringCapture,
     )
 }
 

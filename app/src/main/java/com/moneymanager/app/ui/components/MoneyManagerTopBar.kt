@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Text
@@ -46,9 +45,8 @@ import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
 
 /**
- * Shared stationary navigation chrome. By default the complete top strip is a Liquid Glass
- * surface that samples the active destination; callers may set [transparentChrome] when the
- * toolbar is part of a larger, continuous glass hero.
+ * Shared stationary navigation chrome. Every bar wears the same frosted glass material;
+ * callers may set [transparentChrome] when the toolbar is part of a larger glass hero.
  */
 /**
  * Lets a header draw above the scrolling viewport without consuming vertical layout space.
@@ -82,25 +80,25 @@ fun MoneyManagerTopBar(
 ) {
     Column(modifier.fillMaxWidth()) {
         CompositionLocalProvider(LocalMmGlassEnabled provides true) {
-            Column(
+            // The frosted material owns the full-bleed rectangle, including the status-bar
+            // inset. The inset only pads the content inside it, so there is no transparent
+            // strip above the bar and the frost can reach the very top edge of the screen.
+            Box(
                 Modifier
                     .fillMaxWidth()
                     .then(
-                        when {
-                            transparentChrome -> Modifier
-                            solidChrome -> Modifier
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(MmColors.surfaceContainer, RoundedCornerShape(24.dp))
-                            // Reference top chrome: the same material as every other surface.
-                            // The old 3x tint ramp painted a bright white band across the
-                            // status bar and read as a thick white border around the bar.
-                            glassChrome -> Modifier.mmLiquidGlass(cornerRadius = 24.dp)
-                            else -> Modifier.mmTopBarSurface(accentStrength = 0.72f)
-                        }
+                        // Every top bar in the app uses BitChord's scroll-edge material: a
+                        // 24dp/0.33 blur with no tint, rim or scrim, faded out below the
+                        // controls, so the frost reaches the top edge without a white wash.
+                        if (transparentChrome) Modifier else Modifier.mmFrostTopBar()
                     )
-                    .modernTopInsets()
-                    .padding(horizontal = MmSpacing.sm)
             ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .modernTopInsets()
+                        .padding(horizontal = MmSpacing.sm)
+                ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -178,8 +176,9 @@ fun MoneyManagerTopBar(
                         modifier = Modifier.padding(start = MmSpacing.xs),
                         content = actions
                     )
+                    }
+                    bottomContent()
                 }
-                bottomContent()
             }
         }
     }

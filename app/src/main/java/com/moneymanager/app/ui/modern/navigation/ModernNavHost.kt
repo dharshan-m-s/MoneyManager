@@ -39,6 +39,7 @@ import com.moneymanager.app.ui.modern.screens.income.IncomeScreen
 import com.moneymanager.app.ui.modern.screens.reimbursements.ReimbursementsScreen
 import com.moneymanager.app.ui.modern.screens.search.SearchScreen
 import com.moneymanager.app.ui.modern.screens.settings.AboutScreen
+import com.moneymanager.app.ui.modern.screens.settings.AppearanceSettingsScreen
 import com.moneymanager.app.ui.modern.screens.settings.FeedbackScreen
 import com.moneymanager.app.ui.modern.screens.settings.OpenSourceScreen
 import com.moneymanager.app.ui.modern.screens.settings.SettingsScreen
@@ -80,14 +81,12 @@ fun ModernNavHost(
     onOpenMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Back removes only the current destination. A missing previous entry is a no-op rather
-    // than an unexpected jump to Home.
+    // Back removes exactly one destination. A missing previous entry is a no-op, never a
+    // jump to Home or Spend Summary.
     fun safeBack() {
         val currentRoute = navController.currentDestination?.route
         if (currentRoute == Destination.Dashboard.route) return
-        if (!navController.popBackStack()) {
-            navController.navigate(Destination.Dashboard.route) { launchSingleTop = true }
-        }
+        navController.popBackStack()
     }
 
     fun go(route: String) {
@@ -191,8 +190,8 @@ fun ModernNavHost(
                 onAccountSettings = { go(Destination.Settings.route) },
                 onEditAccount = { id -> go(Destination.AccountEdit.route(id)) },
                 onEditCreditCard = { id -> go(Destination.CreditCardForm.route(id)) },
-                // The central dock Add creates transactions only, so account creation stays on
-                // the Accounts list as an inline row and on each empty state.
+                // The central dock Add creates transactions only, so account creation lives
+                // in the Accounts top bar and each empty state.
                 showInlineAdd = true
                 )
             }
@@ -349,8 +348,12 @@ fun ModernNavHost(
                 onBack = { safeBack() },
                 onImportStatement = { go(Destination.Import.route) },
                 onBudget = { go(Destination.Budget.route) },
-                onAppUpdates = { go(Destination.AppUpdates.route) }
+                onAppUpdates = { go(Destination.AppUpdates.route) },
+                onAppearance = { go(Destination.Appearance.route) }
             )
+        }
+        composable(Destination.Appearance.route) {
+            AppearanceSettingsScreen(onBack = { safeBack() })
         }
         composable(Destination.AppUpdates.route) { AppUpdatesScreen(onBack = { safeBack() }) }
 

@@ -370,6 +370,12 @@ private fun BillPaymentDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        // Keep the whole settle flow clear of the floating dock. The 82% dialog would
+        // otherwise end inside the dock band and hide its bottom controls.
+        Box(
+            Modifier.fillMaxSize().padding(bottom = LocalDockContentPadding.current),
+            contentAlignment = Alignment.Center
+        ) {
         Surface(
             modifier = Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.82f),
             shape = RoundedCornerShape(30.dp),
@@ -580,6 +586,7 @@ private fun BillPaymentDialog(
                 }
             }
         }
+        }
     }
 
     if (showAccountPicker) {
@@ -603,6 +610,10 @@ private fun BillPaymentDialog(
 
     pendingSettlement?.let { pending ->
         Dialog(onDismissRequest = { pendingSettlement = null }) {
+            Box(
+                Modifier.fillMaxSize().padding(bottom = LocalDockContentPadding.current),
+                contentAlignment = Alignment.Center
+            ) {
             Surface(
                 modifier = Modifier.fillMaxWidth(0.94f),
                 shape = RoundedCornerShape(28.dp),
@@ -635,6 +646,7 @@ private fun BillPaymentDialog(
                         Text("Cancel", color = MmColors.textSecondary)
                     }
                 }
+            }
             }
         }
     }
@@ -928,7 +940,8 @@ private fun BillCard(
                 text = "Mark as paid",
                 onClick = onMarkPaid,
                 icon = Icons.Filled.CheckCircle,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                sheen = false
             )
         }
     }

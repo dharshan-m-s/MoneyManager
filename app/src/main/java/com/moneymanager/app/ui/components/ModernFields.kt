@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.moneymanager.app.ui.theme.MmColors
+import com.moneymanager.app.ui.theme.LocalMmAmoledEnabled
 import com.moneymanager.app.ui.theme.MmShape
 import com.moneymanager.app.ui.theme.MmSpacing
 import com.moneymanager.app.ui.theme.MmType
@@ -528,8 +530,14 @@ fun MmSearchField(
         colors = if (glassField) {
             TextFieldDefaults.outlinedTextFieldColors(
                 textColor = MmColors.textPrimary,
-                // Inset field tint is independent of the page backdrop.
-                backgroundColor = MmColors.surface.copy(alpha = 0.72f),
+                // Inset field tint is independent of the page backdrop. On a pure-black
+                // AMOLED page the ordinary surface fill vanishes into the top column, so
+                // the field borrows a container shade to stay visible.
+                backgroundColor = if (LocalMmAmoledEnabled.current && !MaterialTheme.colors.isLight) {
+                    MmColors.surfaceContainer.copy(alpha = 0.72f)
+                } else {
+                    MmColors.surface.copy(alpha = 0.72f)
+                },
                 cursorColor = MmColors.accent,
                 focusedBorderColor = MmColors.accent.copy(alpha = 0.40f),
                 unfocusedBorderColor = Color.Transparent,

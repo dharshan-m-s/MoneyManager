@@ -75,7 +75,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.zIndex
 import com.moneymanager.app.ui.components.MmAnimatedAmount
 import com.moneymanager.app.ui.components.mmPageBackdrop
-import com.moneymanager.app.ui.components.mmTopBarSurface
+import com.moneymanager.app.ui.components.mmFrostTopBar
 import com.moneymanager.app.ui.components.mmLiquidGlass
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.layerBackdrop
 import com.moneymanager.app.ui.components.glass.backdrop.backdrops.rememberLayerBackdrop
@@ -642,7 +642,7 @@ private fun TransactionsHeader(
             .fillMaxWidth()
             .modernTopInsets()
             .padding(horizontal = MmSpacing.md, vertical = MmSpacing.xs)
-            .mmTopBarSurface(cornerRadius = 24.dp)
+            .mmFrostTopBar(cornerRadius = 24.dp)
             .padding(start = if (showBack) MmSpacing.sm else MmSpacing.lg, end = MmSpacing.lg, top = MmSpacing.sm, bottom = MmSpacing.sm),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -9,6 +9,8 @@
  */
 package com.moneymanager.app.ui.components.glass.backdrop
 
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +35,7 @@ import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.ObserverModifierNode
+import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
@@ -57,8 +60,53 @@ import com.moneymanager.app.ui.components.glass.backdrop.shadow.ShadowElement
 internal object BackdropCaptureState {
     @Volatile private var depth = 0
     val isCapturing: Boolean get() = depth > 0
+
+    /**
+     * Nodes that gave up their draw while a backdrop was recording. A plain volatile flag
+     * gave them no invalidation when the capture ended, so a surface skipped on the first
+     * frame stayed blank until a scroll happened to redraw it. Only the skipped nodes are
+     * invalidated; a global snapshot bump would redraw every glass surface on every captured
+     * frame and made page transitions, especially Accounts, noticeably janky.
+     */
+    private val waitingNodes = java.util.Collections.newSetFromMap(
+        java.util.concurrent.ConcurrentHashMap<DrawBackdropNode, Boolean>()
+    )
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var flushPosted = false
+    private val flushRedraws = Runnable {
+        val waiting = synchronized(this) {
+            flushPosted = false
+            // A newer capture may have started before this callback ran. Leave those nodes
+            // queued; its own end() will schedule the next flush.
+            if (isCapturing) {
+                emptyList()
+            } else {
+                val snapshot = waitingNodes.toList()
+                waitingNodes.clear()
+                snapshot
+            }
+        }
+        waiting.forEach { it.redrawAfterCapture() }
+    }
+
+    fun awaitRedraw(node: DrawBackdropNode) {
+        waitingNodes += node
+    }
+
+    fun forget(node: DrawBackdropNode) {
+        waitingNodes -= node
+    }
+
     @Synchronized fun begin() { depth += 1 }
-    @Synchronized fun end() { depth = (depth - 1).coerceAtLeast(0) }
+    @Synchronized fun end() {
+        depth = (depth - 1).coerceAtLeast(0)
+        // Several backdrops can finish in the same frame. Post one flush instead of
+        // invalidating the same glass nodes once per recorder.
+        if (depth == 0 && waitingNodes.isNotEmpty() && !flushPosted) {
+            flushPosted = true
+            mainHandler.post(flushRedraws)
+        }
+    }
 }
 
 private val DefaultHighlight = { Highlight.Default }
@@ -96,7 +144,9 @@ fun Modifier.drawPlainBackdrop(
                 onDrawBackdrop = onDrawBackdrop,
                 onDrawSurface = onDrawSurface,
                 onDrawFront = onDrawFront,
-                backdropScale = 1f
+                backdropScale = 1f,
+                redrawAfterCapture = false,
+                drawDuringCapture = false
             )
         )
 }
@@ -119,7 +169,20 @@ fun Modifier.drawBackdrop(
     // processes far fewer pixels. Pixel-sized effect parameters (blur radius, lens
     // refraction) must be pre-multiplied by the same factor by the caller; the blur
     // hides the upscaling. 1f keeps the original full resolution behavior.
-    backdropScale: Float = 1f
+    backdropScale: Float = 1f,
+    /**
+     * Chrome that lives outside the page recorder is skipped while its backdrop is captured,
+     * but unlike nodes inside the recorder it is not redrawn by `drawContent()` in the same
+     * frame. Those nodes must queue for one invalidation when capture ends or the bar stays
+     * invisible until the next scroll.
+     */
+    redrawAfterCapture: Boolean = false,
+    /**
+     * Chrome that sits outside the recorder can keep drawing while a sibling page layer is
+     * captured. Skipping it made several top bars disappear until the next scroll; its sampled
+     * layer simply holds the previous frame for one capture, which is visually stable.
+     */
+    drawDuringCapture: Boolean = false
 ): Modifier {
     val shapeProvider = ShapeProvider(shape)
     return this
@@ -171,7 +234,9 @@ fun Modifier.drawBackdrop(
                 onDrawBackdrop = onDrawBackdrop,
                 onDrawSurface = onDrawSurface,
                 onDrawFront = onDrawFront,
-                backdropScale = backdropScale.coerceIn(0.05f, 1f)
+                backdropScale = backdropScale.coerceIn(0.05f, 1f),
+                redrawAfterCapture = redrawAfterCapture,
+                drawDuringCapture = drawDuringCapture
             )
         )
 }
@@ -186,7 +251,9 @@ private class DrawBackdropElement(
     val onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     val onDrawSurface: (DrawScope.() -> Unit)?,
     val onDrawFront: (DrawScope.() -> Unit)?,
-    val backdropScale: Float
+    val backdropScale: Float,
+    val redrawAfterCapture: Boolean,
+    val drawDuringCapture: Boolean
 ) : ModifierNodeElement<DrawBackdropNode>() {
 
     override fun create(): DrawBackdropNode {
@@ -200,7 +267,9 @@ private class DrawBackdropElement(
             onDrawBackdrop = onDrawBackdrop,
             onDrawSurface = onDrawSurface,
             onDrawFront = onDrawFront,
-            backdropScale = backdropScale
+            backdropScale = backdropScale,
+            redrawAfterCapture = redrawAfterCapture,
+            drawDuringCapture = drawDuringCapture
         )
     }
 
@@ -221,6 +290,8 @@ private class DrawBackdropElement(
         node.onDrawSurface = onDrawSurface
         node.onDrawFront = onDrawFront
         node.backdropScale = backdropScale
+        node.redrawAfterCapture = redrawAfterCapture
+        node.drawDuringCapture = drawDuringCapture
         node.invalidateDrawCache()
     }
 
@@ -235,6 +306,8 @@ private class DrawBackdropElement(
         properties["onDrawBackdrop"] = onDrawBackdrop
         properties["onDrawSurface"] = onDrawSurface
         properties["onDrawFront"] = onDrawFront
+        properties["redrawAfterCapture"] = redrawAfterCapture
+        properties["drawDuringCapture"] = drawDuringCapture
     }
 
     override fun equals(other: Any?): Boolean {
@@ -251,6 +324,8 @@ private class DrawBackdropElement(
         if (onDrawSurface != other.onDrawSurface) return false
         if (onDrawFront != other.onDrawFront) return false
         if (backdropScale != other.backdropScale) return false
+        if (redrawAfterCapture != other.redrawAfterCapture) return false
+        if (drawDuringCapture != other.drawDuringCapture) return false
 
         return true
     }
@@ -266,11 +341,13 @@ private class DrawBackdropElement(
         result = 31 * result + (onDrawSurface?.hashCode() ?: 0)
         result = 31 * result + (onDrawFront?.hashCode() ?: 0)
         result = 31 * result + backdropScale.hashCode()
+        result = 31 * result + redrawAfterCapture.hashCode()
+        result = 31 * result + drawDuringCapture.hashCode()
         return result
     }
 }
 
-private class DrawBackdropNode(
+internal class DrawBackdropNode(
     var backdrop: Backdrop,
     var shapeProvider: ShapeProvider,
     var effects: BackdropEffectScope.() -> Unit,
@@ -280,7 +357,9 @@ private class DrawBackdropNode(
     var onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     var onDrawSurface: (DrawScope.() -> Unit)?,
     var onDrawFront: (DrawScope.() -> Unit)?,
-    var backdropScale: Float
+    var backdropScale: Float,
+    var redrawAfterCapture: Boolean,
+    var drawDuringCapture: Boolean
 ) : LayoutModifierNode, DrawModifierNode, GlobalPositionAwareModifierNode, ObserverModifierNode, Modifier.Node() {
 
     private val effectScope =
@@ -401,6 +480,11 @@ private class DrawBackdropNode(
         }
     }
 
+    /** Called by [BackdropCaptureState] when the recording that skipped us has finished. */
+    fun redrawAfterCapture() {
+        if (isAttached) invalidateDraw()
+    }
+
     override fun ContentDrawScope.draw() {
         if (effectScope.update(this, backdropScale)) {
             updateEffects()
@@ -411,12 +495,26 @@ private class DrawBackdropNode(
         // layer is ready. Recording its children creates a same-page reflection, while
         // recording its material creates a page -> glass -> page RenderNode cycle.
         val isRecordingPage = (backdrop as? LayerBackdrop)?.isRecording == true
-        val isRecordingStill = (backdrop as? SnapshotBackdrop)?.snapshotCaptureInProgress == true
+        val isSnapshot = backdrop is SnapshotBackdrop
+        val isRecordingStill = isSnapshot && (backdrop as? SnapshotBackdrop)?.snapshotCaptureInProgress == true
         val isAnyBackdropCapture = BackdropCaptureState.isCapturing
 
-        // Exclude both the material and its content from every source recording. The surface
-        // itself is drawn normally immediately after the parent capture completes.
-        if (isRecordingPage || isRecordingStill || isAnyBackdropCapture) return
+        // A still must never include the chrome that samples it; otherwise the top bar
+        // records itself into the picture and the next frame draws a second bar behind it.
+        // Live layers can keep drawDuringCapture chrome visible while the page records.
+        val isSelfReflection = isRecordingStill
+        // Exclude both the material and its content from every other source recording. The
+        // surface itself is drawn normally immediately after the parent capture completes.
+        if (isSelfReflection || (!drawDuringCapture && (isRecordingPage || isRecordingStill || isAnyBackdropCapture))) {
+            // A live layer source draws its children again in the very same frame after it
+            // records, so invalidating those nodes only adds another redraw (and can retrigger
+            // the full-viewport record). A still is captured outside the draw pass, so nodes
+            // skipped for a still are the ones that actually need a redraw request.
+            if (isRecordingStill || (!isRecordingPage && isAnyBackdropCapture) || redrawAfterCapture) {
+                BackdropCaptureState.awaitRedraw(this@DrawBackdropNode)
+            }
+            return
+        }
 
         onDrawBehind?.invoke(this)
         drawBackdropLayer()
@@ -499,6 +597,7 @@ private class DrawBackdropNode(
     }
 
     override fun onDetach() {
+        BackdropCaptureState.forget(this)
         val layer = graphicsLayer
         graphicsLayer = null
         if (layer != null) {

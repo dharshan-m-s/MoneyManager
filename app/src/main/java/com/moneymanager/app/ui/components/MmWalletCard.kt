@@ -230,7 +230,7 @@ fun MmWalletCard(
                         .border(0.6.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(11.dp))
                         .padding(horizontal = 7.dp, vertical = 4.dp)
                 ) {
-                    MmBankLogo(issuerName, Modifier.width(96.dp).height(31.dp))
+                    MmBankLogo(issuerName, Modifier.width(96.dp).height(31.dp), lightPlate = true)
                 }
 
                 Column(horizontalAlignment = Alignment.End) {
@@ -668,7 +668,7 @@ fun MmBankAccountCard(
                         .background(Color.White.copy(alpha = 0.98f))
                         .padding(horizontal = 7.dp, vertical = 4.dp)
                 ) {
-                    MmBankLogo(issuer, Modifier.width(88.dp).height(30.dp))
+                    MmBankLogo(issuer, Modifier.width(88.dp).height(30.dp), lightPlate = true)
                 }
                 Spacer(Modifier.weight(1f))
                 Text(

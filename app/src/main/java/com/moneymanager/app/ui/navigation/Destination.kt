@@ -49,6 +49,7 @@ sealed class Destination(val route: String, val label: String, val icon: ImageVe
     }
     data object Reimbursements : Destination("reimbursements", "Reimbursements", Icons.Filled.SwapHoriz)
     data object Settings : Destination("settings", "Settings", Icons.Filled.Settings)
+    data object Appearance : Destination("appearance", "Appearance", Icons.Filled.Settings)
     data object AppUpdates : Destination("app_updates", "App Updates", Icons.Filled.Settings)
     data object Feedback : Destination("feedback", "Feedback & Report Issues", Icons.Filled.Warning)
     data object OpenSource : Destination("open_source", "Open Source", Icons.Filled.Code)

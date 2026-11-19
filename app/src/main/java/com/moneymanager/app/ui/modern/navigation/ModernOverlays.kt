@@ -1,7 +1,7 @@
 package com.moneymanager.app.ui.modern.navigation
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,18 +14,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
@@ -33,8 +32,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.moneymanager.app.ui.components.pressableClick
-import com.moneymanager.app.ui.components.mmLiquidGlass
+import com.moneymanager.app.ui.components.mmMenuFrost
 import com.moneymanager.app.ui.theme.MmColors
 import com.moneymanager.app.ui.theme.MmType
 import com.moneymanager.app.ui.navigation.Destination
@@ -51,101 +49,90 @@ private val moreDestinations = listOf(
 internal data class AddAction(
     val label: String,
     val icon: ImageVector,
-    val tint: Color,
-    val description: String
+    val tint: Color
 )
 
 /**
- * The Add menu is a focused create sheet: five transaction actions, one per row, with the
- * amount direction stated in words. It deliberately looks different from [ModernMorePopover],
- * which is a two-column tool grid - the two surfaces should never be mistaken for each other.
+ * Add uses the same compact launcher as More: a 2-column x 3-row grid of one glyph and one
+ * short label per tile. No descriptions, no chevrons and no count badge in the header.
  */
 @Composable
 internal fun ModernAddActionSurface(
     actions: List<AddAction>,
     modifier: Modifier = Modifier,
-    title: String = "New transaction",
-    subtitle: String = "Choose how money moved",
+    title: String = "Add",
+    subtitle: String = "Choose a transaction type",
     onSelect: (Int) -> Unit
 ) {
     OverlayCard(modifier = modifier) {
+        val light = MaterialTheme.colors.isLight
+        val separator = if (light) Color.Black.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.10f)
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(MmColors.accentFill),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Filled.Add,
-                        contentDescription = null,
-                        tint = MmColors.onAccent,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
                     Text(title, style = MmType.sectionTitle, color = MmColors.textPrimary)
                     Text(subtitle, style = MmType.caption, color = MmColors.textSecondary)
                 }
             }
-            Spacer(Modifier.height(2.dp))
-            actions.forEachIndexed { index, action ->
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(separator)
+            )
+            // The same 2-column x 3-row launcher grid as More: one glyph and one short label
+            // per tile. No descriptions, no chevrons, no second line of information.
+            actions.chunked(2).forEachIndexed { rowIndex, row ->
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .pressableClick { onSelect(index) }
-                        .semantics { contentDescription = action.description }
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(action.tint.copy(alpha = 0.14f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            action.icon,
-                            contentDescription = null,
-                            tint = action.tint,
-                            modifier = Modifier.size(21.dp)
-                        )
+                    row.forEachIndexed { columnIndex, action ->
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    if (MaterialTheme.colors.isLight) {
+                                        MmColors.surfaceMuted.copy(alpha = 0.76f)
+                                    } else {
+                                        Color.White.copy(alpha = 0.08f)
+                                    }
+                                )
+                                .clickable { onSelect(rowIndex * 2 + columnIndex) }
+                                .semantics { contentDescription = action.label }
+                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(11.dp))
+                                    .background(action.tint.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    action.icon,
+                                    contentDescription = null,
+                                    tint = action.tint,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(9.dp))
+                            Text(
+                                action.label,
+                                style = MmType.caption,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MmColors.textPrimary,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            action.label,
-                            style = MmType.body,
-                            fontWeight = FontWeight.Medium,
-                            color = MmColors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            action.description,
-                            style = MmType.caption,
-                            color = MmColors.textSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MmColors.textTertiary,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
@@ -176,12 +163,6 @@ internal fun ModernMorePopover(
                         color = MmColors.textSecondary
                     )
                 }
-                Text(
-                    "${moreDestinations.size}",
-                    style = MmType.caption,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MmColors.textTertiary
-                )
             }
             moreDestinations.chunked(2).forEach { row ->
                 Row(
@@ -196,8 +177,15 @@ internal fun ModernMorePopover(
                                 .weight(1f)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(
-                                    if (selected) MmColors.accent.copy(alpha = 0.14f)
-                                    else MmColors.surfaceMuted.copy(alpha = 0.76f)
+                                    if (selected) {
+                                        MmColors.accent.copy(alpha = 0.14f)
+                                    } else if (MaterialTheme.colors.isLight) {
+                                        MmColors.surfaceMuted.copy(alpha = 0.76f)
+                                    } else {
+                                        // BitChord's neutral row/pressed strength: a hairline of
+                                        // light over the black frosted slab, not a grey plate.
+                                        Color.White.copy(alpha = 0.08f)
+                                    }
                                 )
                                 .clickable { onSelect(destination) }
                                 .semantics { contentDescription = destination.label }
@@ -241,18 +229,37 @@ private fun OverlayCard(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    Surface(
+    val shape = RoundedCornerShape(30.dp)
+    val rim = if (MaterialTheme.colors.isLight) {
+        Color.Black.copy(alpha = 0.06f)
+    } else {
+        Color.White.copy(alpha = 0.10f)
+    }
+    // BitChord draws the menu shadow as a separate plate because its offscreen frosted
+    // layer clips a shadow drawn on the panel itself. Same here: the shadow sits on the
+    // wrapper, while the frosted Surface stays flat and rimmed.
+    Box(
         modifier = modifier
             .widthIn(max = 400.dp)
             .fillMaxWidth()
-            // Menus are transient controls, so they use the same sampled lens material as
-            // navigation instead of a flat opaque card. The normal page content stays solid.
-            .mmLiquidGlass(cornerRadius = 24.dp),
-        shape = RoundedCornerShape(24.dp),
-        color = Color.Transparent,
-        elevation = 0.dp
+            .shadow(
+                elevation = 24.dp,
+                shape = shape,
+                ambientColor = Color.Black.copy(alpha = 0.30f),
+                spotColor = Color.Black.copy(alpha = 0.30f)
+            )
     ) {
-        content()
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .mmMenuFrost(shape)
+                .border(0.5.dp, rim, shape),
+            shape = shape,
+            color = Color.Transparent,
+            elevation = 0.dp
+        ) {
+            content()
+        }
     }
 }
 

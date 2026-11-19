@@ -254,7 +254,9 @@ fun MmPrimaryButton(
     icon: ImageVector? = null,
     containerColor: Color = MmColors.accentFill,
     contentColor: Color = MmColors.onAccent,
-    loading: Boolean = false
+    loading: Boolean = false,
+    /** Optional specular sheen. Some devices render it as a hard outline on all sides. */
+    sheen: Boolean = true
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val view = LocalView.current
@@ -272,7 +274,7 @@ fun MmPrimaryButton(
                     )
                 }
             )
-            .then(if (enabled) Modifier.mmGlassHighlight(cornerRadius = 18.dp) else Modifier)
+            .then(if (enabled && sheen) Modifier.mmGlassHighlight(cornerRadius = 18.dp) else Modifier)
             .clickable(
                 enabled = enabled,
                 role = Role.Button,

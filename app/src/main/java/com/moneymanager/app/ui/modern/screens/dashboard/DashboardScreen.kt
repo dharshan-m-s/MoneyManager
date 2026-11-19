@@ -41,7 +41,6 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Visibility
@@ -107,7 +106,6 @@ import java.time.ZoneId
 import com.moneymanager.app.ui.dashboard.DashboardBreakdownKind
 import com.moneymanager.app.ui.dashboard.DashboardUiState
 import com.moneymanager.app.ui.dashboard.DashboardViewModel
-import com.moneymanager.app.ui.dashboard.SafeToSpendMode
 import com.moneymanager.app.ui.settings.SettingsEntryPoint
 
 private val dashboardZone: ZoneId = ZoneId.of("Asia/Kolkata")
@@ -243,6 +241,39 @@ fun DashboardScreen(
             }
 
             item {
+                BudgetCard(
+                    state = state,
+                    onOpenBudget = onOpenBudget,
+                    hideAmounts = hideAmounts,
+                    modifier = Modifier.revealOnAppear(index = 1)
+                )
+            }
+
+            item {
+                SectionBlock(
+                    title = "Spending breakdown",
+                    subtitle = if (state.monthSpend.minorUnits != 0L)
+                        "This month · ${MoneyFormat.rupeesNoDecimals(state.monthSpend)}" else null,
+                    actionLabel = "See all",
+                    onAction = onSeeAllSpendAreas
+                ) {
+                    if (state.topCategoryTotals.isEmpty()) {
+                        MmEmptyState(
+                            icon = Icons.Filled.PieChart,
+                            title = "No spending this month",
+                            message = "Your category breakdown appears here once you spend."
+                        )
+                    } else {
+                        SpendingBreakdown(
+                            rows = state.topCategoryTotals,
+                            categoryNames = state.categoryNames,
+                            monthSpend = state.monthSpend
+                        )
+                    }
+                }
+            }
+
+            item {
                 SectionBlock(
                     title = "Latest transactions",
                     subtitle = if (anyFilterActive) "${filteredRecent.size} match your filter" else null,
@@ -286,49 +317,6 @@ fun DashboardScreen(
                                 hideAmounts = hideAmounts
                             )
                         }
-                    }
-                }
-            }
-
-
-            item {
-                BudgetCard(
-                    state = state,
-                    onOpenBudget = onOpenBudget,
-                    hideAmounts = hideAmounts,
-                    modifier = Modifier.revealOnAppear(index = 3)
-                )
-            }
-
-            item {
-                SafeToSpendCard(
-                    state = state,
-                    hideAmounts = hideAmounts,
-                    onOpenBudget = onOpenBudget,
-                    modifier = Modifier.revealOnAppear(index = 4)
-                )
-            }
-
-            item {
-                SectionBlock(
-                    title = "Spending breakdown",
-                    subtitle = if (state.monthSpend.minorUnits != 0L)
-                        "This month · ${MoneyFormat.rupeesNoDecimals(state.monthSpend)}" else null,
-                    actionLabel = "See all",
-                    onAction = onSeeAllSpendAreas
-                ) {
-                    if (state.topCategoryTotals.isEmpty()) {
-                        MmEmptyState(
-                            icon = Icons.Filled.PieChart,
-                            title = "No spending this month",
-                            message = "Your category breakdown appears here once you spend."
-                        )
-                    } else {
-                        SpendingBreakdown(
-                            rows = state.topCategoryTotals,
-                            categoryNames = state.categoryNames,
-                            monthSpend = state.monthSpend
-                        )
                     }
                 }
             }
@@ -769,54 +757,6 @@ private fun BudgetCard(
                 }
                 IconButton(onClick = onOpenBudget) {
                     Icon(Icons.Filled.ChevronRight, contentDescription = "Open budget", tint = MmColors.textSecondary)
-                }
-            }
-        }
-    }
-}
-
-/**
- * Safe to Spend: a single, explainable number for the rest of the month. The label states which
- * definition is in effect so the value is never ambiguous - remaining budget when a budget is
- * set, otherwise liquid cash after scheduled bills.
- */
-@Composable
-private fun SafeToSpendCard(
-    state: DashboardUiState,
-    hideAmounts: Boolean,
-    onOpenBudget: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val hasBudget = state.safeToSpendMode == SafeToSpendMode.BUDGET_REMAINING
-    val caption = if (hasBudget) {
-        "Remaining of your ${MoneyFormat.rupeesNoDecimals(state.budget)} budget"
-    } else {
-        "Cash left after ${MoneyFormat.rupeesNoDecimals(state.upcomingBillsTotal)} of scheduled bills"
-    }
-    MmCard(modifier = modifier.padding(horizontal = MmSpacing.lg, vertical = MmSpacing.sm)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MmIconBadge(icon = Icons.Filled.Savings, tint = MmColors.accent)
-            Spacer(Modifier.width(MmSpacing.md))
-            Column(Modifier.weight(1f)) {
-                Text("Safe to spend", style = MmType.caption, color = MmColors.textSecondary)
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    if (hideAmounts) "••••••" else MoneyFormat.rupeesNoDecimals(state.safeToSpend),
-                    style = MmType.sectionTitle,
-                    color = MmColors.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(caption, style = MmType.caption, color = MmColors.textTertiary)
-            }
-            if (!hasBudget) {
-                IconButton(onClick = onOpenBudget) {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = "Set a budget",
-                        tint = MmColors.textSecondary
-                    )
                 }
             }
         }

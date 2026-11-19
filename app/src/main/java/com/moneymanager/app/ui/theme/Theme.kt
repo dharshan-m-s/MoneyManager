@@ -8,6 +8,8 @@ import androidx.compose.material.Typography
 import androidx.compose.material.darkColors
 import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +40,16 @@ internal val DarkTextPrimary = Color(0xFFF3F3F0)
 internal val DarkTextSecondary = Color(0xFFB7BBC4)
 internal val DarkTextTertiary = Color(0xFF898F99)
 
+// AMOLED black: a pure-black canvas with BitChord's neutral greys for elevation.
+// These stay darker than normal dark mode (no blue lift, no brighter text); cards are visible
+// against black without turning the whole UI into a brighter grey sheet.
+internal val AmoledBackground = Color(0xFF000000)
+internal val AmoledSurface = Color(0xFF0D0D0F)
+internal val AmoledSurfaceContainer = Color(0xFF1C1C1E)
+internal val AmoledSurfaceContainerHigh = Color(0xFF242427)
+internal val AmoledOutline = Color(0xFF2C2C2E)
+internal val AmoledOutlineVariant = Color(0xFF1C1C1F)
+
 // User-selectable app-wide accent palettes. Semantic income/expense colours remain fixed.
 enum class MmAccentTheme(val label: String, val light: Color, val dark: Color) {
     INDIGO("Indigo", Color(0xFF6266D8), Color(0xFFB8BCFF)),
@@ -47,7 +59,9 @@ enum class MmAccentTheme(val label: String, val light: Color, val dark: Color) {
     ROSE("Rose", Color(0xFFB83263), Color(0xFFFF9DBB)),
     AMBER("Amber", Color(0xFF9A5B00), Color(0xFFFFC36B))
 }
-val LocalMmAccentTheme = androidx.compose.runtime.staticCompositionLocalOf { MmAccentTheme.INDIGO }
+val LocalMmAccentTheme = staticCompositionLocalOf { MmAccentTheme.INDIGO }
+/** Pure-black surfaces, applied only while dark mode is on. */
+val LocalMmAmoledEnabled = staticCompositionLocalOf { false }
 
 // Accents
 internal val PrimaryLight = Color(0xFF6266D8)
@@ -86,16 +100,43 @@ object MmColors {
     private val light: Boolean
         @Composable get() = MaterialTheme.colors.isLight
 
-    val background: Color @Composable get() = if (light) LightBackground else DarkBackground
+    private val amoled: Boolean
+        @Composable get() = !light && LocalMmAmoledEnabled.current
+
+    val background: Color @Composable get() = when {
+        light -> LightBackground
+        amoled -> AmoledBackground
+        else -> DarkBackground
+    }
     val backdrop: Color @Composable get() = background
-    val surface: Color @Composable get() = if (light) LightSurface else DarkSurface
-    val surfaceContainer: Color @Composable get() = if (light) LightSurfaceContainer else DarkSurfaceContainer
-    val surfaceContainerHigh: Color @Composable get() = if (light) LightSurfaceContainerHigh else DarkSurfaceContainerHigh
+    val surface: Color @Composable get() = when {
+        light -> LightSurface
+        amoled -> AmoledSurface
+        else -> DarkSurface
+    }
+    val surfaceContainer: Color @Composable get() = when {
+        light -> LightSurfaceContainer
+        amoled -> AmoledSurfaceContainer
+        else -> DarkSurfaceContainer
+    }
+    val surfaceContainerHigh: Color @Composable get() = when {
+        light -> LightSurfaceContainerHigh
+        amoled -> AmoledSurfaceContainerHigh
+        else -> DarkSurfaceContainerHigh
+    }
     val surfaceMuted: Color @Composable get() = surfaceContainer
     val surfaceElevated: Color @Composable get() = surfaceContainerHigh
 
-    val divider: Color @Composable get() = if (light) LightOutlineVariant else DarkOutlineVariant
-    val outline: Color @Composable get() = if (light) LightOutline else DarkOutline
+    val divider: Color @Composable get() = when {
+        light -> LightOutlineVariant
+        amoled -> AmoledOutlineVariant
+        else -> DarkOutlineVariant
+    }
+    val outline: Color @Composable get() = when {
+        light -> LightOutline
+        amoled -> AmoledOutline
+        else -> DarkOutline
+    }
     val hairline: Color @Composable get() = outline
     val cardBorder: Color @Composable get() = outline
 
@@ -133,7 +174,9 @@ object MmColors {
             androidx.compose.ui.graphics.lerp(LocalMmAccentTheme.current.light, Color.Black, 0.72f)
         )
     }
-    val glassChromeGradient: List<Color> @Composable get() = if (light) {
+    val glassChromeGradient: List<Color> @Composable get() = if (amoled) {
+        listOf(AmoledSurfaceContainerHigh, AmoledSurface, AmoledSurfaceContainer)
+    } else if (light) {
         listOf(
             androidx.compose.ui.graphics.lerp(Color.White, LocalMmAccentTheme.current.light, 0.10f),
             Color(0xFFE8ECF7),
@@ -221,23 +264,29 @@ object MmType {
 }
 
 object ModernSystemColors {
-    fun background(isLight: Boolean): Color = if (isLight) LightBackground else DarkBackground
+    fun background(isLight: Boolean, amoled: Boolean = false): Color = when {
+        isLight -> LightBackground
+        amoled -> AmoledBackground
+        else -> DarkBackground
+    }
 }
 
 @Composable
 fun ModernTheme(
     darkTheme: Boolean = false,
     accentTheme: MmAccentTheme = MmAccentTheme.INDIGO,
+    amoledEnabled: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val accent = if (darkTheme) accentTheme.dark else accentTheme.light
+    val amoled = darkTheme && amoledEnabled
     val colors: Colors = if (darkTheme) {
         darkColors(
             primary = accent,
             primaryVariant = accent,
             secondary = accent,
-            background = DarkBackground,
-            surface = DarkSurface,
+            background = if (amoled) AmoledBackground else DarkBackground,
+            surface = if (amoled) AmoledSurface else DarkSurface,
             error = ExpenseDark,
             onPrimary = OnPrimary,
             onSecondary = OnPrimary,
@@ -260,6 +309,7 @@ fun ModernTheme(
             onError = OnPrimary
         )
     }
+    CompositionLocalProvider(LocalMmAmoledEnabled provides amoled) {
     MaterialTheme(
         colors = colors,
         shapes = Shapes(
@@ -280,6 +330,7 @@ fun ModernTheme(
         ),
         content = content
     )
+    }
 }
 
 // Palette colors (migrated from modern theme)

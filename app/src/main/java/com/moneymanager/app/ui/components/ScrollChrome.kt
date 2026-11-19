@@ -16,6 +16,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -88,6 +89,44 @@ fun Modifier.scrollCollapse(progress: State<Float>): Modifier =
         }
         .clipToBounds()
 
+
+/** Collapses padding in the layout phase so reading scroll progress cannot recompose chrome. */
+fun Modifier.scrollCompactPadding(
+    progress: State<Float>,
+    start: Dp = 0.dp,
+    top: Dp = 0.dp,
+    end: Dp = 0.dp,
+    bottom: Dp = 0.dp,
+    topCollapse: Dp = 0.dp,
+    bottomCollapse: Dp = 0.dp
+): Modifier = layout { measurable, constraints ->
+    val fraction = progress.value.coerceIn(0f, 1f)
+    val left = start.roundToPx()
+    val right = end.roundToPx()
+    val topPx = (top - topCollapse * fraction).roundToPx().coerceAtLeast(0)
+    val bottomPx = (bottom - bottomCollapse * fraction).roundToPx().coerceAtLeast(0)
+    val horizontal = left + right
+    val vertical = topPx + bottomPx
+    val placeable = measurable.measure(
+        constraints.copy(
+            minWidth = (constraints.minWidth - horizontal).coerceAtLeast(0),
+            maxWidth = if (constraints.maxWidth == Constraints.Infinity) {
+                Constraints.Infinity
+            } else {
+                (constraints.maxWidth - horizontal).coerceAtLeast(0)
+            },
+            minHeight = (constraints.minHeight - vertical).coerceAtLeast(0),
+            maxHeight = if (constraints.maxHeight == Constraints.Infinity) {
+                Constraints.Infinity
+            } else {
+                (constraints.maxHeight - vertical).coerceAtLeast(0)
+            }
+        )
+    )
+    layout(placeable.width + left + right, placeable.height + topPx + bottomPx) {
+        placeable.placeRelative(left, topPx)
+    }
+}
 
 /** Smoothly reduces a toolbar's occupied height while keeping its controls vertically centred. */
 fun Modifier.scrollCompactHeight(

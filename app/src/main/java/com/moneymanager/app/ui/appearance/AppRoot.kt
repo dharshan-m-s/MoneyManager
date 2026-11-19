@@ -32,9 +32,10 @@ fun AppRoot(
     appearance: MmAppearance = MmAppearance.MODERN,
     darkTheme: Boolean,
     glassEnabled: Boolean = true,
-    accentTheme: MmAccentTheme = MmAccentTheme.INDIGO
+    accentTheme: MmAccentTheme = MmAccentTheme.INDIGO,
+    amoledEnabled: Boolean = false
 ) {
-    ModernTheme(darkTheme = darkTheme, accentTheme = accentTheme) {
+    ModernTheme(darkTheme = darkTheme, accentTheme = accentTheme, amoledEnabled = amoledEnabled) {
         CompositionLocalProvider(
             LocalMmAccentTheme provides accentTheme,
             LocalMmGlassEnabled provides glassEnabled,
@@ -94,6 +95,10 @@ private fun AppSurface(content: @Composable () -> Unit) {
 /**
  * Window navigation-bar colour for the active look.
  */
-fun navigationBarColor(appearance: MmAppearance = MmAppearance.MODERN, darkTheme: Boolean): Int {
-    return ModernSystemColors.background(isLight = !darkTheme).toArgb()
+fun navigationBarColor(
+    appearance: MmAppearance = MmAppearance.MODERN,
+    darkTheme: Boolean,
+    amoledEnabled: Boolean = false
+): Int {
+    return ModernSystemColors.background(isLight = !darkTheme, amoled = darkTheme && amoledEnabled).toArgb()
 }
