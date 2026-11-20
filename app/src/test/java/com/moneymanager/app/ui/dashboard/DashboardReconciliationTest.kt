@@ -68,8 +68,10 @@ class DashboardReconciliationTest {
             MoneyManagerDatabase::class.java
         ).allowMainThreadQueries().build()
         runBlocking { seed() }
+        val snapshotStore = DashboardSnapshotStore(context).also { it.clear() }
         dashboardViewModel = DashboardViewModel(
-            db.accountDao(), db.transactionDao(), db.billDao(), db.budgetDao(), db.categoryDao()
+            db.accountDao(), db.transactionDao(), db.billDao(), db.budgetDao(), db.categoryDao(),
+            snapshotStore
         )
         breakdownViewModel = DashboardBreakdownViewModel(
             db.accountDao(), db.transactionDao(), db.billDao()
@@ -334,7 +336,8 @@ class DashboardReconciliationTest {
         try {
             val dash = DashboardViewModel(
                 freshDb.accountDao(), freshDb.transactionDao(), freshDb.billDao(),
-                freshDb.budgetDao(), freshDb.categoryDao()
+                freshDb.budgetDao(), freshDb.categoryDao(),
+                DashboardSnapshotStore(context).also { it.clear() }
             )
             val bd = DashboardBreakdownViewModel(freshDb.accountDao(), freshDb.transactionDao(), freshDb.billDao())
             dash.viewModelScope.launch { dash.uiState.collect {} }

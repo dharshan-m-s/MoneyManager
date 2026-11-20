@@ -20,7 +20,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
@@ -66,12 +68,15 @@ class DashboardViewModel @Inject constructor(
     transactionDao: TransactionDao,
     billDao: BillDao,
     budgetDao: com.moneymanager.app.data.local.dao.BudgetDao,
-    categoryDao: com.moneymanager.app.data.local.dao.CategoryDao
+    categoryDao: com.moneymanager.app.data.local.dao.CategoryDao,
+    private val snapshotStore: DashboardSnapshotStore
 ) : ViewModel() {
     private val period = FinancialSummary.currentMonthPeriod()
     private val monthStart = period.startInclusive
     private val monthEndExclusive = period.endExclusive
     private val month = com.moneymanager.app.domain.billing.BillSchedule.dateOf(monthStart)
+    /** A snapshot from a previous month must never be shown with this month's totals. */
+    private val periodKey = monthStart.toString()
 
     val uiState: StateFlow<DashboardUiState?> = combine(
         accountDao.observeAll(),
@@ -171,6 +176,10 @@ class DashboardViewModel @Inject constructor(
                 loanBalance != 0L
         )
     }
+        .distinctUntilChanged()
+        .onEach { snapshotStore.save(periodKey, it) }
         .flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+        // Seed with the persisted snapshot so the start destination paints instantly on a cold
+        // start; the live Room flows replace it as soon as they emit.
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), snapshotStore.load(periodKey))
 }
