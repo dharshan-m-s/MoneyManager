@@ -90,9 +90,6 @@ sealed interface UpdateState {
         val currentVersionCode: Long,
         val update: ReleaseUpdate
     ) : UpdateState
-    data class Downloading(val update: ReleaseUpdate, val progress: Int, val downloadedBytes: Long, val totalBytes: Long?) : UpdateState
-    data class Downloaded(val update: ReleaseUpdate, val filePath: String) : UpdateState
-    data object Installing : UpdateState
     data object Offline : UpdateState
     data class Error(val error: UpdateError) : UpdateState
 }

@@ -18,6 +18,7 @@ android {
         buildConfigField("String", "GITHUB_OWNER", "\"${System.getenv("UPDATE_GITHUB_OWNER") ?: "dharshan-m-s"}\"")
         buildConfigField("String", "GITHUB_REPOSITORY", "\"${System.getenv("UPDATE_GITHUB_REPOSITORY") ?: "MoneyManager"}\"")
         buildConfigField("String", "GITHUB_API_BASE", "\"https://api.github.com\"")
+        buildConfigField("String", "UPDATE_APK_PREFIX", "\"MoneyManager-\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
@@ -115,6 +116,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("com.jakewharton.timber:timber:5.0.1")
     implementation("com.google.code.gson:gson:2.11.0")
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.16.1")

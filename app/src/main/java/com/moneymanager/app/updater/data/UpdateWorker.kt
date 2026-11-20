@@ -17,7 +17,6 @@ class UpdateWorker(
         val repository = UpdateRepository(applicationContext)
         return when (val result = repository.checkForUpdate()) {
             is UpdateRepository.CheckResult.Available -> {
-                repository.deleteApksExcept(result.update.versionName)
                 prefs.edit()
                     .putString(PENDING_UPDATE_KEY, Gson().toJson(result.update))
                     .putLong(LAST_CHECKED_KEY, System.currentTimeMillis())
@@ -26,7 +25,6 @@ class UpdateWorker(
             }
             is UpdateRepository.CheckResult.UpToDate -> {
                 prefs.edit().remove(PENDING_UPDATE_KEY).putLong(LAST_CHECKED_KEY, System.currentTimeMillis()).apply()
-                repository.cleanCache()
                 Result.success()
             }
             is UpdateRepository.CheckResult.Error -> {

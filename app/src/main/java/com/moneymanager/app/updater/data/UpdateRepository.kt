@@ -9,16 +9,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import java.security.MessageDigest
-import kotlin.coroutines.coroutineContext
 
 class UpdateRepository(context: Context) {
-    private val appContext = context.applicationContext
-    private val releaseSource = GitHubReleaseDataSource(appContext)
+    private val releaseSource = GitHubReleaseDataSource(context.applicationContext)
     @Volatile var lastDiagnostics: UpdateDiagnostics = UpdateDiagnostics(
         repository = UpdateConfig.repositoryPath,
         endpoint = UpdateConfig.releasesUrl
@@ -107,14 +102,6 @@ class UpdateRepository(context: Context) {
         }
     }.getOrNull()
 
-    /**
-     * Resolves the expected APK digest from the strongest available source and records which one
-     * was used. Preference order:
-     *  1. the GitHub API asset `digest` (server-computed, cannot drift from the uploaded bytes);
-     *  2. the release's `<apk>.sha256` asset, whose format matches `sha256sum` (hash + whitespace).
-     * Returns (null, null) when neither is present, so the caller can proceed but must not claim
-     * the APK was checksum-verified.
-     */
     private fun resolveChecksum(
         apkAsset: com.moneymanager.app.updater.model.GitHubAsset,
         shaAssetUrl: String?
@@ -122,116 +109,6 @@ class UpdateRepository(context: Context) {
         ChecksumParser.normalizeDigest(apkAsset.digest)?.let { return it to "api-digest" }
         shaAssetUrl?.let { url -> fetchChecksum(url)?.let { return it to "sha256-asset" } }
         return null to null
-    }
-
-    suspend fun download(update: ReleaseUpdate, onProgress: (Int, Long, Long?) -> Unit): Result<File> = withContext(Dispatchers.IO) {
-        val safeName = update.apkName.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        val targetDir = File(appContext.cacheDir, "updates").apply { mkdirs() }
-        val target = File(targetDir, safeName)
-        target.delete()
-        val temp = File(targetDir, "$safeName.part")
-        temp.delete()
-        try {
-            val connection = (URL(update.apkUrl).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 10_000
-                readTimeout = 30_000
-                instanceFollowRedirects = true
-                requestMethod = "GET"
-                setRequestProperty("Accept", "application/vnd.android.package-archive,application/octet-stream")
-                setRequestProperty("User-Agent", "MoneyManager/${BuildConfig.VERSION_NAME}")
-            }
-            try {
-                val status = connection.responseCode
-                if (status !in 200..299) throw java.io.IOException("HTTP $status")
-                val total = connection.contentLengthLong.takeIf { it > 0L }
-                var downloaded = 0L
-                var lastReported = -1
-                connection.inputStream.use { input ->
-                    FileOutputStream(temp).use { output ->
-                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        while (true) {
-                            coroutineContext.ensureActive()
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            output.write(buffer, 0, count)
-                            downloaded += count
-                            val percent = total?.let { ((downloaded * 100L) / it).toInt().coerceIn(0, 100) } ?: -1
-                            if (percent != lastReported) {
-                                lastReported = percent
-                                onProgress(percent, downloaded, total)
-                            }
-                        }
-                        output.fd.sync()
-                    }
-                }
-            } finally {
-                connection.disconnect()
-            }
-            if (!temp.exists() || temp.length() <= 0L) throw java.io.IOException("Downloaded APK is empty")
-            when {
-                // A published but structurally invalid digest is an explicit failure, never a
-                // silent "skip verification": that would hide a corrupted/hostile release.
-                update.expectedSha256 != null && !update.hasChecksum ->
-                    throw SecurityException("Published APK checksum is malformed")
-                update.hasChecksum -> {
-                    val expected = update.expectedSha256!!
-                    val actual = "sha256:" + sha256(temp)
-                    if (!actual.equals(expected, ignoreCase = true)) throw SecurityException("APK digest mismatch")
-                }
-                // No checksum published: package/version/signature verification still runs during
-                // install; the UI must not describe this APK as checksum-verified.
-                else -> Unit
-            }
-            if (!temp.renameTo(target)) throw java.io.IOException("Could not finalize APK")
-            Result.success(target)
-        } catch (t: Throwable) {
-            temp.delete()
-            target.delete()
-            if (t is CancellationException) throw t
-            Result.failure(t)
-        }
-    }
-
-    private fun sha256(file: File): String {
-        val md = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val n = input.read(buffer)
-                if (n < 0) break
-                md.update(buffer, 0, n)
-            }
-        }
-        return md.digest().joinToString("") { "%02x".format(it) }
-    }
-
-    fun cleanCache() {
-        val dir = File(appContext.cacheDir, "updates")
-        if (!dir.exists()) return
-        dir.listFiles()?.forEach { it.delete() }
-    }
-
-    fun deleteOldVersions(keepFile: File) {
-        val dir = File(appContext.cacheDir, "updates")
-        if (!dir.exists()) return
-        dir.listFiles()?.filter { it != keepFile && it.name.endsWith(".apk") }?.forEach { it.delete() }
-    }
-
-    fun deleteApksExcept(versionName: String) {
-        val marker = "-v${versionName.trimStart('v')}-"
-        val dir = File(appContext.cacheDir, "updates")
-        if (!dir.exists()) return
-        dir.listFiles()?.forEach { file ->
-            when {
-                // Keep the matching APK (a valid pending installation).
-                file.name.endsWith(".apk") && file.name.contains(marker) -> Unit
-                // Remove any other APK: an outdated version we no longer need.
-                file.name.endsWith(".apk") -> file.delete()
-                // Remove abandoned partial downloads. A `.part` for the version we are about to
-                // install is preserved so an in-flight download is never interrupted.
-                file.name.endsWith(".part") && !file.name.contains(marker) -> file.delete()
-            }
-        }
     }
 
     sealed interface CheckResult {

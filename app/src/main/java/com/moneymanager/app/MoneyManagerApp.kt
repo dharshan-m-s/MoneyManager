@@ -13,7 +13,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.io.File
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -29,7 +28,6 @@ class MoneyManagerApp : Application() {
         setupTimber()
         val prefs = getSharedPreferences("moneymanager_updates", MODE_PRIVATE)
         UpdateScheduler.setEnabled(this, prefs.getBoolean("auto_update", false))
-        cleanStaleDownloads()
 
         // Safety net for process restarts: catch up any bill occurrences that entered their
         // lead window while the app/worker was not running, then keep a periodic worker for
@@ -44,12 +42,6 @@ class MoneyManagerApp : Application() {
                 .onFailure { Timber.e(it, "Initial credit card statement refresh failed") }
         }
         BillRecurrenceWorker.schedule(this)
-    }
-
-    private fun cleanStaleDownloads() {
-        val dir = File(cacheDir, "updates")
-        if (!dir.exists()) return
-        dir.listFiles()?.filter { it.name.endsWith(".part") }?.forEach { it.delete() }
     }
 
     private fun setupTimber() {
