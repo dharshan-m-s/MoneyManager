@@ -68,8 +68,14 @@ class BillPaymentRepositoryTest {
         db.close()
     }
 
-    private fun at(day: Int): Long =
-        com.moneymanager.app.domain.billing.BillSchedule.epochOf(LocalDate.of(2026, 10, day))
+    // Bill reconciliation uses System.currentTimeMillis() to decide how far ahead to
+    // materialize occurrences. Keep every fixture date comfortably ahead of the clock so a
+    // partial payment cannot advance the template's nextDueDate just because the calendar
+    // moved past a hard-coded month.
+    private fun at(day: Int): Long {
+        val base = LocalDate.now(BillSchedule.zone).plusMonths(3).withDayOfMonth(1)
+        return BillSchedule.epochOf(base.plusDays(day - 1L))
+    }
 
     private suspend fun insertAccount(
         type: AccountType,
