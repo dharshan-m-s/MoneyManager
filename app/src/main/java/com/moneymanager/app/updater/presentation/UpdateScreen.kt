@@ -17,7 +17,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.CircularProgressIndicator
-import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
@@ -36,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.moneymanager.app.BuildConfig
-import com.moneymanager.app.data.AppUpdateChecker
 import com.moneymanager.app.updater.model.UpdateError
 import com.moneymanager.app.updater.model.UpdateState
 import com.moneymanager.app.ui.components.MmCard
@@ -50,7 +48,6 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val viewModel: UpdateViewModel = viewModel()
     val state by viewModel.state.collectAsState()
-    val download by viewModel.downloadState.collectAsState()
 
     Column(Modifier.fillMaxSize()) {
         SimpleTopBar("App Updates", onBack)
@@ -97,36 +94,6 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
-                            when (val d = download) {
-                                AppUpdateChecker.DownloadState.Idle -> {
-                                    Button(onClick = viewModel::downloadUpdate, colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)) {
-                                        Text("Download update", color = MmColors.onAccent)
-                                    }
-                                }
-                                is AppUpdateChecker.DownloadState.Downloading -> {
-                                    Text("Downloading ${(d.fraction * 100).toInt()}%", color = MmColors.textSecondary)
-                                    Spacer(Modifier.height(6.dp))
-                                    LinearProgressIndicator(progress = d.fraction, modifier = Modifier.fillMaxWidth(), color = MmColors.accent)
-                                    Spacer(Modifier.height(10.dp))
-                                    Button(onClick = viewModel::cancelDownload, colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.surfaceMuted)) {
-                                        Text("Cancel", color = MmColors.textPrimary)
-                                    }
-                                }
-                                is AppUpdateChecker.DownloadState.Ready -> {
-                                    Button(onClick = viewModel::installUpdate, colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)) {
-                                        Text("Install now", color = MmColors.onAccent)
-                                    }
-                                }
-                                is AppUpdateChecker.DownloadState.Failed -> {
-                                    Text(d.message, color = MmColors.expense)
-                                    Spacer(Modifier.height(10.dp))
-                                    Button(
-                                        onClick = { viewModel.resetDownload(); viewModel.downloadUpdate() },
-                                        colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
-                                    ) { Text("Retry download", color = MmColors.onAccent) }
-                                }
-                            }
-                            Spacer(Modifier.height(8.dp))
                             Button(
                                 onClick = {
                                     val url = com.moneymanager.app.updater.data.UpdateUrlPolicy.releasePageUrl(
@@ -138,8 +105,14 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                                         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.surfaceMuted)
-                            ) { Text("Open release page", color = MmColors.textPrimary) }
+                                colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.accent)
+                            ) { Text("Open release page", color = MmColors.onAccent) }
+                            Text(
+                                "Download and install the APK from the release page.",
+                                color = MmColors.textSecondary,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
                         }
                         UpdateState.Offline -> {
                             Text("No internet connection", style = MaterialTheme.typography.h6)

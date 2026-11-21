@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.CircularProgressIndicator
-import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
@@ -33,14 +32,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.moneymanager.app.BuildConfig
-import com.moneymanager.app.data.AppUpdateChecker
 import com.moneymanager.app.updater.model.UpdateError
 import com.moneymanager.app.updater.model.UpdateState
 import com.moneymanager.app.updater.presentation.UpdateViewModel
 import com.moneymanager.app.ui.components.MmCard
 import com.moneymanager.app.ui.components.MmIconBadge
 import com.moneymanager.app.ui.components.MmPrimaryButton
-import com.moneymanager.app.ui.components.MmSecondaryButton
 import com.moneymanager.app.ui.components.MmSwitchRow
 import com.moneymanager.app.ui.components.MoneyManagerTopBar
 import com.moneymanager.app.ui.theme.MmColors
@@ -51,7 +48,6 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val viewModel: UpdateViewModel = viewModel()
     val state by viewModel.state.collectAsState()
-    val download by viewModel.downloadState.collectAsState()
 
     Column(Modifier.fillMaxSize().background(MmColors.background)) {
         MoneyManagerTopBar(
@@ -103,33 +99,7 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
-                            when (val d = download) {
-                                AppUpdateChecker.DownloadState.Idle -> {
-                                    MmPrimaryButton(text = "Download & install", onClick = viewModel::downloadUpdate)
-                                }
-                                is AppUpdateChecker.DownloadState.Downloading -> {
-                                    Text("Downloading ${(d.fraction * 100).toInt()}%", color = MmColors.textSecondary)
-                                    Spacer(Modifier.height(6.dp))
-                                    LinearProgressIndicator(progress = d.fraction, modifier = Modifier.fillMaxWidth(), color = MmColors.accent)
-                                    Spacer(Modifier.height(10.dp))
-                                    MmSecondaryButton(text = "Cancel", onClick = viewModel::cancelDownload)
-                                }
-                                is AppUpdateChecker.DownloadState.Ready -> {
-                                    MmPrimaryButton(text = "Install now", onClick = viewModel::installUpdate)
-                                    Spacer(Modifier.height(8.dp))
-                                    MmSecondaryButton(text = "Download again", onClick = { viewModel.resetDownload(); viewModel.downloadUpdate() })
-                                }
-                                is AppUpdateChecker.DownloadState.Failed -> {
-                                    Text(d.message, color = MmColors.expense)
-                                    Spacer(Modifier.height(10.dp))
-                                    MmPrimaryButton(
-                                        text = "Retry download",
-                                        onClick = { viewModel.resetDownload(); viewModel.downloadUpdate() }
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            MmSecondaryButton(
+                            MmPrimaryButton(
                                 text = "Open release page",
                                 onClick = {
                                     val url = com.moneymanager.app.updater.data.UpdateUrlPolicy.releasePageUrl(
@@ -141,6 +111,12 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                                         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                                     }
                                 }
+                            )
+                            Text(
+                                "Download and install the APK from the release page.",
+                                color = MmColors.textSecondary,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 8.dp)
                             )
                         }
                         UpdateState.Offline -> {
