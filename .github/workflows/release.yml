@@ -4,19 +4,25 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Release version, e.g. 1.1.10 or v1.1.10'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
       contents: write
     env:
-      VERSION_NAME: ${{ github.ref_name }}
+      VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -47,7 +53,7 @@ jobs:
         run: |
           python - <<'PY'
           import os, re, sys
-          version = os.environ["VERSION_NAME"].lstrip("v")
+          version = os.environ["VERSION_NAME"].strip().lstrip("v")
           if not re.fullmatch(r"\d+\.\d+\.\d+", version):
               print(f"Invalid release version: {version}")
               sys.exit(1)
@@ -65,6 +71,32 @@ jobs:
               fh.write(f"VERSION_CODE={code}\nVERSION_NAME={version}\n")
           print(f"Publishing Money Manager {version} (versionCode {code})")
           PY
+
+      - name: Ensure release tag exists for manual release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="v${VERSION_NAME}"
+          EXISTING="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" 2>/dev/null || true)"
+          if [ -n "$EXISTING" ]; then
+            OBJECT_SHA="$(printf '%s' "$EXISTING" | jq -r '.object.sha')"
+            OBJECT_TYPE="$(printf '%s' "$EXISTING" | jq -r '.object.type')"
+            if [ "$OBJECT_TYPE" = "tag" ]; then
+              OBJECT_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${OBJECT_SHA}" --jq '.object.sha')"
+            fi
+            if [ "$OBJECT_SHA" != "$GITHUB_SHA" ]; then
+              echo "Tag ${TAG} already exists on ${OBJECT_SHA}, not ${GITHUB_SHA}"
+              exit 1
+            fi
+            echo "Using existing tag ${TAG}"
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f "ref=refs/tags/${TAG}" \
+              -f "sha=${GITHUB_SHA}" >/dev/null
+            echo "Created tag ${TAG} for ${GITHUB_SHA}"
+          fi
 
       - name: Build and sign production release APK
         env:
@@ -111,19 +143,53 @@ jobs:
         shell: bash
         run: sha256sum "MoneyManager-v${VERSION_NAME}-release.apk" > "MoneyManager-v${VERSION_NAME}-release.apk.sha256"
 
-      - name: Create GitHub Release
+      - name: Create or verify GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          EXPECTED_SIGNER_SHA256: d205e23d648bf790d081f4f9df9653392b3dd1b22d4a84a9810533224930a0db
         shell: bash
         run: |
           TAG="v${VERSION_NAME}"
           APK="MoneyManager-v${VERSION_NAME}-release.apk"
           CHECKSUM="${APK}.sha256"
-          EXPECTED_APK_DIGEST="sha256:$(awk '{print $1}' "$CHECKSUM")"
-          EXPECTED_CHECKSUM_DIGEST="sha256:$(sha256sum "$CHECKSUM" | awk '{print $1}')"
-          # Create only against this exact tag/commit. Never clobber an existing signed asset:
-          # if the release already exists, verify its assets byte-for-byte instead.
+          VERIFY_DIR="existing-release-assets"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          test -n "$APKSIGNER" || { echo 'apksigner not found'; exit 1; }
+          mkdir -p "$VERIFY_DIR"
+
+          # A manual run creates/pushes the tag, which can also start the tag-triggered run.
+          # Both paths converge here. An existing release is accepted only after verifying
+          # its target commit, checksum, and official signer; assets are never overwritten.
+          verify_existing_release() {
+            TARGET="$(gh release view "$TAG" --json targetCommitish --jq .targetCommitish)"
+            if [ "$TARGET" != "$GITHUB_SHA" ]; then
+              echo "Existing release ${TAG} targets ${TARGET}, expected ${GITHUB_SHA}"
+              return 1
+            fi
+            gh release download "$TAG" \
+              --pattern "$APK" \
+              --pattern "$CHECKSUM" \
+              --dir "$VERIFY_DIR" \
+              --clobber >/dev/null
+            (cd "$VERIFY_DIR" && sha256sum -c "$CHECKSUM") || return 1
+            "$APKSIGNER" verify --verbose --print-certs --min-sdk-version 30 \
+              "$VERIFY_DIR/$APK" > "$VERIFY_DIR/apksigner.txt"
+            grep -q 'Verified using v3 scheme (APK Signature Scheme v3): true' \
+              "$VERIFY_DIR/apksigner.txt" || return 1
+            ACTUAL_SIGNER="$(grep -i 'Signer #1 certificate SHA-256 digest' "$VERIFY_DIR/apksigner.txt" \
+              | head -1 | awk '{print $NF}' | tr -d ':' | tr 'A-Z' 'a-z')"
+            test "$ACTUAL_SIGNER" = "$EXPECTED_SIGNER_SHA256" || return 1
+            echo "Existing release ${TAG} already has valid signed assets for this commit."
+          }
+
           for attempt in 1 2 3 4 5; do
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              if verify_existing_release; then
+                exit 0
+              fi
+              echo "Existing release ${TAG} is incomplete or invalid; refusing to overwrite it."
+              exit 1
+            fi
             if gh release create "$TAG" "$APK" "$CHECKSUM" \
                 --target "$GITHUB_SHA" \
                 --verify-tag \
@@ -131,18 +197,7 @@ jobs:
                 --generate-notes; then
               exit 0
             fi
-            echo "Release creation attempt ${attempt} failed; checking for an existing release..."
-            if gh release view "$TAG" >/dev/null 2>&1; then
-              ACTUAL_APK_DIGEST="$(gh release view "$TAG" --json assets --jq ".assets[] | select(.name==\"$APK\") | .digest")"
-              ACTUAL_CHECKSUM_DIGEST="$(gh release view "$TAG" --json assets --jq ".assets[] | select(.name==\"$CHECKSUM\") | .digest")"
-              if [ "$ACTUAL_APK_DIGEST" = "$EXPECTED_APK_DIGEST" ] &&
-                 [ "$ACTUAL_CHECKSUM_DIGEST" = "$EXPECTED_CHECKSUM_DIGEST" ]; then
-                echo "Existing release ${TAG} already has the identical signed assets."
-                exit 0
-              fi
-              echo "Existing release ${TAG} has different assets; refusing to overwrite them."
-              exit 1
-            fi
+            echo "Release creation attempt ${attempt} failed; retrying..."
             sleep $((attempt * 15))
           done
           echo "GitHub release creation failed after 5 attempts"
