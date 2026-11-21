@@ -53,7 +53,7 @@ jobs:
         run: |
           python - <<'PY'
           import os, re, sys
-          version = os.environ["VERSION_NAME"].strip().lstrip("v")
+          version = re.sub(r"^v\.?", "", os.environ["VERSION_NAME"].strip())
           if not re.fullmatch(r"\d+\.\d+\.\d+", version):
               print(f"Invalid release version: {version}")
               sys.exit(1)
@@ -79,10 +79,13 @@ jobs:
         shell: bash
         run: |
           TAG="v${VERSION_NAME}"
-          EXISTING="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" 2>/dev/null || true)"
-          if [ -n "$EXISTING" ]; then
-            OBJECT_SHA="$(printf '%s' "$EXISTING" | jq -r '.object.sha')"
-            OBJECT_TYPE="$(printf '%s' "$EXISTING" | jq -r '.object.type')"
+          if EXISTING="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" 2>/dev/null)"; then
+            OBJECT_SHA="$(printf '%s' "$EXISTING" | jq -r '.object.sha // empty')"
+            OBJECT_TYPE="$(printf '%s' "$EXISTING" | jq -r '.object.type // empty')"
+            if [ -z "$OBJECT_SHA" ]; then
+              echo "Could not resolve existing tag ${TAG}; refusing to continue"
+              exit 1
+            fi
             if [ "$OBJECT_TYPE" = "tag" ]; then
               OBJECT_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${OBJECT_SHA}" --jq '.object.sha')"
             fi
