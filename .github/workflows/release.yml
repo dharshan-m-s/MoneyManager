@@ -136,9 +136,11 @@ jobs:
             echo 'Release APK is not signed with APK Signature Scheme v3'
             exit 1
           }
-          ACTUAL_SIGNER="$(grep -i 'Signer #1 certificate SHA-256 digest' apksigner.txt | head -1 | awk '{print $NF}' | tr -d ':' | tr 'A-Z' 'a-z')"
+          # apksigner 36 prints "V3.0 Signer: certificate SHA-256 digest"; older versions
+          # print "Signer #1 certificate SHA-256 digest". Accept both formats.
+          ACTUAL_SIGNER="$(grep -iE '(Signer #[0-9]+|Signer:) certificate SHA-256 digest' apksigner.txt | head -1 | awk '{print $NF}' | tr -d ':' | tr 'A-Z' 'a-z')"
           test "$ACTUAL_SIGNER" = "$EXPECTED_SIGNER_SHA256" || {
-            echo 'APK was not signed by the official MoneyManager release certificate'
+            echo "APK was not signed by the official MoneyManager release certificate (actual: ${ACTUAL_SIGNER:-<not found>})"
             exit 1
           }
 
@@ -179,7 +181,7 @@ jobs:
               "$VERIFY_DIR/$APK" > "$VERIFY_DIR/apksigner.txt"
             grep -q 'Verified using v3 scheme (APK Signature Scheme v3): true' \
               "$VERIFY_DIR/apksigner.txt" || return 1
-            ACTUAL_SIGNER="$(grep -i 'Signer #1 certificate SHA-256 digest' "$VERIFY_DIR/apksigner.txt" \
+            ACTUAL_SIGNER="$(grep -iE '(Signer #[0-9]+|Signer:) certificate SHA-256 digest' "$VERIFY_DIR/apksigner.txt" \
               | head -1 | awk '{print $NF}' | tr -d ':' | tr 'A-Z' 'a-z')"
             test "$ACTUAL_SIGNER" = "$EXPECTED_SIGNER_SHA256" || return 1
             echo "Existing release ${TAG} already has valid signed assets for this commit."
