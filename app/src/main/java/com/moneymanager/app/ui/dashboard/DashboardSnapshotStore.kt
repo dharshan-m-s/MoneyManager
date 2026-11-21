@@ -7,6 +7,8 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.core.content.edit
 import com.google.gson.Gson
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import com.moneymanager.app.data.local.dao.CategoryTotal
 import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.model.Money
@@ -82,9 +84,9 @@ class DashboardSnapshotStore private constructor(
             cashBalance = Money(snapshot.cashBalanceMinor),
             cashSpend = Money(snapshot.cashSpendMinor),
             cashWithdrawn = Money(snapshot.cashWithdrawnMinor),
-            recentTransactions = snapshot.recentTransactions.orEmpty(),
-            topCategoryTotals = snapshot.topCategoryTotals.orEmpty(),
-            categoryNames = snapshot.categoryNames.orEmpty(),
+            recentTransactions = parseTransactions(snapshot.recentTransactionsJson),
+            topCategoryTotals = parseCategoryTotals(snapshot.topCategoryTotalsJson),
+            categoryNames = parseCategoryNames(snapshot.categoryNamesJson),
             hasAnyData = snapshot.hasAnyData
         )
     }.onFailure { Timber.w(it, "Could not restore dashboard snapshot") }.getOrNull()
@@ -108,9 +110,14 @@ class DashboardSnapshotStore private constructor(
                 cashBalanceMinor = state.cashBalance.minorUnits,
                 cashSpendMinor = state.cashSpend.minorUnits,
                 cashWithdrawnMinor = state.cashWithdrawn.minorUnits,
-                recentTransactions = state.recentTransactions,
-                topCategoryTotals = state.topCategoryTotals,
-                categoryNames = state.categoryNames,
+                // Collections are serialized as JSON strings and parsed with explicit
+                // element types below. R8 strips generic field signatures, so letting
+                // Gson infer `List<TransactionEntity>` at runtime is not safe here.
+                recentTransactionsJson = gson.toJson(state.recentTransactions),
+                topCategoryTotalsJson = gson.toJson(state.topCategoryTotals),
+                categoryNamesJson = JsonObject().apply {
+                    state.categoryNames.forEach { (id, name) -> addProperty(id.toString(), name) }
+                }.toString(),
                 hasAnyData = state.hasAnyData
             )
             val encoded = storage?.crypto?.encrypt(gson.toJson(snapshot)) ?: return
@@ -119,6 +126,29 @@ class DashboardSnapshotStore private constructor(
     }
 
     fun clear() = storage?.prefs?.edit { remove(KEY_SNAPSHOT) }
+
+    /**
+     * Parses each element with an explicit class. A generic `List<TransactionEntity>` cannot be
+     * trusted here because R8 removes the field's residual generic signature in release builds;
+     * Gson then creates `LinkedTreeMap` instances that crash the dashboard's typed cast.
+     */
+    private fun parseTransactions(json: String?): List<TransactionEntity> = runCatching {
+        gson.fromJson(json, JsonArray::class.java).mapNotNull { element ->
+            runCatching { gson.fromJson(element, TransactionEntity::class.java) }.getOrNull()
+        }
+    }.onFailure { Timber.w(it, "Could not parse cached transactions") }.getOrDefault(emptyList())
+
+    private fun parseCategoryTotals(json: String?): List<CategoryTotal> = runCatching {
+        gson.fromJson(json, JsonArray::class.java).mapNotNull { element ->
+            runCatching { gson.fromJson(element, CategoryTotal::class.java) }.getOrNull()
+        }
+    }.onFailure { Timber.w(it, "Could not parse cached category totals") }.getOrDefault(emptyList())
+
+    private fun parseCategoryNames(json: String?): Map<Long, String> = runCatching {
+        gson.fromJson(json, JsonObject::class.java).entrySet().associate { entry ->
+            entry.key.toLong() to entry.value.asString
+        }
+    }.onFailure { Timber.w(it, "Could not parse cached category names") }.getOrDefault(emptyMap())
 
     private data class Snapshot(
         val version: Int = VERSION,
@@ -137,9 +167,9 @@ class DashboardSnapshotStore private constructor(
         val cashBalanceMinor: Long = 0L,
         val cashSpendMinor: Long = 0L,
         val cashWithdrawnMinor: Long = 0L,
-        val recentTransactions: List<TransactionEntity>? = null,
-        val topCategoryTotals: List<CategoryTotal>? = null,
-        val categoryNames: Map<Long, String>? = null,
+        val recentTransactionsJson: String? = null,
+        val topCategoryTotalsJson: String? = null,
+        val categoryNamesJson: String? = null,
         val hasAnyData: Boolean = false
     )
 
@@ -149,7 +179,9 @@ class DashboardSnapshotStore private constructor(
         const val PREFS_NAME = "moneymanager_dashboard_snapshot_encrypted"
         const val LEGACY_PREFS_NAME = "moneymanager_dashboard_snapshot"
         const val KEY_SNAPSHOT = "snapshot"
-        const val VERSION = 1
+        // v2 stores collections as JSON strings parsed with explicit element types.
+        // v1 relied on Gson's generic field metadata, which R8 strips in release builds.
+        const val VERSION = 2
 
         fun createStorage(context: Context): Storage? = runCatching {
             val crypto = AndroidKeystoreCrypto()

@@ -68,6 +68,18 @@ class DashboardSnapshotStoreTest {
         assertNull(store.load("period-1"))
     }
 
+    @Test
+    fun `legacy generic snapshot is ignored instead of casting LinkedTreeMap`() {
+        prefs.edit {
+            putString(
+                "snapshot",
+                """{"version":1,"periodKey":"period-1","recentTransactions":[{"occurredAtEpochMillis":1}]}""",
+            )
+        }
+
+        assertNull(store.load("period-1"))
+    }
+
     private fun sampleState() = DashboardUiState(
         bankBalance = Money(123_456L),
         netWorth = Money(654_321L),
