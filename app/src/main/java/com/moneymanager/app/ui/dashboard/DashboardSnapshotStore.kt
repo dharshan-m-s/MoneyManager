@@ -2,15 +2,20 @@ package com.moneymanager.app.ui.dashboard
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
 import androidx.core.content.edit
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import com.google.gson.Gson
 import com.moneymanager.app.data.local.dao.CategoryTotal
 import com.moneymanager.app.data.local.entity.TransactionEntity
 import com.moneymanager.app.domain.model.Money
 import dagger.hilt.android.qualifiers.ApplicationContext
 import timber.log.Timber
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.spec.GCMParameterSpec
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,9 +29,11 @@ import javax.inject.Singleton
  * ViewModel seed its StateFlow with the stored value. The live Room flows still refresh it in the
  * background, so the snapshot is only ever a first paint, never the source of truth.
  *
- * The values are financial data, so the SharedPreferences file is encrypted with an Android
- * Keystore-backed key (AES-256-GCM). Older builds wrote a plaintext file; on first launch of this
- * build that file is removed and the live Room flows repopulate the encrypted snapshot.
+ * The values are financial data, so the snapshot is encrypted with a device-local Android
+ * Keystore AES-256-GCM key before it reaches disk. This uses the platform crypto APIs directly
+ * instead of pulling in a general purpose crypto/protobuf library. Older builds wrote a plaintext
+ * file; on first launch of this build that file is removed and the live Room flows repopulate the
+ * encrypted snapshot.
  *
  * `Money` is an inline value class that Gson cannot round-trip, so the on-disk form keeps every
  * monetary value as a plain `Long`. The snapshot is also tagged with the month it belongs to; a
@@ -34,13 +41,16 @@ import javax.inject.Singleton
  */
 @Singleton
 class DashboardSnapshotStore private constructor(
-    private val prefs: SharedPreferences?,
+    private val storage: Storage?,
     legacyPrefsContext: Context?,
 ) {
     @Inject
-    constructor(@ApplicationContext context: Context) : this(createEncryptedPrefs(context), context)
+    constructor(@ApplicationContext context: Context) : this(createStorage(context), context)
 
-    internal constructor(prefs: SharedPreferences) : this(prefs, null)
+    internal constructor(prefs: SharedPreferences) : this(
+        Storage(prefs, SnapshotCrypto.Passthrough),
+        null,
+    )
 
     private val gson = Gson()
 
@@ -53,7 +63,8 @@ class DashboardSnapshotStore private constructor(
     }
 
     fun load(periodKey: String): DashboardUiState? = runCatching {
-        val json = prefs?.getString(KEY_SNAPSHOT, null) ?: return@runCatching null
+        val encoded = storage?.prefs?.getString(KEY_SNAPSHOT, null) ?: return@runCatching null
+        val json = storage.crypto.decrypt(encoded) ?: return@runCatching null
         val snapshot = gson.fromJson(json, Snapshot::class.java) ?: return@runCatching null
         if (snapshot.version != VERSION || snapshot.periodKey != periodKey) return@runCatching null
         DashboardUiState(
@@ -102,11 +113,12 @@ class DashboardSnapshotStore private constructor(
                 categoryNames = state.categoryNames,
                 hasAnyData = state.hasAnyData
             )
-            prefs?.edit { putString(KEY_SNAPSHOT, gson.toJson(snapshot)) }
+            val encoded = storage?.crypto?.encrypt(gson.toJson(snapshot)) ?: return
+            storage.prefs.edit { putString(KEY_SNAPSHOT, encoded) }
         }.onFailure { Timber.w(it, "Could not persist dashboard snapshot") }
     }
 
-    fun clear() = prefs?.edit { remove(KEY_SNAPSHOT) }
+    fun clear() = storage?.prefs?.edit { remove(KEY_SNAPSHOT) }
 
     private data class Snapshot(
         val version: Int = VERSION,
@@ -131,22 +143,89 @@ class DashboardSnapshotStore private constructor(
         val hasAnyData: Boolean = false
     )
 
+    private data class Storage(val prefs: SharedPreferences, val crypto: SnapshotCrypto)
+
     private companion object {
         const val PREFS_NAME = "moneymanager_dashboard_snapshot_encrypted"
         const val LEGACY_PREFS_NAME = "moneymanager_dashboard_snapshot"
         const val KEY_SNAPSHOT = "snapshot"
         const val VERSION = 1
 
-        fun createEncryptedPrefs(context: Context): SharedPreferences? = runCatching {
-            EncryptedSharedPreferences.create(
-                context,
-                PREFS_NAME,
-                MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-            )
+        fun createStorage(context: Context): Storage? = runCatching {
+            val crypto = AndroidKeystoreCrypto()
+            Storage(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE), crypto)
         }.onFailure {
             Timber.w(it, "Could not open encrypted dashboard snapshot; instant load is disabled")
         }.getOrNull()
+    }
+}
+
+/** Encrypts only the snapshot value; kept small so no general-purpose crypto library is needed. */
+internal interface SnapshotCrypto {
+    fun encrypt(plain: String): String?
+    fun decrypt(encoded: String): String?
+
+    /** Used by unit tests that inject plain SharedPreferences. Never used in production. */
+    object Passthrough : SnapshotCrypto {
+        override fun encrypt(plain: String): String = plain
+        override fun decrypt(encoded: String): String = encoded
+    }
+}
+
+private class AndroidKeystoreCrypto : SnapshotCrypto {
+
+    private val keyStore: KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+
+    init {
+        if (!keyStore.containsAlias(KEY_ALIAS)) {
+            val spec = KeyGenParameterSpec.Builder(
+                KEY_ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+            )
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(KEY_SIZE_BITS)
+                .build()
+            KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+                .apply { init(spec) }
+                .generateKey()
+        }
+    }
+
+    override fun encrypt(plain: String): String? = runCatching {
+        val cipher = newCipher()
+        cipher.init(Cipher.ENCRYPT_MODE, keyStore.getKey(KEY_ALIAS, null))
+        val iv = cipher.iv
+        val encrypted = cipher.doFinal(plain.toByteArray(Charsets.UTF_8))
+        val combined = ByteArray(iv.size + encrypted.size)
+        System.arraycopy(iv, 0, combined, 0, iv.size)
+        System.arraycopy(encrypted, 0, combined, iv.size, encrypted.size)
+        Base64.encodeToString(combined, Base64.NO_WRAP)
+    }.onFailure { Timber.w(it, "Could not encrypt dashboard snapshot") }.getOrNull()
+
+    override fun decrypt(encoded: String): String? = runCatching {
+        val combined = Base64.decode(encoded, Base64.NO_WRAP)
+        if (combined.size <= IV_LENGTH_BYTES) return null
+        val iv = combined.copyOfRange(0, IV_LENGTH_BYTES)
+        val encrypted = combined.copyOfRange(IV_LENGTH_BYTES, combined.size)
+        val cipher = newCipher()
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            keyStore.getKey(KEY_ALIAS, null),
+            GCMParameterSpec(TAG_LENGTH_BITS, iv)
+        )
+        String(cipher.doFinal(encrypted), Charsets.UTF_8)
+    }.onFailure { Timber.w(it, "Could not decrypt dashboard snapshot") }.getOrNull()
+
+    private fun newCipher(): Cipher = Cipher.getInstance(
+        "${KeyProperties.KEY_ALGORITHM_AES}/${KeyProperties.BLOCK_MODE_GCM}/${KeyProperties.ENCRYPTION_PADDING_NONE}"
+    )
+
+    private companion object {
+        const val ANDROID_KEYSTORE = "AndroidKeyStore"
+        const val KEY_ALIAS = "moneymanager_dashboard_snapshot"
+        const val KEY_SIZE_BITS = 256
+        const val IV_LENGTH_BYTES = 12
+        const val TAG_LENGTH_BITS = 128
     }
 }
