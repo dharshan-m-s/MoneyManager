@@ -13,6 +13,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.io.InputStream
 import javax.inject.Inject
 
 sealed class ImportUiState {
@@ -48,7 +49,8 @@ class ImportViewModel @Inject constructor(
                 pendingFileName = queryDisplayName(uri) ?: pendingFileName
                 val stream = context.contentResolver.openInputStream(uri)
                     ?: throw IllegalStateException("Could not open the selected file")
-                val bytes = stream.use { it.readBytes() }
+                val bytes = stream.use { readBounded(it, MAX_IMPORT_BYTES) }
+                    ?: throw IllegalStateException("CSV file is too large (maximum 25 MB)")
                 val totalLines = bytes.count { byte -> byte == 10.toByte() }
                 _state.value = ImportUiState.Analyzing(0, totalLines)
                 val preview = java.io.ByteArrayInputStream(bytes).use { input ->
@@ -95,5 +97,22 @@ class ImportViewModel @Inject constructor(
         } catch (e: Exception) {
             null
         }
+    }
+
+    /** Returns null when the file is larger than [maxBytes], so a huge CSV cannot exhaust memory. */
+    private fun readBounded(input: InputStream, maxBytes: Int): ByteArray? {
+        val buffer = ByteArray(maxBytes + 1)
+        var total = 0
+        while (total < buffer.size) {
+            val read = input.read(buffer, total, buffer.size - total)
+            if (read == -1) break
+            total += read
+        }
+        if (total > maxBytes) return null
+        return buffer.copyOf(total)
+    }
+
+    private companion object {
+        const val MAX_IMPORT_BYTES = 25 * 1024 * 1024
     }
 }

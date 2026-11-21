@@ -25,13 +25,14 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
-            if (!keystorePath.isNullOrBlank()) {
-                storeFile = file(keystorePath)
-                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
-            }
+            storeFile = System.getenv("ANDROID_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }?.let { file(it) }
+            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            // minSdk 30: v1 is unnecessary; enable v2 where supported and require v3.
+            enableV1Signing = false
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
@@ -78,6 +79,28 @@ android {
     }
 }
 
+// A release build must never silently fall back to an unsigned APK when CI secrets are missing.
+gradle.taskGraph.whenReady {
+    val releaseRequested = allTasks.any { task ->
+        task.name == "assembleRelease" ||
+            task.name == "bundleRelease" ||
+            task.name.startsWith("compileRelease") ||
+            task.name.startsWith("packageRelease")
+    }
+    if (releaseRequested) {
+        listOf(
+            "ANDROID_KEYSTORE_PATH",
+            "ANDROID_KEYSTORE_PASSWORD",
+            "ANDROID_KEY_ALIAS",
+            "ANDROID_KEY_PASSWORD",
+        ).forEach { name ->
+            check(!System.getenv(name).isNullOrBlank()) {
+                "$name is required for release builds; refusing to produce an unsigned APK"
+            }
+        }
+    }
+}
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
@@ -96,6 +119,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.9.7")
     implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")

@@ -74,6 +74,7 @@ sealed interface UpdateError {
     data object InvalidJson : UpdateError
     data object NoRelease : UpdateError
     data object NoApk : UpdateError
+    data object UnsafeUrl : UpdateError
     data object InvalidVersion : UpdateError
     data object DownloadFailed : UpdateError
     data object VerificationFailed : UpdateError

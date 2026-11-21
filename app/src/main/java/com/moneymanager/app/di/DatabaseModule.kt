@@ -1,7 +1,6 @@
 package com.moneymanager.app.di
 
 import android.content.Context
-import android.util.Log
 import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.moneymanager.app.data.local.dao.AccountDao
@@ -13,6 +12,7 @@ import com.moneymanager.app.data.local.dao.TransactionAttachmentDao
 import com.moneymanager.app.data.local.dao.TransactionDao
 import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.local.db.migration.AppDatabaseMigrations
+import com.moneymanager.app.data.local.db.migration.DatabaseSelfHeal
 import com.moneymanager.app.data.repository.CategoryRepository
 import dagger.Lazy
 import dagger.Module
@@ -24,13 +24,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
-
-    private const val TAG = "DatabaseModule"
 
     @Provides
     @Singleton
@@ -39,6 +38,9 @@ object DatabaseModule {
         categoryDaoProvider: Lazy<CategoryDao>
     ): MoneyManagerDatabase {
         val seedScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        // Schema-driven repair runs before Room validates the file. It is a no-op for healthy
+        // databases and for every version that still has real migrations to apply.
+        DatabaseSelfHeal.repair(context)
         val builder = Room.databaseBuilder(
             context,
             MoneyManagerDatabase::class.java,
@@ -52,7 +54,7 @@ object DatabaseModule {
                         try {
                             CategoryRepository(categoryDaoProvider.get()).seedPdfCategories()
                         } catch (e: Exception) {
-                            Log.e(TAG, "Failed to seed PDF categories", e)
+                            Timber.e(e, "Failed to seed PDF categories")
                         }
                     }
                 }
@@ -60,7 +62,7 @@ object DatabaseModule {
 
         // Never enable destructive fallback. This application is a personal financial ledger;
         // an upgrade must fail loudly rather than erase a user's local data.
-        Log.d(TAG, "Migrations only; destructive fallback disabled for all builds")
+        Timber.d("Migrations only; destructive fallback disabled for all builds")
 
         return builder.build()
     }

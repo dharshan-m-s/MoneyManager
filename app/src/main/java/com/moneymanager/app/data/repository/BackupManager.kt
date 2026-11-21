@@ -9,6 +9,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.gson.GsonBuilder
+import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.data.local.dao.AccountDao
 import com.moneymanager.app.data.local.dao.CategoryDao
 import com.moneymanager.app.data.local.dao.TransactionDao
@@ -108,7 +109,8 @@ class BackupManager @Inject constructor(
         if (autoBackupEnabled()) scheduleAfterWrite()
     }
 
-    fun autoBackupEnabled(): Boolean = settingsPrefs.getBoolean(KEY_AUTO_BACKUP, true)
+    /** Automatic backups are opt-in: the exported DB/CSV files are unencrypted. */
+    fun autoBackupEnabled(): Boolean = settingsPrefs.getBoolean(KEY_AUTO_BACKUP, false)
 
     fun setAutoBackupEnabled(enabled: Boolean) {
         settingsPrefs.edit().putBoolean(KEY_AUTO_BACKUP, enabled).apply()
@@ -464,9 +466,12 @@ class BackupManager @Inject constructor(
         }
     }
 
-    /** Streams to a destination: file:// URIs go straight to the filesystem (works in tests). */
+    /**
+     * Streams to a destination. Production only accepts SAF `content://` URIs; the direct `file://`
+     * branch exists solely for debug/instrumented tests and is compiled out of release behaviour.
+     */
     private fun openOutput(uri: Uri, mode: String): OutputStream? =
-        if (uri.scheme == "file") {
+        if (BuildConfig.DEBUG && uri.scheme == "file") {
             File(uri.path ?: return null).let { file ->
                 if (mode.contains("w")) FileOutputStream(file) else file.outputStream()
             }
@@ -475,7 +480,7 @@ class BackupManager @Inject constructor(
         }
 
     private fun openInput(uri: Uri): InputStream? =
-        if (uri.scheme == "file") {
+        if (BuildConfig.DEBUG && uri.scheme == "file") {
             val file = File(uri.path ?: return null)
             if (file.exists()) FileInputStream(file) else null
         } else {
@@ -675,7 +680,7 @@ class BackupManager @Inject constructor(
                     row.reimbursable.toString(),
                     row.reimbursed.toString()
                 )
-                writer.appendLine(fields.joinToString(",") { escapeCsv(it) })
+                writer.appendLine(fields.joinToString(",") { escapeCsvText(it) })
             }
         }
     }
@@ -686,6 +691,20 @@ class BackupManager @Inject constructor(
         val v = value ?: ""
         return if (v.any { it == ',' || it == '"' || it == '\n' || it == '\r' })
             "\"${v.replace("\"", "\"\"")}\"" else v
+    }
+
+    /**
+     * Spreadsheet formula injection guard: a text cell starting with = + - @ or a control
+     * character is prefixed with an apostrophe so Excel/Sheets treat it as text. Values that are
+     * genuine integers (including negative balances) are left numeric.
+     */
+    private fun escapeCsvText(value: String?): String {
+        val raw = value ?: ""
+        val startsFormula = raw.firstOrNull()?.let {
+            it == '=' || it == '+' || it == '-' || it == '@' || it == '\t' || it == '\r'
+        } == true
+        val safe = if (startsFormula && raw.toLongOrNull() == null) "'$raw" else raw
+        return escapeCsv(safe)
     }
 
     companion object {

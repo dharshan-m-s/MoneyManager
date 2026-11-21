@@ -1,6 +1,6 @@
 package com.moneymanager.app.ui.billform
 
-import android.util.Log
+import timber.log.Timber
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.moneymanager.app.data.local.dao.AccountDao
@@ -180,7 +180,7 @@ class BillFormViewModel @Inject constructor(
                 _ui.value = _ui.value.copy(saved = true, saving = false, error = null)
                 backupManager.scheduleAfterWrite()
             } catch (e: Exception) {
-                Log.e("BillFormVM", "Failed to save bill", e)
+                Timber.e(e, "Failed to save bill")
                 _ui.value = _ui.value.copy(
                     saving = false,
                     error = "Failed to save: ${e.message ?: "Unknown error"}"

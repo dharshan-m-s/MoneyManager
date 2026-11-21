@@ -4,28 +4,27 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      version_name:
-        description: 'Release version, e.g. 1.0.0'
-        required: true
-        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    permissions:
+      contents: write
     env:
-      VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.version_name }}
+      VERSION_NAME: ${{ github.ref_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: '21'
@@ -40,7 +39,7 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           test -n "$KEYSTORE_BASE64" || { echo 'ANDROID_KEYSTORE_BASE64 secret is missing'; exit 1; }
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/money-manager-release.jks"
+          printf %s "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/money-manager-release.jks"
           chmod 600 "$RUNNER_TEMP/money-manager-release.jks"
 
       - name: Validate release version
@@ -53,6 +52,11 @@ jobs:
               print(f"Invalid release version: {version}")
               sys.exit(1)
           major, minor, patch = map(int, version.split("."))
+          # versionCode = major*1_000_000 + minor*1_000 + patch; keep segments < 1000 so
+          # 1.1000.0 can never collide with 2.0.0.
+          if not (0 <= minor < 1000 and 0 <= patch < 1000):
+              print("minor and patch must each be between 0 and 999")
+              sys.exit(1)
           code = major * 1000000 + minor * 1000 + patch
           if code <= 0 or code > 2100000000:
               print(f"Derived VERSION_CODE is out of range: {code}")
@@ -82,6 +86,27 @@ jobs:
           test -n "$APK" || { echo 'No release APK was produced'; exit 1; }
           cp "$APK" "MoneyManager-v${VERSION_NAME}-release.apk"
 
+      - name: Verify production signing certificate
+        shell: bash
+        env:
+          EXPECTED_SIGNER_SHA256: d205e23d648bf790d081f4f9df9653392b3dd1b22d4a84a9810533224930a0db
+        run: |
+          APK="MoneyManager-v${VERSION_NAME}-release.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          test -n "$APKSIGNER" || { echo 'apksigner not found'; exit 1; }
+          "$APKSIGNER" verify --verbose --print-certs --min-sdk-version 30 "$APK" | tee apksigner.txt
+          # minSdk 30 supports v3, and AGP 9.3 emits v3 for this signing config. v2 is reported
+          # when enabled but is not required on this minimum SDK.
+          grep -q 'Verified using v3 scheme (APK Signature Scheme v3): true' apksigner.txt || {
+            echo 'Release APK is not signed with APK Signature Scheme v3'
+            exit 1
+          }
+          ACTUAL_SIGNER="$(grep -i 'Signer #1 certificate SHA-256 digest' apksigner.txt | head -1 | awk '{print $NF}' | tr -d ':' | tr 'A-Z' 'a-z')"
+          test "$ACTUAL_SIGNER" = "$EXPECTED_SIGNER_SHA256" || {
+            echo 'APK was not signed by the official MoneyManager release certificate'
+            exit 1
+          }
+
       - name: Calculate APK checksum
         shell: bash
         run: sha256sum "MoneyManager-v${VERSION_NAME}-release.apk" > "MoneyManager-v${VERSION_NAME}-release.apk.sha256"
@@ -91,26 +116,39 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          TAG="v${VERSION_NAME#v}"
+          TAG="v${VERSION_NAME}"
           APK="MoneyManager-v${VERSION_NAME}-release.apk"
           CHECKSUM="${APK}.sha256"
-          # GitHub occasionally returns 5xx while creating a release, sometimes after the
-          # release object already exists. Retry, and fall back to uploading the assets
-          # onto the existing release so a transient error cannot lose a completed build.
+          EXPECTED_APK_DIGEST="sha256:$(awk '{print $1}' "$CHECKSUM")"
+          EXPECTED_CHECKSUM_DIGEST="sha256:$(sha256sum "$CHECKSUM" | awk '{print $1}')"
+          # Create only against this exact tag/commit. Never clobber an existing signed asset:
+          # if the release already exists, verify its assets byte-for-byte instead.
           for attempt in 1 2 3 4 5; do
             if gh release create "$TAG" "$APK" "$CHECKSUM" \
+                --target "$GITHUB_SHA" \
+                --verify-tag \
                 --title "Money Manager ${VERSION_NAME}" \
                 --generate-notes; then
               exit 0
             fi
-            echo "Release creation attempt ${attempt} failed; checking for the release..."
+            echo "Release creation attempt ${attempt} failed; checking for an existing release..."
             if gh release view "$TAG" >/dev/null 2>&1; then
-              if gh release upload "$TAG" "$APK" "$CHECKSUM" --clobber; then
-                echo "Uploaded assets to existing release ${TAG}"
+              ACTUAL_APK_DIGEST="$(gh release view "$TAG" --json assets --jq ".assets[] | select(.name==\"$APK\") | .digest")"
+              ACTUAL_CHECKSUM_DIGEST="$(gh release view "$TAG" --json assets --jq ".assets[] | select(.name==\"$CHECKSUM\") | .digest")"
+              if [ "$ACTUAL_APK_DIGEST" = "$EXPECTED_APK_DIGEST" ] &&
+                 [ "$ACTUAL_CHECKSUM_DIGEST" = "$EXPECTED_CHECKSUM_DIGEST" ]; then
+                echo "Existing release ${TAG} already has the identical signed assets."
                 exit 0
               fi
+              echo "Existing release ${TAG} has different assets; refusing to overwrite them."
+              exit 1
             fi
             sleep $((attempt * 15))
           done
           echo "GitHub release creation failed after 5 attempts"
           exit 1
+
+      - name: Remove signing keystore
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/money-manager-release.jks"

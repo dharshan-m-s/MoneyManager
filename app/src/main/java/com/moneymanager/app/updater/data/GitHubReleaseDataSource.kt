@@ -28,6 +28,9 @@ class GitHubReleaseDataSource(private val context: Context) {
 
     suspend fun fetchStableReleases(): Response = withContext(Dispatchers.IO) {
         if (!hasInternet()) throw NoInternetException()
+        if (!UpdateUrlPolicy.isAllowedApiUrl(UpdateConfig.releasesUrl)) throw InvalidJsonException(
+            IllegalArgumentException("Update endpoint is not an allowed GitHub HTTPS URL")
+        )
         val requestId = requestCounter.incrementAndGet()
         val url = URL(UpdateConfig.releasesUrl)
         val connection = (url.openConnection() as HttpURLConnection).apply {
@@ -44,10 +47,18 @@ class GitHubReleaseDataSource(private val context: Context) {
         try {
             val status = connection.responseCode
             if (status !in 200..299) {
-                val body = runCatching { (connection.errorStream ?: connection.inputStream)?.bufferedReader()?.use { it.readText() } }.getOrNull()
-                throw HttpStatusException(status, body?.take(500))
+                val body = runCatching {
+                    (connection.errorStream ?: connection.inputStream)?.use {
+                        BoundedRead.readText(it, MAX_ERROR_BODY_BYTES)
+                    }
+                }.getOrNull()
+                throw HttpStatusException(status, body?.take(200))
             }
-            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            if (!UpdateUrlPolicy.isAllowedApiUrl(connection.url.toString())) {
+                throw InvalidJsonException(IllegalArgumentException("Update endpoint redirected away from GitHub"))
+            }
+            val body = connection.inputStream.use { BoundedRead.readText(it, MAX_RELEASE_JSON_BYTES) }
+                ?: throw InvalidJsonException(IllegalArgumentException("Release response was too large"))
             val releases = runCatching {
                 gson.fromJson(body, Array<GitHubRelease>::class.java)?.toList().orEmpty()
             }.getOrElse { error -> throw InvalidJsonException(error) }
@@ -71,6 +82,9 @@ class GitHubReleaseDataSource(private val context: Context) {
     class TlsException(cause: Throwable) : IOException("TLS connection failed", cause)
 
     companion object {
+        private const val MAX_RELEASE_JSON_BYTES = 2 * 1024 * 1024
+        private const val MAX_ERROR_BODY_BYTES = 2_048
+
         fun mapNetworkError(error: Throwable): com.moneymanager.app.updater.model.UpdateError = when (error) {
             is NoInternetException -> com.moneymanager.app.updater.model.UpdateError.NoInternet
             is HttpStatusException -> when (error.statusCode) {

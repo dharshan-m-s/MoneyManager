@@ -33,7 +33,20 @@ class AttachmentRepository @Inject constructor(
     suspend fun findByTransaction(transactionId: Long): List<TransactionAttachmentEntity> =
         attachmentDao.findByTransaction(transactionId)
 
-    fun absoluteFile(attachment: TransactionAttachmentEntity): File = File(context.filesDir, attachment.relativePath)
+    /**
+     * Resolves an attachment to a direct child of `files/receipts`. The stored relative path comes
+     * from a database that can be restored from a user-selected backup, so only its file name is
+     * trusted; `..`, absolute paths and symlinks that escape the directory are never followed.
+     */
+    fun absoluteFile(attachment: TransactionAttachmentEntity): File {
+        val receipts = receiptsDir.canonicalFile
+        val fileName = File(attachment.relativePath).name
+        val candidate = File(receipts, fileName.ifBlank { "invalid_${attachment.id}" }).canonicalFile
+        if (candidate.parentFile?.canonicalPath != receipts.canonicalPath) {
+            return File(receipts, "invalid_${attachment.id}")
+        }
+        return candidate
+    }
 
     /** Shareable content URI for viewing/opening an attachment. */
     fun contentUri(attachment: TransactionAttachmentEntity): Uri =

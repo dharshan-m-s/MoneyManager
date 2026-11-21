@@ -5,7 +5,17 @@ local.properties
 build/
 **/build/
 *.jks
+*.jks.*
 *.keystore
+*.keystore.*
+*.p12
+*.pfx
+*.pem
+*.key
+*.base64
+*.env
+keystore.properties
+secrets.*
 private/
 /moneyview-export.csv
 *.apk

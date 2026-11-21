@@ -1,6 +1,6 @@
 package com.moneymanager.app.ui.creditcardform
 
-import android.util.Log
+import timber.log.Timber
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
@@ -340,7 +340,7 @@ class CreditCardFormViewModel @Inject constructor(
                 _ui.value = _ui.value.copy(saving = false, saved = true)
                 backupManager.scheduleAfterWrite()
             } catch (e: Exception) {
-                Log.e("CreditCardFormVM", "Failed to save credit card", e)
+                Timber.e(e, "Failed to save credit card")
                 _ui.value = _ui.value.copy(
                     saving = false,
                     error = "Could not save: ${e.message ?: "unknown error"}"
@@ -424,7 +424,7 @@ class CreditCardFormViewModel @Inject constructor(
                 transactionRepository.deleteCreditCardAccount(id)
                 _ui.value = _ui.value.copy(deleted = true)
             } catch (e: Exception) {
-                Log.e("CreditCardFormVM", "Failed to delete credit card", e)
+                Timber.e(e, "Failed to delete credit card")
                 _ui.value = _ui.value.copy(error = "Could not delete: ${e.message ?: "unknown error"}")
             }
         }

@@ -129,8 +129,14 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                             Spacer(Modifier.height(8.dp))
                             Button(
                                 onClick = {
-                                    val url = "https://github.com/${BuildConfig.GITHUB_OWNER}/${BuildConfig.GITHUB_REPOSITORY}/releases/tag/${current.update.tag}"
-                                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                                    val url = com.moneymanager.app.updater.data.UpdateUrlPolicy.releasePageUrl(
+                                        BuildConfig.GITHUB_OWNER,
+                                        BuildConfig.GITHUB_REPOSITORY,
+                                        current.update.tag,
+                                    )
+                                    if (url != null) {
+                                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                                    }
                                 },
                                 colors = ButtonDefaults.buttonColors(backgroundColor = MmColors.surfaceMuted)
                             ) { Text("Open release page", color = MmColors.textPrimary) }
@@ -176,6 +182,7 @@ private fun errorTitle(error: UpdateError): String = when (error) {
     UpdateError.InvalidJson -> "Invalid update information"
     UpdateError.NoRelease -> "No published update is available"
     UpdateError.NoApk -> "No compatible APK was found"
+    UpdateError.UnsafeUrl -> "Unsafe update link"
     UpdateError.InvalidVersion -> "Invalid release version"
     UpdateError.DownloadFailed -> "Update download failed"
     UpdateError.VerificationFailed -> "Update verification failed"
@@ -196,6 +203,7 @@ private fun errorMessage(error: UpdateError): String = when (error) {
     UpdateError.InvalidJson -> "GitHub returned data the app could not understand."
     UpdateError.NoRelease -> "There is no published stable release to install yet."
     UpdateError.NoApk -> "The latest stable release does not contain the expected APK."
+    UpdateError.UnsafeUrl -> "The release points to a download URL outside GitHub. The download was blocked."
     UpdateError.InvalidVersion -> "The published release has an invalid version tag."
     UpdateError.DownloadFailed -> "The APK could not be downloaded completely."
     UpdateError.VerificationFailed -> "The downloaded APK did not pass package, version, signature, or checksum checks."

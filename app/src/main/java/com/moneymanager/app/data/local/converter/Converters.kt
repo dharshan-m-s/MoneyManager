@@ -1,7 +1,7 @@
 package com.moneymanager.app.data.local.converter
 
-import android.util.Log
 import androidx.room.TypeConverter
+import timber.log.Timber
 import com.moneymanager.app.data.local.entity.AccountBalanceSource
 import com.moneymanager.app.data.local.entity.BillerType
 import com.moneymanager.app.data.local.entity.BillPaymentAllocationType
@@ -17,7 +17,6 @@ import com.moneymanager.app.domain.model.TxnType
 
 class Converters {
 
-    private val TAG = "Converters"
 
     @TypeConverter fun txnTypeToString(v: TxnType): String = v.name
     @TypeConverter fun stringToTxnType(v: String): TxnType = safeEnum(v, TxnType.entries.toTypedArray())
@@ -58,7 +57,7 @@ class Converters {
 
     private inline fun <reified T : Enum<T>> safeEnum(value: String, entries: Array<T>): T {
         return entries.firstOrNull { it.name == value } ?: entries.first().also {
-            Log.w(TAG, "Unknown enum value '$value' for ${T::class.simpleName}, falling back to ${it.name}")
+            Timber.w("Unknown enum value for ${T::class.simpleName}, falling back to ${it.name}")
         }
     }
 }

@@ -51,7 +51,7 @@ class HomePreferences @Inject constructor(
         prefs.edit { putBoolean(KEY_DARK_MODE, value) }
     }
 
-    fun isAutoBackupEnabled(): Boolean = prefs.getBoolean(KEY_AUTO_BACKUP, true)
+    fun isAutoBackupEnabled(): Boolean = prefs.getBoolean(KEY_AUTO_BACKUP, false)
 
     fun setAutoBackupEnabled(value: Boolean) {
         prefs.edit { putBoolean(KEY_AUTO_BACKUP, value) }

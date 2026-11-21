@@ -1,7 +1,10 @@
 package com.moneymanager.app.ui.dashboard
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.core.content.edit
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.google.gson.Gson
 import com.moneymanager.app.data.local.dao.CategoryTotal
 import com.moneymanager.app.data.local.entity.TransactionEntity
@@ -21,19 +24,36 @@ import javax.inject.Singleton
  * ViewModel seed its StateFlow with the stored value. The live Room flows still refresh it in the
  * background, so the snapshot is only ever a first paint, never the source of truth.
  *
+ * The values are financial data, so the SharedPreferences file is encrypted with an Android
+ * Keystore-backed key (AES-256-GCM). Older builds wrote a plaintext file; on first launch of this
+ * build that file is removed and the live Room flows repopulate the encrypted snapshot.
+ *
  * `Money` is an inline value class that Gson cannot round-trip, so the on-disk form keeps every
  * monetary value as a plain `Long`. The snapshot is also tagged with the month it belongs to; a
  * stale snapshot from a previous month is ignored rather than shown with old totals.
  */
 @Singleton
-class DashboardSnapshotStore @Inject constructor(
-    @ApplicationContext context: Context
+class DashboardSnapshotStore private constructor(
+    private val prefs: SharedPreferences?,
+    legacyPrefsContext: Context?,
 ) {
-    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    @Inject
+    constructor(@ApplicationContext context: Context) : this(createEncryptedPrefs(context), context)
+
+    internal constructor(prefs: SharedPreferences) : this(prefs, null)
+
     private val gson = Gson()
 
+    init {
+        // Remove the unencrypted snapshot written by older builds. This is a preferences file,
+        // not the APK update cache; no startup APK cleanup is performed anywhere.
+        legacyPrefsContext?.let { context ->
+            runCatching { context.deleteSharedPreferences(LEGACY_PREFS_NAME) }
+        }
+    }
+
     fun load(periodKey: String): DashboardUiState? = runCatching {
-        val json = prefs.getString(KEY_SNAPSHOT, null) ?: return@runCatching null
+        val json = prefs?.getString(KEY_SNAPSHOT, null) ?: return@runCatching null
         val snapshot = gson.fromJson(json, Snapshot::class.java) ?: return@runCatching null
         if (snapshot.version != VERSION || snapshot.periodKey != periodKey) return@runCatching null
         DashboardUiState(
@@ -82,11 +102,11 @@ class DashboardSnapshotStore @Inject constructor(
                 categoryNames = state.categoryNames,
                 hasAnyData = state.hasAnyData
             )
-            prefs.edit { putString(KEY_SNAPSHOT, gson.toJson(snapshot)) }
+            prefs?.edit { putString(KEY_SNAPSHOT, gson.toJson(snapshot)) }
         }.onFailure { Timber.w(it, "Could not persist dashboard snapshot") }
     }
 
-    fun clear() = prefs.edit { remove(KEY_SNAPSHOT) }
+    fun clear() = prefs?.edit { remove(KEY_SNAPSHOT) }
 
     private data class Snapshot(
         val version: Int = VERSION,
@@ -112,8 +132,21 @@ class DashboardSnapshotStore @Inject constructor(
     )
 
     private companion object {
-        const val PREFS_NAME = "moneymanager_dashboard_snapshot"
+        const val PREFS_NAME = "moneymanager_dashboard_snapshot_encrypted"
+        const val LEGACY_PREFS_NAME = "moneymanager_dashboard_snapshot"
         const val KEY_SNAPSHOT = "snapshot"
         const val VERSION = 1
+
+        fun createEncryptedPrefs(context: Context): SharedPreferences? = runCatching {
+            EncryptedSharedPreferences.create(
+                context,
+                PREFS_NAME,
+                MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }.onFailure {
+            Timber.w(it, "Could not open encrypted dashboard snapshot; instant load is disabled")
+        }.getOrNull()
     }
 }

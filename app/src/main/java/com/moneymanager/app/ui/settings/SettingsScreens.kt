@@ -550,6 +550,11 @@ fun SettingsScreen(
                             }
                         )
                     }
+                    Text(
+                        "Backup files are unencrypted. Anyone with access to the folder can read your financial data.",
+                        style = MmType.caption,
+                        color = MmColors.expense
+                    )
                 }
 
                 SettingsSectionHeader("Data")

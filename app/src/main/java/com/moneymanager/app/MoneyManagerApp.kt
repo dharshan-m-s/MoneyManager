@@ -3,7 +3,6 @@ package com.moneymanager.app
 import android.app.Application
 import android.util.Log
 import com.moneymanager.app.BuildConfig
-import com.moneymanager.app.data.AppUpdateChecker
 import com.moneymanager.app.data.repository.BillRecurrenceWorker
 import com.moneymanager.app.data.repository.CreditCardBillingService
 import com.moneymanager.app.domain.billing.BillRecurrenceService
@@ -34,12 +33,11 @@ class MoneyManagerApp : Application() {
         // lead window while the app/worker was not running, then keep a periodic worker for
         // when the app is closed. WorkManager timing is best-effort; foreground reconciliation
         // in MainActivity covers delayed executions.
+        //
+        // Do not clear AppUpdateChecker's download cache here. Deleting a downloaded APK from
+        // Application.onCreate() was the v1.1.9 regression that made Play Protect flag the
+        // build; cleanup stays in the update screen and at the start of a new download.
         appScope.launch {
-            // BitChord-style cold-start cleanup: a downloaded APK is only
-            // installable in the session that fetched it, so never let it
-            // linger in the update cache after an install or a process restart.
-            runCatching { AppUpdateChecker.clearCache(this@MoneyManagerApp) }
-                .onFailure { Timber.w(it, "Could not clear update cache") }
             runCatching { billRecurrenceService.reconcileAll() }
                 .onFailure { Timber.e(it, "Initial bill reconciliation failed") }
             // A card's statement and its linked bill follow the card's billing cycle, so they

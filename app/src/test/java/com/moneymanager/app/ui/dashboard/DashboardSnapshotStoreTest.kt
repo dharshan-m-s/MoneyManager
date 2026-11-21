@@ -1,5 +1,6 @@
 package com.moneymanager.app.ui.dashboard
 
+import android.content.Context
 import androidx.core.content.edit
 import com.moneymanager.app.data.local.dao.CategoryTotal
 import com.moneymanager.app.data.local.entity.TransactionEntity
@@ -22,11 +23,19 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33])
 class DashboardSnapshotStoreTest {
 
+    private companion object {
+        const val TEST_PREFS = "dashboard_snapshot_test"
+    }
+
     private lateinit var store: DashboardSnapshotStore
+    private lateinit var prefs: android.content.SharedPreferences
 
     @Before
     fun setUp() {
-        store = DashboardSnapshotStore(RuntimeEnvironment.getApplication()).also { it.clear() }
+        prefs = RuntimeEnvironment.getApplication()
+            .getSharedPreferences(TEST_PREFS, Context.MODE_PRIVATE)
+            .also { it.edit { clear() } }
+        store = DashboardSnapshotStore(prefs)
     }
 
     @Test
@@ -54,9 +63,7 @@ class DashboardSnapshotStoreTest {
 
     @Test
     fun `corrupt snapshot is ignored instead of crashing`() {
-        RuntimeEnvironment.getApplication()
-            .getSharedPreferences("moneymanager_dashboard_snapshot", 0)
-            .edit { putString("snapshot", "{not-json") }
+        prefs.edit { putString("snapshot", "{not-json") }
 
         assertNull(store.load("period-1"))
     }

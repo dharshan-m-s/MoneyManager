@@ -2,6 +2,7 @@ package com.moneymanager.app.updater.data
 
 import android.content.Context
 import com.moneymanager.app.BuildConfig
+import com.moneymanager.app.updater.model.GitHubAsset
 import com.moneymanager.app.updater.model.ReleaseUpdate
 import com.moneymanager.app.updater.model.UpdateDiagnostics
 import com.moneymanager.app.updater.model.UpdateError
@@ -14,6 +15,10 @@ import java.net.URL
 
 class UpdateRepository(context: Context) {
     private val releaseSource = GitHubReleaseDataSource(context.applicationContext)
+
+    companion object {
+        private const val MAX_CHECKSUM_BYTES = 4_096
+    }
     @Volatile var lastDiagnostics: UpdateDiagnostics = UpdateDiagnostics(
         repository = UpdateConfig.repositoryPath,
         endpoint = UpdateConfig.releasesUrl
@@ -47,11 +52,13 @@ class UpdateRepository(context: Context) {
                 lastDiagnostics = lastDiagnostics.copy(httpStatus = response.httpStatus, releaseTag = release.tagName, availableVersionName = version.toString(), availableVersionCode = versionCode, stage = "NO_APK")
                 return@withContext CheckResult.Error(UpdateError.NoApk)
             }
-            val apkUrl = apkAsset.browserDownloadUrl ?: run {
-                lastDiagnostics = lastDiagnostics.copy(httpStatus = response.httpStatus, releaseTag = release.tagName, availableVersionName = version.toString(), availableVersionCode = versionCode, detectedApk = apkAsset.name, stage = "NO_APK_URL")
-                return@withContext CheckResult.Error(UpdateError.NoApk)
+            val apkUrl = apkAsset.browserDownloadUrl?.takeIf(UpdateUrlPolicy::isAllowedAssetUrl) ?: run {
+                lastDiagnostics = lastDiagnostics.copy(httpStatus = response.httpStatus, releaseTag = release.tagName, availableVersionName = version.toString(), availableVersionCode = versionCode, detectedApk = apkAsset.name, stage = "UNSAFE_URL")
+                return@withContext CheckResult.Error(UpdateError.UnsafeUrl)
             }
-            val shaAsset = release.assets.firstOrNull { it.name == "${apkAsset.name}.sha256" }
+            val shaAsset = release.assets.firstOrNull {
+                it.name == "${apkAsset.name}.sha256" && UpdateUrlPolicy.isAllowedAssetUrl(it.browserDownloadUrl)
+            }
             val (expectedSha256, checksumSource) = resolveChecksum(apkAsset, shaAsset?.browserDownloadUrl)
             val update = ReleaseUpdate(
                 versionName = version.toString(),
@@ -85,6 +92,7 @@ class UpdateRepository(context: Context) {
     }
 
     private fun fetchChecksum(url: String): String? = runCatching {
+        if (!UpdateUrlPolicy.isAllowedAssetUrl(url)) return@runCatching null
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 10_000
             readTimeout = 15_000
@@ -95,7 +103,9 @@ class UpdateRepository(context: Context) {
         }
         try {
             if (connection.responseCode !in 200..299) return@runCatching null
-            val content = connection.inputStream.bufferedReader().use { it.readText() }
+            if (!UpdateUrlPolicy.isAllowedAssetUrl(connection.url.toString())) return@runCatching null
+            val content = connection.inputStream.use { BoundedRead.readText(it, MAX_CHECKSUM_BYTES) }
+                ?: return@runCatching null
             ChecksumParser.parseSha256File(content)
         } finally {
             connection.disconnect()
