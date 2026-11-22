@@ -10,6 +10,14 @@ import com.moneymanager.app.data.local.entity.BillInstanceEntity
 import com.moneymanager.app.data.local.entity.BillPaymentAllocationEntity
 import kotlinx.coroutines.flow.Flow
 
+/** A card-side payment leg from an older build that still credits only the bank debit. */
+data class CardSettlementRepairRow(
+    val transactionId: Long,
+    val cardAccountId: Long,
+    val fullAmountMinorUnits: Long,
+    val adjustmentMinorUnits: Long
+)
+
 @Dao
 interface BillDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -106,14 +114,45 @@ interface BillDao {
     @Query("SELECT * FROM bills WHERE linkedAccountId = :accountId LIMIT 1")
     suspend fun findByLinkedAccountId(accountId: Long): BillEntity?
 
+    /**
+     * Settlement discounts that are NOT already reflected in the card-side payment leg.
+     *
+     * Current builds credit the full settled amount (actual payment + confirmed offer
+     * adjustment) to the card, so the discount must not be subtracted again. Older builds
+     * credited only the money that left the bank account; those rows still need the discount
+     * subtracted here. The CASE keeps both shapes correct without a database migration.
+     */
     @Query(
-        "SELECT COALESCE(SUM(a.amountMinorUnits), 0) FROM bill_payment_allocations a " +
-            "INNER JOIN bill_instances bi ON bi.id = a.billInstanceId " +
+        "SELECT COALESCE(SUM(CASE " +
+            "WHEN p.id IS NULL OR t.id IS NULL THEN d.amountMinorUnits " +
+            "ELSE MAX(0, p.amountMinorUnits + d.amountMinorUnits - COALESCE(t.creditMinorUnits, 0)) " +
+            "END), 0) FROM bill_payment_allocations d " +
+            "INNER JOIN bill_instances bi ON bi.id = d.billInstanceId " +
             "INNER JOIN bills b ON b.id = bi.billId " +
-            "WHERE b.linkedAccountId = :accountId AND a.allocationType = 'DISCOUNT' " +
-            "AND a.paidAtEpochMillis > :afterEpochMillis"
+            "LEFT JOIN bill_payment_allocations p ON p.id = d.paymentAllocationId " +
+            "LEFT JOIN transactions t ON t.id = p.transactionId " +
+            "WHERE b.linkedAccountId = :accountId AND d.allocationType = 'DISCOUNT' " +
+            "AND d.paidAtEpochMillis > :afterEpochMillis"
     )
-    suspend fun sumSettlementAdjustmentsForAccount(accountId: Long, afterEpochMillis: Long): Long
+    suspend fun sumUnreflectedSettlementAdjustmentsForAccount(
+        accountId: Long,
+        afterEpochMillis: Long
+    ): Long
+
+    @Query(
+        "SELECT t.id AS transactionId, b.linkedAccountId AS cardAccountId, " +
+            "p.amountMinorUnits + d.amountMinorUnits AS fullAmountMinorUnits, " +
+            "d.amountMinorUnits AS adjustmentMinorUnits " +
+            "FROM bill_payment_allocations d " +
+            "INNER JOIN bill_payment_allocations p ON p.id = d.paymentAllocationId " +
+            "INNER JOIN bill_instances bi ON bi.id = d.billInstanceId " +
+            "INNER JOIN bills b ON b.id = bi.billId " +
+            "INNER JOIN transactions t ON t.id = p.transactionId " +
+            "WHERE d.allocationType = 'DISCOUNT' AND b.linkedAccountId IS NOT NULL " +
+            "AND t.isCreditCardBillPayment = 1 AND t.paysOffAccountId = b.linkedAccountId " +
+            "AND t.creditMinorUnits < p.amountMinorUnits + d.amountMinorUnits"
+    )
+    suspend fun findLegacyCardSettlements(): List<CardSettlementRepairRow>
 
     @Query("DELETE FROM bills WHERE id = :id")
     suspend fun deleteById(id: Long)

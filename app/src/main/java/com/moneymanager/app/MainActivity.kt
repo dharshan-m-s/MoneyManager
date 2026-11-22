@@ -16,6 +16,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.moneymanager.app.data.repository.AccountingService
+import com.moneymanager.app.data.repository.BillRepository
 import com.moneymanager.app.data.repository.CreditCardBillingService
 import com.moneymanager.app.domain.billing.BillRecurrenceService
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +31,7 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
     @Inject lateinit var accountingService: AccountingService
+    @Inject lateinit var billRepository: BillRepository
     @Inject lateinit var billRecurrenceService: BillRecurrenceService
     @Inject lateinit var creditCardBillingService: CreditCardBillingService
     // Appearance is presentation-only: this preference never touches the ledger.
@@ -60,6 +62,10 @@ class MainActivity : FragmentActivity() {
         // the accounting logic. Normal mutations and imports already recalculate their accounts.
         lifecycleScope.launch(Dispatchers.IO) {
             if (prefs.getInt(accountingRepairKey, 0) < ACCOUNTING_REPAIR_VERSION) {
+                // Promote card legs of already-settled bills to the full settled amount before
+                // the account walk runs, so old offer-adjusted bills stop showing the discount
+                // as a remaining balance in the credit-card transaction list.
+                billRepository.repairLegacyCardSettlements()
                 accountingService.repairAndRecalculateAll()
                 prefs.edit().putInt(accountingRepairKey, ACCOUNTING_REPAIR_VERSION).apply()
             }
@@ -129,6 +135,6 @@ class MainActivity : FragmentActivity() {
 
     private companion object {
         /** Bump when the persisted derived-balance format or accounting formulas change. */
-        const val ACCOUNTING_REPAIR_VERSION = 2
+        const val ACCOUNTING_REPAIR_VERSION = 3
     }
 }

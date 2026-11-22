@@ -139,12 +139,24 @@ class BillRepository @Inject constructor(
                         "This transfer already pays a different credit card"
                     )
                 }
-                val existingCardLeg = peer?.takeIf {
+                // The bank row keeps the real debit. The card row is the full settlement,
+                // including any offer the issuer credited without another bank movement.
+                val cardSettlementAmount = moneyMoved + settlementAdjustmentMinorUnits
+                var settledCardLeg = peer?.takeIf {
                     it.accountId == cardId && it.paysOffAccountId == cardId
                 }
-                if (existingCardLeg != null) {
-                    require(!isAllocatedAnywhere(existingCardLeg.id)) {
+                if (settledCardLeg != null) {
+                    require(!isAllocatedAnywhere(settledCardLeg.id)) {
                         "This payment is already linked to another bill"
+                    }
+                    if (settledCardLeg.creditMinorUnits != cardSettlementAmount) {
+                        val updated = settledCardLeg.withCardSettlementAmount(
+                            amountMinorUnits = cardSettlementAmount,
+                            adjustmentMinorUnits = settlementAdjustmentMinorUnits
+                        )
+                        transactionDao.update(updated)
+                        accountingService.recalculateAccounts(setOf(requireNotNull(cardId)))
+                        settledCardLeg = updated
                     }
                 } else if (cardId != null && payment.txnSubType == TxnSubType.EXPENSE) {
                     // A card bill payment is a transfer, not ordinary spending. The user has
@@ -161,10 +173,11 @@ class BillRepository @Inject constructor(
                     accountingService.recalculateAccounts(setOf(payment.accountId))
                 }
                 effectivePaymentId = if (cardId != null) {
-                    existingCardLeg?.id ?: createCardSidePayment(
+                    settledCardLeg?.id ?: createCardSidePayment(
                         payment = payment,
                         cardAccountId = cardId,
-                        cardName = bill.billerName
+                        cardName = bill.billerName,
+                        settlementAdjustmentMinorUnits = settlementAdjustmentMinorUnits
                     )
                 } else {
                     payment.id
@@ -184,6 +197,7 @@ class BillRepository @Inject constructor(
                         effectivePaymentId = createOutOfBandCardPayment(
                             cardAccountId = cardId,
                             amountMinorUnits = moneyMoved,
+                            settlementAdjustmentMinorUnits = settlementAdjustmentMinorUnits,
                             occurredAtEpochMillis = paidAt,
                             cardName = bill?.billerName ?: "Credit card"
                         )
@@ -321,14 +335,17 @@ class BillRepository @Inject constructor(
                     notes = notes ?: "Payment for ${bill.billerName}"
                 )
             )
+            // The bank leg records only the money that actually left the account. The card leg
+            // records the full settled bill: an issuer offer/waiver clears the remainder on the
+            // card side even though no extra money moved from the bank.
             val cardIdTxn = transactionDao.insert(
                 paymentLeg(
                     accountId = cardId,
                     isCardLeg = true,
-                    amountMinorUnits = amount,
+                    amountMinorUnits = amount + settlementAdjustmentMinorUnits,
                     occurredAtEpochMillis = whenMillis,
                     merchant = bill.billerName,
-                    notes = notes ?: "Credit card bill payment"
+                    notes = cardPaymentNotes(notes, settlementAdjustmentMinorUnits)
                 ).copy(linkedTransferTransactionId = outId, paysOffAccountId = cardId)
             )
             transactionDao.update(
@@ -558,6 +575,32 @@ class BillRepository @Inject constructor(
     }
 
     /**
+     * One-time repair for bills settled by builds that credited only the bank debit to the
+     * card side. The card leg is raised to the full settled amount so the transaction list and
+     * the outstanding both tell the same story. Idempotent: rows already at the full amount
+     * are left untouched.
+     */
+    suspend fun repairLegacyCardSettlements() {
+        val rows = billDao.findLegacyCardSettlements()
+        if (rows.isEmpty()) return
+        database.withTransaction {
+            rows.forEach { row ->
+                val leg = transactionDao.findById(row.transactionId) ?: return@forEach
+                if (leg.creditMinorUnits < row.fullAmountMinorUnits) {
+                    transactionDao.update(
+                        leg.withCardSettlementAmount(
+                            amountMinorUnits = row.fullAmountMinorUnits,
+                            adjustmentMinorUnits = row.adjustmentMinorUnits
+                        )
+                    )
+                }
+            }
+        }
+        accountingService.recalculateAccounts(rows.map { it.cardAccountId }.toSet())
+        backupManager.scheduleAfterWrite()
+    }
+
+    /**
      * Recomputes an occurrence's cached columns (paidAmount, paid, paidAt, primary payment
      * link) from its allocations. Must run inside the caller's transaction when part of a
      * larger operation. `paid` becomes true only when recorded payments cover the amount due;
@@ -611,22 +654,23 @@ class BillRepository @Inject constructor(
     private suspend fun createCardSidePayment(
         payment: TransactionEntity,
         cardAccountId: Long,
-        cardName: String
+        cardName: String,
+        settlementAdjustmentMinorUnits: Long = 0L
     ): Long {
         // Re-read in case markAsPaid just reclassified this row (expense -> transfer).
         val current = transactionDao.findById(payment.id) ?: payment
-        val amount = if (current.debitMinorUnits > 0L) current.debitMinorUnits
+        val actualAmount = if (current.debitMinorUnits > 0L) current.debitMinorUnits
         else abs(current.creditMinorUnits).takeIf { it > 0L }
             ?: 0L
-        require(amount > 0L) { "The selected transaction has no payment amount" }
+        require(actualAmount > 0L) { "The selected transaction has no payment amount" }
         val cardTransactionId = transactionDao.insert(
             paymentLeg(
                 accountId = cardAccountId,
                 isCardLeg = true,
-                amountMinorUnits = amount,
+                amountMinorUnits = actualAmount + settlementAdjustmentMinorUnits,
                 occurredAtEpochMillis = current.occurredAtEpochMillis,
                 merchant = cardName,
-                notes = "Credit card bill payment (linked)"
+                notes = cardPaymentNotes("Credit card bill payment (linked)", settlementAdjustmentMinorUnits)
             ).copy(linkedTransferTransactionId = current.id, paysOffAccountId = cardAccountId)
         )
         transactionDao.update(current.copy(linkedTransferTransactionId = cardTransactionId))
@@ -642,6 +686,7 @@ class BillRepository @Inject constructor(
     private suspend fun createOutOfBandCardPayment(
         cardAccountId: Long,
         amountMinorUnits: Long,
+        settlementAdjustmentMinorUnits: Long = 0L,
         occurredAtEpochMillis: Long,
         cardName: String
     ): Long {
@@ -650,15 +695,37 @@ class BillRepository @Inject constructor(
             paymentLeg(
                 accountId = cardAccountId,
                 isCardLeg = true,
-                amountMinorUnits = amountMinorUnits,
+                amountMinorUnits = amountMinorUnits + settlementAdjustmentMinorUnits,
                 occurredAtEpochMillis = occurredAtEpochMillis,
                 merchant = cardName,
-                notes = "Credit card bill payment (paid outside the app)"
+                notes = cardPaymentNotes(
+                    "Credit card bill payment (paid outside the app)",
+                    settlementAdjustmentMinorUnits
+                )
             )
         )
         accountingService.recalculateAccounts(setOf(cardAccountId))
         return id
     }
+
+    private fun cardPaymentNotes(base: String?, adjustmentMinorUnits: Long): String {
+        val label = base?.trim()?.ifBlank { null } ?: "Credit card bill payment"
+        return if (adjustmentMinorUnits > 0L) "$label (includes settlement adjustment)" else label
+    }
+
+    /** Brings a card-side leg created by an older build up to the full settled amount. */
+    private fun TransactionEntity.withCardSettlementAmount(
+        amountMinorUnits: Long,
+        adjustmentMinorUnits: Long
+    ): TransactionEntity = copy(
+        creditMinorUnits = amountMinorUnits,
+        debitMinorUnits = 0L,
+        notes = cardPaymentNotes(notes, adjustmentMinorUnits),
+        dedupeFingerprint = stableFingerprint(
+            listOf(accountId, amountMinorUnits, occurredAtEpochMillis, isCreditCardBillPayment, merchantReceiverSender.orEmpty())
+        ),
+        updatedAtEpochMillis = System.currentTimeMillis()
+    )
 
     private fun paymentLeg(
         accountId: Long,

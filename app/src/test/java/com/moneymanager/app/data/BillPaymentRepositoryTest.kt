@@ -805,7 +805,7 @@ class BillPaymentRepositoryTest {
     }
 
     @Test
-    fun cardBillAdjustmentClearsFullOutstandingWithoutChangingActualBankDebit() = runBlocking {
+    fun cardBillAdjustmentMovesFullSettlementToCardSideAndKeepsActualBankDebit() = runBlocking {
         val bankId = insertAccount(AccountType.BANK, current = 100_000)
         val cardId = insertAccount(AccountType.CREDIT_CARD, outstanding = 25_000)
         val billId = insertBill("Card statement", 25_000, linkedAccountId = cardId)
@@ -826,7 +826,84 @@ class BillPaymentRepositoryTest {
         assertEquals(1, db.transactionDao().findByAccount(bankId).size)
         assertEquals(24_000L, db.transactionDao().findByAccount(bankId).single().debitMinorUnits)
         assertEquals(1, db.transactionDao().findByAccount(cardId).size)
-        assertEquals(24_000L, db.transactionDao().findByAccount(cardId).single().creditMinorUnits)
+        // The card side shows the whole settled bill; only the bank side shows the real debit.
+        assertEquals(25_000L, db.transactionDao().findByAccount(cardId).single().creditMinorUnits)
+        assertEquals(0L, db.accountDao().findById(cardId)!!.billAmountMinorUnits)
+        val allocations = db.billDao().findAllocationsForInstance(instanceId)
+        assertEquals(24_000L, allocations.single { it.allocationType.name == "PAYMENT" }.amountMinorUnits)
+        assertEquals(1_000L, allocations.single { it.allocationType.name == "DISCOUNT" }.amountMinorUnits)
+    }
+
+    @Test
+    fun legacyCardAdjustmentWithActualCardLegStillClearsOutstanding() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK, current = 100_000)
+        val cardId = insertAccount(AccountType.CREDIT_CARD, outstanding = 25_000)
+        val billId = insertBill("Card statement", 25_000, linkedAccountId = cardId)
+        val instanceId = insertInstance(billId, 25_000)
+
+        repository.recordCreditCardBillPayment(
+            instanceId = instanceId,
+            sourceAccountId = bankId,
+            amountMinorUnits = 24_000,
+            occurredAtEpochMillis = at(18),
+            settlementAdjustmentMinorUnits = 1_000
+        )
+
+        // Older builds credited only the bank debit to the card. The discount must still be
+        // applied for those already-settled bills, but only once.
+        val cardLeg = db.transactionDao().findByAccount(cardId).single()
+        db.transactionDao().update(cardLeg.copy(creditMinorUnits = 24_000))
+        accounting.recalculateAccounts(setOf(cardId))
+
+        assertEquals(0L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
+        assertTrue(db.billDao().findInstanceById(instanceId)!!.paid)
+    }
+
+    @Test
+    fun legacyCardSettlementRepairPromotesCardLegToFullAmount() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK, current = 100_000)
+        val cardId = insertAccount(AccountType.CREDIT_CARD, outstanding = 25_000)
+        val billId = insertBill("Card statement", 25_000, linkedAccountId = cardId)
+        val instanceId = insertInstance(billId, 25_000)
+
+        repository.recordCreditCardBillPayment(
+            instanceId = instanceId,
+            sourceAccountId = bankId,
+            amountMinorUnits = 24_000,
+            occurredAtEpochMillis = at(18),
+            settlementAdjustmentMinorUnits = 1_000
+        )
+        val cardLeg = db.transactionDao().findByAccount(cardId).single()
+        db.transactionDao().update(cardLeg.copy(creditMinorUnits = 24_000))
+        accounting.recalculateAccounts(setOf(cardId))
+        assertEquals(0L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
+
+        repository.repairLegacyCardSettlements()
+
+        assertEquals(25_000L, db.transactionDao().findByAccount(cardId).single().creditMinorUnits)
+        assertEquals(0L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
+        assertEquals(24_000L, db.transactionDao().findByAccount(bankId).single().debitMinorUnits)
+    }
+
+    @Test
+    fun outOfBandCardBillAdjustmentCreditsFullSettlementToCard() = runBlocking {
+        val cardId = insertAccount(AccountType.CREDIT_CARD, outstanding = 25_000)
+        val billId = insertBill("Card statement", 25_000, linkedAccountId = cardId)
+        val instanceId = insertInstance(billId, 25_000)
+
+        repository.markAsPaid(
+            db.billDao().findInstanceById(instanceId)!!,
+            null,
+            amountMinorUnits = 24_000,
+            settlementAdjustmentMinorUnits = 1_000,
+            adjustmentNote = "Issuer offer"
+        )
+
+        assertTrue(db.billDao().findInstanceById(instanceId)!!.paid)
+        assertEquals(0L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
+        val cardLegs = db.transactionDao().findByAccount(cardId).filter { it.isCreditCardBillPayment }
+        assertEquals(1, cardLegs.size)
+        assertEquals(25_000L, cardLegs.single().creditMinorUnits)
     }
 
     @Test
@@ -847,7 +924,8 @@ class BillPaymentRepositoryTest {
         assertEquals(1, db.transactionDao().findByAccount(bankId).size)
         assertEquals(1, db.transactionDao().findByAccount(cardId).size)
         assertEquals(24_000L, db.transactionDao().findByAccount(bankId).single().debitMinorUnits)
-        assertEquals(24_000L, db.transactionDao().findByAccount(cardId).single().creditMinorUnits)
+        // Linking an existing bank payment also promotes its card leg to the full settlement.
+        assertEquals(25_000L, db.transactionDao().findByAccount(cardId).single().creditMinorUnits)
         assertEquals(0L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
         assertTrue(db.billDao().findInstanceById(instanceId)!!.paid)
 

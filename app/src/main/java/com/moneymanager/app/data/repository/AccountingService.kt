@@ -167,8 +167,11 @@ class AccountingService @Inject constructor(
             checkpointAmount = account.outstandingMinorUnits
             checkpointAt = account.updatedAtEpochMillis
         }
+        // A full-settlement discount is included in the card-side credit on current builds.
+        // Only legacy rows where the card leg still equals the smaller bank debit are
+        // subtracted here, so the same bill never reduces the outstanding twice.
         val billSettlementAdjustments = if (isCard) {
-            billDao.sumSettlementAdjustmentsForAccount(
+            billDao.sumUnreflectedSettlementAdjustmentsForAccount(
                 account.id,
                 afterEpochMillis = checkpointAt ?: Long.MIN_VALUE
             )
