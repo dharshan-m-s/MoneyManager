@@ -28,6 +28,18 @@ import com.moneymanager.app.ui.appearance.navigationBarColor
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
+/** Shared so a database restore can force the one-time accounting repair to run again. */
+object AccountingRepairPrefs {
+    const val PREFS_NAME = "moneymanager_settings"
+    const val VERSION_KEY = "accounting_repair_version"
+
+    /** Called after a database restore so pre-fix backups get the one-time repair on restart. */
+    fun requireRepairOnNextLaunch(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().remove(VERSION_KEY).apply()
+    }
+}
+
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
     @Inject lateinit var accountingService: AccountingService
@@ -37,10 +49,10 @@ class MainActivity : FragmentActivity() {
     // Appearance is presentation-only: this preference never touches the ledger.
     @Inject lateinit var appearancePreferences: AppearancePreferences
 
-    private val settingsPrefsName = "moneymanager_settings"
+    private val settingsPrefsName = AccountingRepairPrefs.PREFS_NAME
     private val darkModeKey = "dark_mode"
     private val amoledKey = AppearancePreferences.KEY_AMOLED_ENABLED
-    private val accountingRepairKey = "accounting_repair_version"
+    private val accountingRepairKey = AccountingRepairPrefs.VERSION_KEY
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,6 +81,14 @@ class MainActivity : FragmentActivity() {
                 accountingService.repairAndRecalculateAll()
                 prefs.edit().putInt(accountingRepairKey, ACCOUNTING_REPAIR_VERSION).apply()
             }
+
+            // Reconcile on every foreground entry after any repair has finished. Running this in
+            // the same coroutine prevents a repair-version launch from racing the refresh and
+            // overwriting freshly recalculated account/card state with a stale full-entity copy.
+            runCatching { billRecurrenceService.reconcileAll() }
+            // Card statements follow the card's billing cycle: recompute them from the card's
+            // own transactions so the current bill amount can never lag behind the card.
+            runCatching { creditCardBillingService.refreshAllCards() }
         }
 
         var darkMode by mutableStateOf(prefs.getBoolean(darkModeKey, false))
@@ -101,15 +121,6 @@ class MainActivity : FragmentActivity() {
         applySystemBarAppearance(darkMode, MmAppearance.MODERN)
         prefs.registerOnSharedPreferenceChangeListener(listener)
 
-        // The app may have been backgrounded across a bill's lead date. Reconcile on every
-        // foreground entry; the service is idempotent and the work is cheap when nothing is due.
-        lifecycleScope.launch(Dispatchers.IO) {
-            runCatching { billRecurrenceService.reconcileAll() }
-            // Card statements follow the card's billing cycle: recompute them from the card's
-            // own transactions so the current bill amount can never lag behind the card.
-            runCatching { creditCardBillingService.refreshAllCards() }
-        }
-
         setContent {
             DisposableEffect(Unit) {
                 onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
@@ -135,6 +146,6 @@ class MainActivity : FragmentActivity() {
 
     private companion object {
         /** Bump when the persisted derived-balance format or accounting formulas change. */
-        const val ACCOUNTING_REPAIR_VERSION = 3
+        const val ACCOUNTING_REPAIR_VERSION = 4
     }
 }

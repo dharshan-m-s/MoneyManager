@@ -147,6 +147,20 @@ class FinancialSummaryTest {
     }
 
     @Test
+    fun linkedDebitCardSpendReportsThroughItsParentBank() {
+        val bank = account(1, AccountType.BANK, balance = 800)
+        val card = account(2, AccountType.DEBIT_CARD, balance = 800, parentId = 1)
+        val byId = FinancialSummary.accountMap(listOf(bank, card))
+        val purchase = txn(1, card.id, debit = 200)
+
+        // The card row is not a separate balance account, but its spending is the bank's.
+        assertFalse(FinancialSummary.isIncluded(card))
+        assertTrue(FinancialSummary.accountIncludedForStats(purchase, byId))
+        assertEquals(200L, FinancialSummary.spendTotalMinor(listOf(purchase), byId, period))
+        assertEquals(800L, FinancialSummary.balanceMinor(listOf(bank, card)))
+    }
+
+    @Test
     fun netWorthIsAssetsMinusLiabilitiesAndExcludesCreditLimit() {
         val accounts = listOf(
             account(1, AccountType.BANK, balance = 10_000),

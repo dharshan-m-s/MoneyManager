@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.moneymanager.app.data.local.dao.AccountDao
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.repository.AccountRepository
+import com.moneymanager.app.data.repository.AccountingService
 import com.moneymanager.app.data.repository.BackupManager
 import com.moneymanager.app.domain.model.AccountType
 import com.moneymanager.app.domain.model.BusinessPersonal
@@ -20,7 +21,8 @@ data class BankLinkingState(val saving: Boolean = false, val saved: Boolean = fa
 class BankLinkingViewModel @Inject constructor(
     private val accountDao: AccountDao,
     private val backupManager: BackupManager,
-    private val accountRepository: AccountRepository
+    private val accountRepository: AccountRepository,
+    private val accountingService: AccountingService
 ) : ViewModel() {
     private val _state = MutableStateFlow(BankLinkingState())
     val state: StateFlow<BankLinkingState> = _state
@@ -46,6 +48,8 @@ class BankLinkingViewModel @Inject constructor(
             _state.value = _state.value.copy(saving = true, error = null)
             try {
                 val now = System.currentTimeMillis()
+                var linkedCardId: Long? = null
+                var linkedParentId: Long? = null
                 when (accountType) {
                     AccountType.BANK -> {
                         val accountSuffix = accountLast4.filter(Char::isDigit).takeLast(4)
@@ -65,6 +69,7 @@ class BankLinkingViewModel @Inject constructor(
                                 updatedAtEpochMillis = now
                             )
                         )
+                        linkedParentId = parentId
 
                         if (existing != null) {
                             accountDao.update(existing.copy(
@@ -78,8 +83,9 @@ class BankLinkingViewModel @Inject constructor(
                         val debitSuffix = debitCardLast4.filter(Char::isDigit).takeLast(4)
                         if (debitSuffix.length == 4) {
                             val debitSourceId = "${bankName.take(4).uppercase()}-DC-$debitSuffix"
-                            if (accountDao.findBySourceAccountId(debitSourceId) == null) {
-                                accountDao.insert(
+                            val existingCard = accountDao.findBySourceAccountId(debitSourceId)
+                            if (existingCard == null) {
+                                linkedCardId = accountDao.insert(
                                     AccountEntity(
                                         sourceAccountId = debitSourceId,
                                         institutionName = bankName,
@@ -94,6 +100,21 @@ class BankLinkingViewModel @Inject constructor(
                                         updatedAtEpochMillis = now
                                     )
                                 )
+                            } else if (existingCard.parentAccountId != parentId ||
+                                existingCard.accountType != AccountType.DEBIT_CARD
+                            ) {
+                                // Old users may already have an imported debit-card account. The
+                                // optional link must adopt it instead of silently doing nothing.
+                                accountDao.update(
+                                    existingCard.copy(
+                                        accountType = AccountType.DEBIT_CARD,
+                                        parentAccountId = parentId,
+                                        institutionName = bankName,
+                                        active = true,
+                                        updatedAtEpochMillis = now
+                                    )
+                                )
+                                linkedCardId = existingCard.id
                             }
                         }
                     }
@@ -181,6 +202,13 @@ class BankLinkingViewModel @Inject constructor(
                         }
                     }
                     else -> Unit
+                }
+                val cardId = linkedCardId
+                val parentId = linkedParentId
+                if (cardId != null && parentId != null) {
+                    // The new card must immediately inherit the bank balance; no second ledger.
+                    accountingService.preserveExistingLinkedBalances()
+                    accountingService.recalculateAccounts(setOf(parentId, cardId))
                 }
                 _state.value = _state.value.copy(saving = false, saved = true)
                 backupManager.scheduleAfterWrite()

@@ -57,10 +57,13 @@ class AccountEditViewModel @Inject constructor(
     fun load(id: Long) {
         viewModelScope.launch {
             val a = accountDao.findById(id) ?: run { _state.value = _state.value.copy(error = "Account not found"); return@launch }
+            // A linked debit card has no balance of its own: its parent bank owns the money and
+            // the checkpoint. Editing the card's balance therefore edits the parent's checkpoint.
+            val checkpointTarget = a.parentAccountId?.let { accountDao.findById(it) } ?: a
             // The derived (engine) balance is shown next to the editable checkpoint so the user
             // can see how the ledger value differs from their reconciliation. Movement values
             // for cards are the outstanding, but this editor only handles cash-like balances.
-            val derived = accountingService.derivedBalancesFor(a).autoBalanceMinorUnits
+            val derived = accountingService.derivedBalancesFor(checkpointTarget).autoBalanceMinorUnits
             _state.value = AccountEditState(
                 accountId = a.id,
                 nickname = a.nickname,
@@ -71,10 +74,10 @@ class AccountEditViewModel @Inject constructor(
                 // Show the EFFECTIVE current balance, never the older checkpoint value. The
                 // checkpoint is an offset applied to the ledger; the effective balance already
                 // includes every movement after (and around) that checkpoint.
-                currentBalance = Money(a.currentBalanceMinorUnits).toBigDecimal().stripTrailingZeros().toPlainString(),
+                currentBalance = Money(checkpointTarget.currentBalanceMinorUnits).toBigDecimal().stripTrailingZeros().toPlainString(),
                 calculatedBalance = Money(derived).toBigDecimal().stripTrailingZeros().toPlainString(),
-                manualBalanceEnabled = a.manualBalanceOverrideMinorUnits != null,
-                manualModeWasEnabled = a.manualBalanceOverrideMinorUnits != null,
+                manualBalanceEnabled = checkpointTarget.manualBalanceOverrideMinorUnits != null,
+                manualModeWasEnabled = checkpointTarget.manualBalanceOverrideMinorUnits != null,
                 balanceDirty = false,
                 manualModeDirty = false,
                 active = a.active,
@@ -104,6 +107,9 @@ class AccountEditViewModel @Inject constructor(
                 _state.value = s.copy(error = "Account not found")
                 return@launch
             }
+            // A linked debit card spends from its parent bank, so the manual balance belongs to
+            // the parent. The card row itself remains only a labelled view of the same balance.
+            val checkpointTarget = a.parentAccountId?.let { accountDao.findById(it) } ?: a
             val supportsManualBalance = s.accountType == AccountType.BANK ||
                 s.accountType == AccountType.CASH || s.accountType == AccountType.WALLET ||
                 s.accountType == AccountType.DEBIT_CARD || s.accountType == AccountType.PREPAID_CARD
@@ -131,36 +137,45 @@ class AccountEditViewModel @Inject constructor(
                 return@launch
             }
 
-            val derived = accountingService.derivedBalancesFor(a).autoBalanceMinorUnits
+            val derived = accountingService.derivedBalancesFor(checkpointTarget).autoBalanceMinorUnits
             val now = System.currentTimeMillis()
+            // The entered amount is a live reconciliation checkpoint, not an invented opening
+            // transaction. It is stored as an offset against the derived ledger balance so later
+            // (including backdated) movements apply exactly once.
+            val override = when {
+                manualTurnedOff -> null
+                shouldWriteCheckpoint -> entered
+                else -> checkpointTarget.manualBalanceOverrideMinorUnits
+            }
+            val overrideAt = when {
+                manualTurnedOff -> null
+                shouldWriteCheckpoint -> now
+                else -> checkpointTarget.manualBalanceOverrideAtEpochMillis
+            }
+            val adjustment = when {
+                manualTurnedOff -> null
+                shouldWriteCheckpoint -> com.moneymanager.app.domain.accounting.AccountingEngine
+                    .checkpointAdjustment(entered!!, derived)
+                else -> checkpointTarget.manualBalanceAdjustmentMinorUnits
+            }
             val updated = a.copy(
                 nickname = s.nickname.ifBlank { s.institutionName.ifBlank { a.institutionName } },
                 institutionName = s.institutionName.ifBlank { a.institutionName },
                 sourceAccountId = sourceId,
                 accountType = s.accountType,
                 businessPersonal = s.businessPersonal,
-                // The entered amount is a live reconciliation checkpoint, not an invented
-                // opening transaction. It is stored as an offset against the derived ledger
-                // balance so later (including backdated) movements apply exactly once.
-                manualBalanceOverrideMinorUnits = when {
-                    manualTurnedOff -> null
-                    shouldWriteCheckpoint -> entered
-                    else -> a.manualBalanceOverrideMinorUnits
-                },
-                manualBalanceOverrideAtEpochMillis = when {
-                    manualTurnedOff -> null
-                    shouldWriteCheckpoint -> now
-                    else -> a.manualBalanceOverrideAtEpochMillis
-                },
-                manualBalanceAdjustmentMinorUnits = when {
-                    manualTurnedOff -> null
-                    shouldWriteCheckpoint -> com.moneymanager.app.domain.accounting.AccountingEngine
-                        .checkpointAdjustment(entered!!, derived)
-                    else -> a.manualBalanceAdjustmentMinorUnits
-                },
                 active = s.active,
                 hide = s.hide,
                 hideAccountTxns = s.hideTransactions,
+                manualBalanceOverrideMinorUnits = if (checkpointTarget.id == a.id) override else null,
+                manualBalanceOverrideAtEpochMillis = if (checkpointTarget.id == a.id) overrideAt else null,
+                manualBalanceAdjustmentMinorUnits = if (checkpointTarget.id == a.id) adjustment else null,
+                updatedAtEpochMillis = now
+            )
+            val updatedCheckpoint = if (checkpointTarget.id == a.id) null else checkpointTarget.copy(
+                manualBalanceOverrideMinorUnits = override,
+                manualBalanceOverrideAtEpochMillis = overrideAt,
+                manualBalanceAdjustmentMinorUnits = adjustment,
                 updatedAtEpochMillis = now
             )
             _state.value = s.copy(saving = true, error = null)
@@ -170,7 +185,10 @@ class AccountEditViewModel @Inject constructor(
                 // currentBalanceMinorUnits stale until the next recalculation.
                 database.withTransaction {
                     accountDao.update(updated)
-                    accountingService.recalculateAccounts(setOf(updated.id))
+                    if (updatedCheckpoint != null) accountDao.update(updatedCheckpoint)
+                    accountingService.recalculateAccounts(
+                        setOf(updated.id) + if (updatedCheckpoint != null) setOf(updatedCheckpoint.id) else emptySet()
+                    )
                 }
                 _state.value = _state.value.copy(saved = true, saving = false, error = null)
                 backupManager.scheduleAfterWrite()

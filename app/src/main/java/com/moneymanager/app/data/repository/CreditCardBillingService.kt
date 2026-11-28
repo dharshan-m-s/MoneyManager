@@ -1,7 +1,9 @@
 package com.moneymanager.app.data.repository
 
+import androidx.room.withTransaction
 import com.moneymanager.app.data.local.dao.AccountDao
 import com.moneymanager.app.data.local.dao.BillDao
+import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.local.entity.AccountEntity
 import com.moneymanager.app.data.local.entity.BillEntity
 import com.moneymanager.app.data.local.entity.BillerType
@@ -31,6 +33,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class CreditCardBillingService @Inject constructor(
+    private val database: MoneyManagerDatabase,
     private val accountDao: AccountDao,
     private val billDao: BillDao,
     private val statementService: CreditCardStatementService,
@@ -42,31 +45,38 @@ class CreditCardBillingService @Inject constructor(
      * Safe to call after every write that can move a card's balance.
      */
     suspend fun refreshCard(cardId: Long, now: Long = System.currentTimeMillis()) {
-        val card = accountDao.findById(cardId) ?: return
-        if (card.accountType != AccountType.CREDIT_CARD) return
-        if (card.deleted) return
+        // Card detail reads billAmountMinorUnits while Bills reads the occurrence rows. Commit
+        // both in one transaction so an interruption can never leave those two surfaces split.
+        database.withTransaction {
+            val card = accountDao.findById(cardId) ?: return@withTransaction
+            if (card.accountType != AccountType.CREDIT_CARD) return@withTransaction
+            if (card.deleted) return@withTransaction
 
-        val statement = statementService.currentStatementMinorUnits(card)
-        if (card.billAmountMinorUnits != statement) {
-            accountDao.update(
-                card.copy(
-                    billAmountMinorUnits = statement,
-                    updatedAtEpochMillis = now
+            val statement = statementService.currentStatementMinorUnits(card)
+            if (card.billAmountMinorUnits != statement) {
+                accountDao.update(
+                    card.copy(
+                        billAmountMinorUnits = statement,
+                        updatedAtEpochMillis = now
+                    )
                 )
-            )
-        }
+            }
 
-        val bill = billDao.findByLinkedAccountId(cardId) ?: createLinkedBill(card, statement, now)
-        if (bill.active != card.active || bill.autoPay != card.autoPay) {
-            billDao.update(
-                bill.copy(
-                    active = card.active,
-                    autoPay = card.autoPay,
-                    updatedAtEpochMillis = now
+            val bill = billDao.findByLinkedAccountId(cardId) ?: createLinkedBill(card, statement, now)
+            if (bill.active != card.active || bill.autoPay != card.autoPay) {
+                billDao.update(
+                    bill.copy(
+                        active = card.active,
+                        autoPay = card.autoPay,
+                        updatedAtEpochMillis = now
+                    )
                 )
-            )
+            }
+            billRecurrenceService.reconcileBill(bill.id, now)
+            // Reconciliation materializes the schedule and prices occurrences from the current
+            // statement. This last call is the explicit final word after schedule advancement.
+            billRecurrenceService.syncCardBillAmounts(bill.id, now)
         }
-        billRecurrenceService.reconcileBill(bill.id, now)
     }
 
     /** Refreshes every credit card in the app - used on app start and on foreground resume. */

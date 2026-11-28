@@ -32,6 +32,16 @@ class AccountingService @Inject constructor(
     private val creditCardBillingService: CreditCardBillingService
 ) {
 
+    /**
+     * A linked debit card is a spending view of its parent bank, not a second pot of money.
+     * [owner] is the account whose ledger/checkpoint owns the balance; [ledgerAccounts] is the
+     * parent plus all of its linked children, so the same rows are walked for either account.
+     */
+    private data class LedgerContext(
+        val owner: AccountEntity,
+        val ledgerAccounts: List<AccountEntity>
+    )
+
     private fun TransactionEntity.from(accountType: AccountType, seq: Int) =
         AccountingEngine.LedgerRow.of(
             occurredAtEpochMillis = occurredAtEpochMillis,
@@ -45,7 +55,18 @@ class AccountingService @Inject constructor(
             reportedAvailableLimitMinorUnits = availableLimitSnapshotMinorUnits
         )
 
-    /** Engine-ledger rows for one account, in stable (timestamp, id) order. */
+    private fun ownerOf(account: AccountEntity, byId: Map<Long, AccountEntity>): AccountEntity =
+        account.parentAccountId?.let { byId[it] } ?: account
+
+    private fun contextFor(account: AccountEntity, all: List<AccountEntity>): LedgerContext {
+        val byId = all.associateBy { it.id }
+        val owner = ownerOf(account, byId)
+        val ledgerAccounts = (listOf(owner) + all.filter { it.parentAccountId == owner.id })
+            .distinctBy { it.id }
+        return LedgerContext(owner, ledgerAccounts)
+    }
+
+    /** Engine-ledger rows for one account's own history (reconciliation reports only). */
     suspend fun ledgerRowsFor(account: AccountEntity): List<LedgerRow> =
         ledgerRowsFor(transactionDao.findByAccount(account.id), account.accountType)
 
@@ -58,17 +79,65 @@ class AccountingService @Inject constructor(
         rows.sortedWith(compareBy<TransactionEntity> { it.occurredAtEpochMillis }.thenBy { it.id })
             .mapIndexed { seq, txn -> txn.from(accountType, seq) }
 
-    /** Clock-equivalent of the engine's deterministic walk for one account. */
+    /**
+     * The ledger rows for the money pool an account belongs to. Parent bank rows and linked
+     * debit-card rows are merged exactly once and classified with the OWNER's account type, so a
+     * card purchase is an ordinary asset movement instead of a phantom credit-card purchase.
+     */
+    private suspend fun consolidatedLedgerRowsFor(
+        account: AccountEntity,
+        all: List<AccountEntity>
+    ): List<LedgerRow> {
+        val context = contextFor(account, all)
+        val rows = context.ledgerAccounts.flatMap { transactionDao.findByAccount(it.id) }
+        return ledgerRowsFor(rows, context.owner.accountType)
+    }
+
+    /** Clock-equivalent of the engine's deterministic walk for the account's money pool. */
     suspend fun balanceStateFor(account: AccountEntity): AccountBalanceState =
-        AccountingEngine.balanceState(ledgerRowsFor(account))
+        balanceStateFor(account, accountDao.findAll())
+
+    private suspend fun balanceStateFor(
+        account: AccountEntity,
+        all: List<AccountEntity>
+    ): AccountBalanceState =
+        AccountingEngine.balanceState(consolidatedLedgerRowsFor(account, all))
+
+    /** Every write that touches one member of a linked family must refresh the whole family. */
+    private fun affectedAccountIds(
+        requested: List<AccountEntity>,
+        all: List<AccountEntity>
+    ): Set<Long> {
+        val result = mutableSetOf<Long>()
+        for (account in requested) {
+            result += account.id
+            val parentId = account.parentAccountId
+            if (parentId != null) {
+                result += parentId
+                result += all.filter { it.parentAccountId == parentId }.map { it.id }
+            } else {
+                result += all.filter { it.parentAccountId == account.id }.map { it.id }
+            }
+        }
+        return result
+    }
 
     /** Recomputed derived-state for one or more accounts, persisted. Deterministic. */
     suspend fun recalculateAccounts(accountIds: Set<Long>) {
         if (accountIds.isEmpty()) return
-        val accounts = accountDao.findByIds(accountIds)
+        val all = accountDao.findAll()
+        val affected = affectedAccountIds(accountDao.findByIds(accountIds), all)
+        recalculate(all.filter { it.id in affected }, all)
+    }
+
+    private suspend fun recalculate(accounts: List<AccountEntity>, all: List<AccountEntity>) {
+        if (accounts.isEmpty()) return
+        val byId = all.associateBy { it.id }
+        val owners = accounts.map { ownerOf(it, byId) }.distinctBy { it.id }
+        val states = owners.associateWith { balanceStateFor(it, all) }
         for (account in accounts) {
-            val state = balanceStateFor(account)
-            persist(account, state)
+            val owner = ownerOf(account, byId)
+            persist(account, owner, states.getValue(owner), all)
         }
         refreshCreditCardStatements(accounts)
     }
@@ -86,24 +155,60 @@ class AccountingService @Inject constructor(
         }
     }
 
+    /**
+     * Old builds kept a linked debit card's spending out of the parent bank's balance. Capture
+     * the value the user already sees as a checkpoint BEFORE switching to the consolidated
+     * ledger, so enabling this model never makes historical card spending disappear twice.
+     */
+    suspend fun preserveExistingLinkedBalances() {
+        val all = accountDao.findAll()
+        val now = System.currentTimeMillis()
+        for (parent in all) {
+            if (all.none { it.parentAccountId == parent.id }) continue
+            val derived = derivedBalancesFor(parent, all).autoBalanceMinorUnits
+            // Keep an existing user's stated balance/timestamp; only re-anchor the offset so the
+            // displayed value is unchanged once child rows start participating in the ledger.
+            accountDao.update(
+                parent.copy(
+                    manualBalanceOverrideMinorUnits = parent.manualBalanceOverrideMinorUnits
+                        ?: parent.currentBalanceMinorUnits,
+                    manualBalanceOverrideAtEpochMillis = parent.manualBalanceOverrideAtEpochMillis ?: now,
+                    manualBalanceAdjustmentMinorUnits = AccountingEngine.checkpointAdjustment(
+                        enteredBalanceMinorUnits = parent.currentBalanceMinorUnits,
+                        derivedBalanceMinorUnits = derived
+                    )
+                )
+            )
+        }
+    }
+
     /** Repair legacy imported account metadata before any screen reads derived balances. */
     suspend fun repairAndRecalculateAll() {
         accountDao.repairMoneyviewCashAccount()
+        preserveExistingLinkedBalances()
         recalculateAll()
     }
 
     suspend fun recalculateAll() {
-        val accounts = accountDao.findAll()
-        for (account in accounts) {
-            persist(account, balanceStateFor(account))
-        }
-        refreshCreditCardStatements(accounts)
+        val all = accountDao.findAll()
+        recalculate(all, all)
     }
 
-    private suspend fun persist(account: AccountEntity, state: AccountBalanceState) {
+    /**
+     * Persists a derived state computed for [owner] onto [target]. For an ordinary account both
+     * are the same row; for a linked debit card the parent's balance/checkpoint is mirrored so
+     * every screen, edit form and export sees one shared number without duplicating a ledger.
+     */
+    private suspend fun persist(
+        target: AccountEntity,
+        owner: AccountEntity,
+        state: AccountBalanceState,
+        all: List<AccountEntity>
+    ) {
         val now = System.currentTimeMillis()
-        val isCard = account.accountType == AccountType.CREDIT_CARD
-        val ledger = if (isCard) ledgerRowsFor(account) else emptyList()
+        val isCard = owner.accountType == AccountType.CREDIT_CARD
+        val context = contextFor(owner, all)
+        val ledger = if (isCard) consolidatedLedgerRowsFor(owner, all) else emptyList()
 
         // ----------------------------------------------------------------
         // Balance (non-card accounts)
@@ -111,26 +216,26 @@ class AccountingService @Inject constructor(
         // Auto balance is what the account would show with no user checkpoint. It is the same
         // formula every screen uses; the checkpoint is an offset on top of it, never a
         // replacement history.
-        val autoBalance = when (account.balanceSource) {
+        val autoBalance = when (owner.balanceSource) {
             AccountBalanceSource.ESTIMATED -> if (state.lastReportedBalanceMinorUnits != null) {
                 state.lastReportedBalanceMinorUnits + state.adjustedCreditMinorUnits - state.adjustedDebitMinorUnits
             } else {
                 state.calculatedBalanceMinorUnits
             }
-            AccountBalanceSource.REPORTED -> account.lastReportedBalanceMinorUnits ?: state.calculatedBalanceMinorUnits
+            AccountBalanceSource.REPORTED -> owner.lastReportedBalanceMinorUnits ?: state.calculatedBalanceMinorUnits
         }
 
         // Legacy upgrade path: older builds stored only an absolute override plus the already
         // displayed current balance. Capture the equivalent durable offset once, so the value
         // the user was seeing is preserved and later (including backdated) movements apply.
-        var balanceAdjustment = account.manualBalanceAdjustmentMinorUnits
-        if (!isCard && account.manualBalanceOverrideMinorUnits != null && balanceAdjustment == null) {
+        var balanceAdjustment = owner.manualBalanceAdjustmentMinorUnits
+        if (!isCard && owner.manualBalanceOverrideMinorUnits != null && balanceAdjustment == null) {
             balanceAdjustment = AccountingEngine.checkpointAdjustment(
-                enteredBalanceMinorUnits = account.currentBalanceMinorUnits,
+                enteredBalanceMinorUnits = owner.currentBalanceMinorUnits,
                 derivedBalanceMinorUnits = autoBalance
             )
         }
-        val displayedBalance = if (!isCard && account.manualBalanceOverrideMinorUnits != null) {
+        val displayedBalance = if (!isCard && owner.manualBalanceOverrideMinorUnits != null) {
             AccountingEngine.effectiveBalanceWithCheckpoint(autoBalance, balanceAdjustment)
         } else {
             autoBalance
@@ -144,59 +249,62 @@ class AccountingService @Inject constructor(
         // is used. The user checkpoint is applied as an offset on top of that base, which is
         // what makes an edited outstanding survive every recalculation while future purchases
         // and payments still move it.
-        var checkpointAmount = account.outstandingCheckpointMinorUnits
-        var checkpointAt = account.outstandingCheckpointAtEpochMillis
-        val checkpointWatermark = account.outstandingCheckpointTransactionId
+        var checkpointAmount = owner.outstandingCheckpointMinorUnits
+        var checkpointAt = owner.outstandingCheckpointAtEpochMillis
+        val checkpointWatermark = owner.outstandingCheckpointTransactionId
         val baseOutstanding = if (isCard) {
             if (checkpointAmount != null && checkpointWatermark != null) {
-                val postCheckpoint = transactionDao.findByAccount(account.id)
+                val postCheckpoint = context.ledgerAccounts
+                    .flatMap { transactionDao.findByAccount(it.id) }
                     .filter { it.id > checkpointWatermark && !it.isHistoricalImport }
-                checkpointAmount + ledgerRowsFor(postCheckpoint, account.accountType)
+                checkpointAmount + ledgerRowsFor(postCheckpoint, owner.accountType)
                     .sumOf { it.movement.cardOutstandingDeltaMinorUnits }
             } else {
                 state.outstandingMinorUnits ?: ledger.sumOf { it.movement.cardOutstandingDeltaMinorUnits }
             }
         } else 0L
-        var checkoutAdjustment = account.outstandingAdjustmentMinorUnits
-        if (isCard && checkpointWatermark == null && checkoutAdjustment == null && account.outstandingMinorUnits != null) {
+        var checkoutAdjustment = owner.outstandingAdjustmentMinorUnits
+        if (isCard && checkpointWatermark == null && checkoutAdjustment == null && owner.outstandingMinorUnits != null) {
             // One-time capture of the value an existing user already sees.
             checkoutAdjustment = AccountingEngine.checkpointAdjustment(
-                enteredBalanceMinorUnits = account.outstandingMinorUnits,
+                enteredBalanceMinorUnits = owner.outstandingMinorUnits,
                 derivedBalanceMinorUnits = baseOutstanding
             )
-            checkpointAmount = account.outstandingMinorUnits
-            checkpointAt = account.updatedAtEpochMillis
+            checkpointAmount = owner.outstandingMinorUnits
+            checkpointAt = owner.updatedAtEpochMillis
         }
         // A full-settlement discount is included in the card-side credit on current builds.
         // Only legacy rows where the card leg still equals the smaller bank debit are
         // subtracted here, so the same bill never reduces the outstanding twice.
         val billSettlementAdjustments = if (isCard) {
             billDao.sumUnreflectedSettlementAdjustmentsForAccount(
-                account.id,
+                owner.id,
                 afterEpochMillis = checkpointAt ?: Long.MIN_VALUE
             )
         } else 0L
         val baseEffectiveOutstanding = if (isCard) {
             if (checkpointAmount != null && checkpointWatermark != null) baseOutstanding
             else AccountingEngine.effectiveBalanceWithCheckpoint(baseOutstanding, checkoutAdjustment)
-        } else account.outstandingMinorUnits
+        } else owner.outstandingMinorUnits
         val effectiveOutstanding = if (baseEffectiveOutstanding != null) {
             baseEffectiveOutstanding - billSettlementAdjustments
         } else null
         // The limit the USER typed wins over the one the engine can derive from imported
         // statement snapshots - otherwise an imported card's limit could never be corrected.
         val creditLimit = if (isCard) {
-            account.creditLimitOverrideMinorUnits
+            owner.creditLimitOverrideMinorUnits
                 ?: state.creditLimitMinorUnits
-                ?: account.creditLimitMinorUnits
-        } else account.creditLimitMinorUnits
+                ?: owner.creditLimitMinorUnits
+        } else owner.creditLimitMinorUnits
         val availableLimit = if (isCard && creditLimit != null && effectiveOutstanding != null) {
             creditLimit - effectiveOutstanding
         } else {
-            account.availableLimitMinorUnits
+            owner.availableLimitMinorUnits
         }
+        // The card is a view of the parent's money: it must never keep its own manual override.
+        val linkedChild = owner.id != target.id
 
-        val updated = account.copy(
+        val updated = target.copy(
             startingBalanceMinorUnits = state.startingBalanceMinorUnits,
             calculatedBalanceMinorUnits = state.calculatedBalanceMinorUnits,
             calculatedBalanceFromHistoryMinorUnits = state.calculatedBalanceFromHistoryMinorUnits,
@@ -208,17 +316,19 @@ class AccountingService @Inject constructor(
             adjustedCreditMinorUnits = state.adjustedCreditMinorUnits,
             adjustedDebitMinorUnits = state.adjustedDebitMinorUnits,
             lastReportedBalanceMinorUnits = state.lastReportedBalanceMinorUnits
-                ?: account.lastReportedBalanceMinorUnits,
+                ?: owner.lastReportedBalanceMinorUnits,
             lastReportedAtEpochMillis = state.lastReportedAtEpochMillis
-                ?: account.lastReportedAtEpochMillis,
-            manualBalanceAdjustmentMinorUnits = if (isCard) account.manualBalanceAdjustmentMinorUnits else balanceAdjustment,
-            outstandingCheckpointMinorUnits = checkpointAmount,
-            outstandingCheckpointAtEpochMillis = checkpointAt,
-            outstandingCheckpointTransactionId = account.outstandingCheckpointTransactionId,
-            outstandingAdjustmentMinorUnits = checkoutAdjustment,
-            outstandingMinorUnits = effectiveOutstanding,
-            availableLimitMinorUnits = availableLimit,
-            creditLimitMinorUnits = creditLimit,
+                ?: owner.lastReportedAtEpochMillis,
+            manualBalanceOverrideMinorUnits = if (linkedChild) null else target.manualBalanceOverrideMinorUnits,
+            manualBalanceOverrideAtEpochMillis = if (linkedChild) null else target.manualBalanceOverrideAtEpochMillis,
+            manualBalanceAdjustmentMinorUnits = if (isCard) target.manualBalanceAdjustmentMinorUnits else balanceAdjustment,
+            outstandingCheckpointMinorUnits = if (isCard) checkpointAmount else target.outstandingCheckpointMinorUnits,
+            outstandingCheckpointAtEpochMillis = if (isCard) checkpointAt else target.outstandingCheckpointAtEpochMillis,
+            outstandingCheckpointTransactionId = if (isCard) owner.outstandingCheckpointTransactionId else target.outstandingCheckpointTransactionId,
+            outstandingAdjustmentMinorUnits = if (isCard) checkoutAdjustment else target.outstandingAdjustmentMinorUnits,
+            outstandingMinorUnits = if (isCard) effectiveOutstanding else target.outstandingMinorUnits,
+            availableLimitMinorUnits = if (isCard) availableLimit else target.availableLimitMinorUnits,
+            creditLimitMinorUnits = if (isCard) creditLimit else target.creditLimitMinorUnits,
             updatedAtEpochMillis = now
         )
         accountDao.update(updated)
@@ -229,19 +339,26 @@ class AccountingService @Inject constructor(
         transactionDao.maxIdForAccount(accountId)
 
     /** The engine-derived balance/outstanding BEFORE any user checkpoint. Screens that save a
-     *  new checkpoint use this as the offset baseline. */
-    suspend fun derivedBalancesFor(account: AccountEntity): DerivedAccountBalances {
-        val state = balanceStateFor(account)
-        val autoBalance = when (account.balanceSource) {
+     *  new checkpoint use this as the offset baseline. A linked card resolves to its parent. */
+    suspend fun derivedBalancesFor(account: AccountEntity): DerivedAccountBalances =
+        derivedBalancesFor(account, accountDao.findAll())
+
+    private suspend fun derivedBalancesFor(
+        account: AccountEntity,
+        all: List<AccountEntity>
+    ): DerivedAccountBalances {
+        val owner = contextFor(account, all).owner
+        val state = balanceStateFor(owner, all)
+        val autoBalance = when (owner.balanceSource) {
             AccountBalanceSource.ESTIMATED -> if (state.lastReportedBalanceMinorUnits != null) {
                 state.lastReportedBalanceMinorUnits + state.adjustedCreditMinorUnits - state.adjustedDebitMinorUnits
             } else {
                 state.calculatedBalanceMinorUnits
             }
-            AccountBalanceSource.REPORTED -> account.lastReportedBalanceMinorUnits ?: state.calculatedBalanceMinorUnits
+            AccountBalanceSource.REPORTED -> owner.lastReportedBalanceMinorUnits ?: state.calculatedBalanceMinorUnits
         }
         val baseOutstanding = state.outstandingMinorUnits
-            ?: ledgerRowsFor(account).sumOf { it.movement.cardOutstandingDeltaMinorUnits }
+            ?: consolidatedLedgerRowsFor(owner, all).sumOf { it.movement.cardOutstandingDeltaMinorUnits }
         return DerivedAccountBalances(autoBalance, baseOutstanding)
     }
 

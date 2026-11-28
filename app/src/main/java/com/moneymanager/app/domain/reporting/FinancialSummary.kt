@@ -93,12 +93,26 @@ object FinancialSummary {
     fun accountMap(accounts: List<AccountEntity>): Map<Long, AccountEntity> =
         accounts.associateBy { it.id }
 
-    /** True when this row belongs to an account class that participates in combined totals. */
-    fun accountIncludedForStats(transaction: TransactionEntity, accounts: Map<Long, AccountEntity>): Boolean =
-        accounts[transaction.accountId]?.let { isIncluded(it) } ?: false
+    /** A linked debit card reports through its parent bank, so use the parent's inclusion and
+     *  classification rules for the child's rows. */
+    private fun reportingAccount(
+        account: AccountEntity?,
+        accounts: Map<Long, AccountEntity>
+    ): AccountEntity? =
+        account?.parentAccountId?.let { accounts[it] } ?: account
+
+    /** True when this row belongs to an account class that participates in combined totals.
+     *  A linked child and its parent must both be active/visible, matching the SQL analytics
+     *  filter; resolving through the parent must not resurrect a hidden or archived child's rows. */
+    fun accountIncludedForStats(transaction: TransactionEntity, accounts: Map<Long, AccountEntity>): Boolean {
+        val account = accounts[transaction.accountId] ?: return false
+        if (!account.active || account.deleted || account.hide || account.hideAccountTxns) return false
+        return reportingAccount(account, accounts)?.let { isIncluded(it) } ?: false
+    }
 
     fun semanticsOf(transaction: TransactionEntity, accounts: Map<Long, AccountEntity>): TransactionSemantics {
-        val type = accounts[transaction.accountId]?.accountType ?: AccountType.UNKNOWN
+        val type = reportingAccount(accounts[transaction.accountId], accounts)?.accountType
+            ?: AccountType.UNKNOWN
         return TransactionClassifier.classify(transaction.txnSubType, transaction.txnKind, type)
     }
 

@@ -25,9 +25,9 @@ import javax.inject.Singleton
  *  - Paid instances and instances with a linked payment are never deleted or regenerated.
  *  - The next due date is advanced from the schedule, never from the date a bill was marked
  *    paid.
- *  - A CREDIT-CARD biller's occurrence amounts come from the card's own statement for the
- *    cycle that occurrence settles (see [CreditCardStatement]); a cycle that has not started
- *    yet has no statement yet and falls back to an estimate.
+ *  - A CREDIT-CARD biller's occurrence amounts come from the card's current, checkpoint-adjusted
+ *    statement. The card screen and the Bills screen must show the same number; reconstructing a
+ *    closed cycle from the ledger alone made the Bills list disagree with an edited card.
  */
 @Singleton
 class BillRecurrenceService @Inject constructor(
@@ -42,8 +42,18 @@ class BillRecurrenceService @Inject constructor(
 
     suspend fun reconcileBill(billId: Long, now: Long = System.currentTimeMillis()) {
         val bill = billDao.findById(billId) ?: return
+        // Every reconciliation entry point - startup, foreground, worker, bill edit and payment -
+        // must leave a card-linked bill showing the card's current statement. Doing this before
+        // the active check also repairs a disabled but still persisted card bill.
+        syncCardLinkedAmounts(bill, now)
         if (!bill.active) return
         reconcile(bill, now)
+    }
+
+    /** Re-prices a card-linked bill and all of its unpaid occurrences from the card statement. */
+    suspend fun syncCardBillAmounts(billId: Long, now: Long = System.currentTimeMillis()) {
+        val bill = billDao.findById(billId) ?: return
+        syncCardLinkedAmounts(bill, now)
     }
 
     /**
@@ -53,6 +63,7 @@ class BillRecurrenceService @Inject constructor(
      */
     suspend fun reconcileAfterEdit(billId: Long, now: Long = System.currentTimeMillis()) {
         val bill = billDao.findById(billId) ?: return
+        syncCardLinkedAmounts(bill, now)
         if (!bill.active) return
         val anchor = BillSchedule.anchorDay(bill.nextDueDateEpochMillis, bill.scheduleAnchorDay)
         val scheduled = HashSet<Long>()
@@ -158,32 +169,46 @@ class BillRecurrenceService @Inject constructor(
     }
 
     /**
+     * Card-linked bills are a projection of the card's checkpoint-adjusted statement. A paid
+     * instance is history and is never rewritten; an unpaid instance stores `statement + paid`
+     * so the row's displayed remainder still equals the statement after a partial payment.
+     */
+    private suspend fun syncCardLinkedAmounts(bill: BillEntity, now: Long) {
+        val cardId = bill.linkedAccountId ?: return
+        val card = accountDao.findById(cardId) ?: return
+        if (card.accountType != AccountType.CREDIT_CARD) return
+        val statement = statementService.currentStatementMinorUnits(card)
+        if (bill.estimatedAmountMinorUnits != statement) {
+            billDao.update(
+                bill.copy(
+                    estimatedAmountMinorUnits = statement,
+                    updatedAtEpochMillis = now
+                )
+            )
+        }
+        billDao.findInstancesForBill(bill.id)
+            .filter { !it.paid }
+            .forEach { instance ->
+                val desired = statement + instance.paidAmountMinorUnits
+                if (instance.amountDueMinorUnits != desired) {
+                    billDao.updateInstance(instance.copy(amountDueMinorUnits = desired))
+                }
+            }
+    }
+
+    /**
      * The amount one occurrence is due.
      *
-     * A credit-card biller takes its amount from the card's own statement: the occurrence that
-     * falls due on [dueEpochMillis] settles the statement cycle that closed
-     * [CreditCardStatement.DUE_LAG_DAYS] earlier, and that cycle's statement is a fact once
-     * the cycle closed. While the cycle is still running the statement is what the card owes
-     * right now, so the amount keeps moving with the card. A cycle that has not started yet
-     * has no statement - the previous cycle's statement (the "previous month's bill") is used
-     * as the estimate, falling back to the user's stored estimate.
-     *
-     * Every other biller keeps its stored estimate.
+     * A credit-card biller always uses the card's current, checkpoint-adjusted statement. That
+     * is the single number the card screen and the card edit screen show, so the Bills list can
+     * never drift away from it after a restart or a manual correction. Every other biller keeps
+     * its stored estimate.
      */
     private suspend fun amountDueFor(bill: BillEntity, dueEpochMillis: Long, now: Long): Long {
         val cardId = bill.linkedAccountId ?: return bill.estimatedAmountMinorUnits
         val card = accountDao.findById(cardId) ?: return bill.estimatedAmountMinorUnits
         if (card.accountType != AccountType.CREDIT_CARD) return bill.estimatedAmountMinorUnits
-
-        val cycleStartDay = card.billingCycleStartDay ?: 1
-        val cycle = CreditCardStatement.cycleSettledByDueDate(cycleStartDay, dueEpochMillis)
-        val statement = statementService.statementForCycle(card, cycle, now)
-        if (statement != null) return statement
-
-        // The cycle has not started: estimate from the most recent statement that exists -
-        // the bill is expected to be about last month's statement.
-        val previous = statementService.estimateStatementForCycle(card, cycle, now)
-        return previous ?: bill.estimatedAmountMinorUnits
+        return statementService.currentStatementMinorUnits(card)
     }
 
     private companion object {

@@ -3,6 +3,7 @@ package com.moneymanager.app.data
 import androidx.room.Room
 import com.moneymanager.app.data.local.db.MoneyManagerDatabase
 import com.moneymanager.app.data.local.entity.AccountEntity
+import com.moneymanager.app.data.local.entity.BillInstanceEntity
 import com.moneymanager.app.data.repository.BackupManager
 import com.moneymanager.app.data.repository.BillRepository
 import com.moneymanager.app.data.repository.CreditCardBillingService
@@ -201,22 +202,34 @@ class CreditCardStatementServiceTest {
     }
 
     @Test
-    fun aClosedCycleKeepsTheAmountItClosedWith() = runBlocking {
+    fun theBillOccurrenceAlwaysFollowsTheCardsCurrentStatement() = runBlocking {
         val cardId = insertCard()
         purchase(cardId, 5_000L, at(2026, 10, 5))
 
-        // The next cycle opens on 1 Nov; spending after that belongs to the next statement.
+        // Spending in the next cycle used to leave the Bills occurrence on the closed-cycle
+        // snapshot while the card screen showed the full amount. Both must agree.
         purchase(cardId, 3_000L, at(2026, 11, 3))
         billing.refreshCard(cardId, at(2026, 11, 10))
 
         val bill = db.billDao().findByLinkedAccountId(cardId)!!
-        val instance = db.billDao().findInstancesForBill(bill.id)
-            .first { it.dueDateEpochMillis == at(2026, 11, 21) }
+        val instances = db.billDao().findInstancesForBill(bill.id)
+        val instance = instances.first { it.dueDateEpochMillis == at(2026, 11, 21) }
+        val outstanding = db.accountDao().findById(cardId)!!.outstandingMinorUnits
         assertEquals(
-            "the October statement closed with what was owed on 31 Oct",
-            5_000L,
+            "the Bills occurrence shows the same number as the card screen",
+            outstanding,
             instance.amountDueMinorUnits
         )
+        assertEquals(8_000L, instance.amountDueMinorUnits)
+        val unpaid = instances.filter { !it.paid }
+        assertTrue("there must be an unpaid occurrence to audit", unpaid.isNotEmpty())
+        unpaid.forEach {
+            assertEquals(
+                "every unpaid occurrence must move with the card statement",
+                outstanding,
+                it.amountDueMinorUnits
+            )
+        }
     }
 
     @Test
@@ -290,6 +303,100 @@ class CreditCardStatementServiceTest {
             card.billAmountMinorUnits
         )
         assertEquals(card.billAmountMinorUnits, occurrenceAmount(cardId))
+    }
+
+    @Test
+    fun aManualCorrectionAndPartialPaymentAreReflectedInTheBillsAmount() = runBlocking {
+        val cardId = insertCard()
+        purchase(cardId, 5_000L, at(2026, 10, 5))
+        refresh(cardId)
+        val bill = db.billDao().findByLinkedAccountId(cardId)!!
+        val instance = db.billDao().findInstancesForBill(bill.id).minByOrNull {
+            it.dueDateEpochMillis
+        }!!
+        db.billDao().updateInstance(instance.copy(paidAmountMinorUnits = 500L))
+
+        // This is what the card edit form writes when the user corrects the outstanding.
+        val card = db.accountDao().findById(cardId)!!
+        db.accountDao().update(
+            card.copy(
+                outstandingMinorUnits = 4_500L,
+                outstandingCheckpointMinorUnits = 4_500L,
+                outstandingCheckpointAtEpochMillis = now,
+                outstandingCheckpointTransactionId = card.outstandingCheckpointTransactionId ?: 0L,
+                outstandingAdjustmentMinorUnits = 4_500L
+            )
+        )
+
+        billing.refreshCard(cardId, now)
+
+        val refreshed = db.billDao().findInstanceById(instance.id)!!
+        assertEquals(4_500L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
+        assertEquals(5_000L, refreshed.amountDueMinorUnits)
+        assertEquals(4_500L, refreshed.amountDueMinorUnits - refreshed.paidAmountMinorUnits)
+    }
+
+    @Test
+    fun foregroundRefreshRepairsOccurrencesLeftStaleByEarlierReconciliation() = runBlocking {
+        val cardId = insertCard()
+        purchase(cardId, 5_000L, at(2026, 10, 5))
+        refresh(cardId)
+        val bill = db.billDao().findByLinkedAccountId(cardId)!!
+        val instance = db.billDao().findInstancesForBill(bill.id).first()
+        db.billDao().updateInstance(instance.copy(amountDueMinorUnits = 9_999L))
+
+        // MainActivity/Application run reconcileAll() before refreshAllCards(). Even if an
+        // earlier pass wrote a stale amount, the foreground refresh must be the final word.
+        db.billRecurrenceService().reconcileAll(now)
+        billing.refreshAllCards(now)
+
+        val outstanding = db.accountDao().findById(cardId)!!.outstandingMinorUnits
+        assertEquals(5_000L, outstanding)
+        assertEquals(outstanding, db.billDao().findInstanceById(instance.id)!!.amountDueMinorUnits)
+    }
+
+    @Test
+    fun workerReconciliationRepairsStaleCardBillAmounts() = runBlocking {
+        val cardId = insertCard()
+        purchase(cardId, 5_000L, at(2026, 10, 5))
+        refresh(cardId)
+        val bill = db.billDao().findByLinkedAccountId(cardId)!!
+        val instance = db.billDao().findInstancesForBill(bill.id).first()
+        db.billDao().update(bill.copy(estimatedAmountMinorUnits = 1L))
+        db.billDao().updateInstance(instance.copy(amountDueMinorUnits = 9_999L))
+
+        // The background worker only calls reconcileAll(); it must still leave the card bill
+        // showing the same number as the card screen.
+        db.billRecurrenceService().reconcileAll(now)
+
+        val outstanding = db.accountDao().findById(cardId)!!.outstandingMinorUnits
+        assertEquals(outstanding, db.billDao().findById(bill.id)!!.estimatedAmountMinorUnits)
+        assertEquals(outstanding, db.billDao().findInstanceById(instance.id)!!.amountDueMinorUnits)
+    }
+
+    @Test
+    fun billEditReconciliationRepairsFutureCardBillAmounts() = runBlocking {
+        val cardId = insertCard()
+        purchase(cardId, 5_000L, at(2026, 10, 5))
+        refresh(cardId)
+        val bill = db.billDao().findByLinkedAccountId(cardId)!!
+        val futureId = db.billDao().insertInstanceIgnore(
+            BillInstanceEntity(
+                billId = bill.id,
+                dueDateEpochMillis = at(2026, 12, 21),
+                amountDueMinorUnits = 111L
+            )
+        )
+        db.billDao().update(bill.copy(estimatedAmountMinorUnits = 1L))
+
+        db.billRecurrenceService().reconcileAfterEdit(bill.id, now)
+
+        val outstanding = db.accountDao().findById(cardId)!!.outstandingMinorUnits
+        assertEquals(outstanding, db.billDao().findById(bill.id)!!.estimatedAmountMinorUnits)
+        db.billDao().findInstancesForBill(bill.id).filter { !it.paid }.forEach {
+            assertEquals(outstanding, it.amountDueMinorUnits)
+        }
+        assertTrue("the future occurrence is still scheduled", futureId > 0L)
     }
 
     @Test

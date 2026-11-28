@@ -64,7 +64,11 @@ class FinancialSummaryRangeTest {
         )
     )
 
-    private suspend fun insertExpense(occurredAt: Long, amount: Long) = db.transactionDao().insert(
+    private suspend fun insertExpense(
+        occurredAt: Long,
+        amount: Long,
+        accountId: Long = bankId
+    ) = db.transactionDao().insert(
         TransactionEntity(
             occurredAtEpochMillis = occurredAt,
             rawDateString = "",
@@ -77,7 +81,7 @@ class FinancialSummaryRangeTest {
             merchantReceiverSender = "Shop",
             categoryId = null,
             rawCategoryName = null,
-            accountId = bankId,
+            accountId = accountId,
             creditMinorUnits = 0,
             debitMinorUnits = amount,
             balanceSnapshotMinorUnits = null,
@@ -150,5 +154,73 @@ class FinancialSummaryRangeTest {
             .sumOf { it.total }
 
         assertEquals("Category breakdown must reconcile with the month total", total, categorySum)
+    }
+
+    @Test
+    fun linkedDebitCardSpendIsIncludedInSqlSpendThroughTheParent() = runBlocking {
+        val cardId = db.accountDao().insert(
+            AccountEntity(
+                sourceAccountId = "range-debit-card",
+                institutionName = "Bank",
+                nickname = "Debit Card",
+                accountType = AccountType.DEBIT_CARD,
+                businessPersonal = BusinessPersonal.PERSONAL,
+                openingBalanceMinorUnits = 0,
+                currentBalanceMinorUnits = 0,
+                parentAccountId = bankId,
+                createdAtEpochMillis = 0,
+                updatedAtEpochMillis = 0
+            )
+        )
+        val monthStart = monthStart(2025, 6)
+        val monthEnd = monthStart(2025, 7)
+        insertExpense(monthStart + 1_000L, 1_200L, accountId = cardId)
+        insertExpense(monthStart + 2_000L, 800L)
+
+        val total = db.transactionDao().observeTotalSpendInRange(monthStart, monthEnd).first()
+        val accounts = db.accountDao().observeAll().first()
+        val memoryTotal = FinancialSummary.spendTotalMinor(
+            db.transactionDao().findInRange(monthStart, monthEnd),
+            FinancialSummary.accountMap(accounts),
+            FinancialSummary.Period(monthStart, monthEnd)
+        )
+
+        assertEquals(2_000L, total)
+        assertEquals(total, memoryTotal)
+    }
+
+    @Test
+    fun hiddenLinkedCardSpendIsExcludedByBothSqlAndFinancialSummary() = runBlocking {
+        val hiddenCardId = db.accountDao().insert(
+            AccountEntity(
+                sourceAccountId = "range-hidden-debit-card",
+                institutionName = "Bank",
+                nickname = "Hidden Debit Card",
+                accountType = AccountType.DEBIT_CARD,
+                businessPersonal = BusinessPersonal.PERSONAL,
+                openingBalanceMinorUnits = 0,
+                currentBalanceMinorUnits = 0,
+                parentAccountId = bankId,
+                active = true,
+                hide = true,
+                createdAtEpochMillis = 0,
+                updatedAtEpochMillis = 0
+            )
+        )
+        val monthStart = monthStart(2025, 6)
+        val monthEnd = monthStart(2025, 7)
+        insertExpense(monthStart + 1_000L, 9_999L, accountId = hiddenCardId)
+        insertExpense(monthStart + 2_000L, 800L)
+
+        val sqlTotal = db.transactionDao().observeTotalSpendInRange(monthStart, monthEnd).first()
+        val accounts = db.accountDao().observeAll().first()
+        val memoryTotal = FinancialSummary.spendTotalMinor(
+            db.transactionDao().findInRange(monthStart, monthEnd),
+            FinancialSummary.accountMap(accounts),
+            FinancialSummary.Period(monthStart, monthEnd)
+        )
+
+        assertEquals(800L, sqlTotal)
+        assertEquals("the in-memory summary must apply the same visibility filter", sqlTotal, memoryTotal)
     }
 }

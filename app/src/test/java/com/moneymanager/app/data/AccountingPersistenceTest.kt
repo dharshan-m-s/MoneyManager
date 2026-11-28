@@ -47,21 +47,25 @@ class AccountingPersistenceTest {
     private fun at(day: Int): Long =
         com.moneymanager.app.domain.billing.BillSchedule.epochOf(LocalDate.of(2026, 10, day))
 
-    private suspend fun insertAccount(type: AccountType, current: Long = 0L): Long =
-        db.accountDao().insert(
-            AccountEntity(
-                sourceAccountId = "test-${type.name}-${System.nanoTime()}",
-                institutionName = "Test",
-                nickname = "Test ${type.name}",
-                accountType = type,
-                businessPersonal = BusinessPersonal.PERSONAL,
-                openingBalanceMinorUnits = 0,
-                currentBalanceMinorUnits = current,
-                creditLimitMinorUnits = if (type == AccountType.CREDIT_CARD) 100_000L else null,
-                createdAtEpochMillis = 0,
-                updatedAtEpochMillis = 0
-            )
+    private suspend fun insertAccount(
+        type: AccountType,
+        current: Long = 0L,
+        parentId: Long? = null
+    ): Long = db.accountDao().insert(
+        AccountEntity(
+            sourceAccountId = "test-${type.name}-${System.nanoTime()}",
+            institutionName = "Test",
+            nickname = "Test ${type.name}",
+            accountType = type,
+            businessPersonal = BusinessPersonal.PERSONAL,
+            openingBalanceMinorUnits = 0,
+            currentBalanceMinorUnits = current,
+            creditLimitMinorUnits = if (type == AccountType.CREDIT_CARD) 100_000L else null,
+            parentAccountId = parentId,
+            createdAtEpochMillis = 0,
+            updatedAtEpochMillis = 0
         )
+    )
 
     private fun txn(
         accountId: Long,
@@ -101,15 +105,17 @@ class AccountingPersistenceTest {
     /** Simulates AccountEditViewModel saving a deliberate checkpoint. */
     private suspend fun setManualBalance(accountId: Long, entered: Long, now: Long) {
         val account = db.accountDao().findById(accountId)!!
-        val derived = service.derivedBalancesFor(account).autoBalanceMinorUnits
+        // The editor routes a linked card's checkpoint to its parent bank.
+        val target = account.parentAccountId?.let { db.accountDao().findById(it) } ?: account
+        val derived = service.derivedBalancesFor(target).autoBalanceMinorUnits
         db.accountDao().update(
-            account.copy(
+            target.copy(
                 manualBalanceOverrideMinorUnits = entered,
                 manualBalanceOverrideAtEpochMillis = now,
                 manualBalanceAdjustmentMinorUnits = AccountingEngine.checkpointAdjustment(entered, derived)
             )
         )
-        service.recalculateAccounts(setOf(accountId))
+        service.recalculateAccounts(setOf(accountId, target.id))
     }
 
     @Test
@@ -219,5 +225,103 @@ class AccountingPersistenceTest {
         service.recalculateAccounts(setOf(cardId))
         assertEquals(3_500L, db.accountDao().findById(cardId)!!.outstandingMinorUnits)
         assertEquals(3_000L, db.accountDao().findById(cardId)!!.outstandingCheckpointMinorUnits)
+    }
+
+    @Test
+    fun linkedDebitCardAndBankShareOneBalanceFromEitherTransactionPath() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK)
+        val cardId = insertAccount(AccountType.DEBIT_CARD, parentId = bankId)
+
+        db.transactionDao().insert(txn(bankId, credit = 1_000, occurredAt = at(2), subType = TxnSubType.INCOME))
+        service.recalculateAccounts(setOf(bankId))
+        assertEquals(1_000L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+        assertEquals(1_000L, db.accountDao().findById(cardId)!!.currentBalanceMinorUnits)
+
+        // Spending with the card moves the bank's money, not a separate card pot.
+        db.transactionDao().insert(txn(cardId, debit = 300, occurredAt = at(3)))
+        service.recalculateAccounts(setOf(cardId))
+        assertEquals(700L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+        assertEquals(700L, db.accountDao().findById(cardId)!!.currentBalanceMinorUnits)
+
+        // An ordinary bank transaction changes the card balance too.
+        db.transactionDao().insert(txn(bankId, debit = 100, occurredAt = at(4)))
+        service.recalculateAccounts(setOf(bankId))
+        assertEquals(600L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+        assertEquals(600L, db.accountDao().findById(cardId)!!.currentBalanceMinorUnits)
+
+        // The checkpoint belongs to the bank and is mirrored onto the card.
+        setManualBalance(cardId, entered = 5_000L, now = at(5))
+        db.transactionDao().insert(txn(cardId, debit = 50, occurredAt = at(6)))
+        service.recalculateAccounts(setOf(cardId))
+        val bank = db.accountDao().findById(bankId)!!
+        val card = db.accountDao().findById(cardId)!!
+        assertEquals(4_950L, bank.currentBalanceMinorUnits)
+        assertEquals(bank.currentBalanceMinorUnits, card.currentBalanceMinorUnits)
+        assertEquals(5_000L, bank.manualBalanceOverrideMinorUnits)
+        assertEquals(null, card.manualBalanceOverrideMinorUnits)
+    }
+
+    @Test
+    fun editingOrDeletingALinkedCardTransactionAdjustsTheBankOnce() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK)
+        val cardId = insertAccount(AccountType.DEBIT_CARD, parentId = bankId)
+        db.transactionDao().insert(txn(bankId, credit = 1_000, occurredAt = at(2), subType = TxnSubType.INCOME))
+        val purchase = txn(cardId, debit = 300, occurredAt = at(3))
+        val purchaseId = db.transactionDao().insert(purchase)
+        service.recalculateAccounts(setOf(cardId))
+        assertEquals(700L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+
+        db.transactionDao().update(purchase.copy(id = purchaseId, debitMinorUnits = 500L))
+        service.recalculateAccounts(setOf(cardId))
+        assertEquals(500L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+        assertEquals(500L, db.accountDao().findById(cardId)!!.currentBalanceMinorUnits)
+
+        db.transactionDao().deleteById(purchaseId)
+        service.recalculateAccounts(setOf(cardId))
+        assertEquals(1_000L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+        assertEquals(1_000L, db.accountDao().findById(cardId)!!.currentBalanceMinorUnits)
+    }
+
+    @Test
+    fun transfersBetweenBankCardAndThirdAccountDoNotCreateOrDestroyMoney() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK)
+        val cardId = insertAccount(AccountType.DEBIT_CARD, parentId = bankId)
+        val otherId = insertAccount(AccountType.BANK)
+        db.transactionDao().insert(txn(bankId, credit = 1_000, occurredAt = at(2), subType = TxnSubType.INCOME))
+        service.recalculateAccounts(setOf(bankId, cardId, otherId))
+
+        // Bank -> linked card is an internal movement: the shared balance must not change.
+        db.transactionDao().insert(txn(bankId, debit = 200, occurredAt = at(3), subType = TxnSubType.TRANSFER_OUT))
+        db.transactionDao().insert(txn(cardId, credit = 200, occurredAt = at(3), subType = TxnSubType.TRANSFER_IN))
+        service.recalculateAccounts(setOf(cardId))
+        assertEquals(1_000L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+        assertEquals(1_000L, db.accountDao().findById(cardId)!!.currentBalanceMinorUnits)
+
+        // Card -> third account spends the same pool once.
+        db.transactionDao().insert(txn(cardId, debit = 100, occurredAt = at(4), subType = TxnSubType.TRANSFER_OUT))
+        db.transactionDao().insert(txn(otherId, credit = 100, occurredAt = at(4), subType = TxnSubType.TRANSFER_IN))
+        service.recalculateAccounts(setOf(cardId, otherId))
+        assertEquals(900L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+        assertEquals(900L, db.accountDao().findById(cardId)!!.currentBalanceMinorUnits)
+        assertEquals(100L, db.accountDao().findById(otherId)!!.currentBalanceMinorUnits)
+    }
+
+    @Test
+    fun upgradingExistingLinkedCardDoesNotCountOldCardSpendingTwice() = runBlocking {
+        val bankId = insertAccount(AccountType.BANK, current = 5_000L)
+        val cardId = insertAccount(AccountType.DEBIT_CARD, parentId = bankId)
+        db.transactionDao().insert(txn(bankId, credit = 5_000, occurredAt = at(2), subType = TxnSubType.INCOME))
+        // Legacy builds never folded this card purchase into the bank balance the user saw.
+        db.transactionDao().insert(txn(cardId, debit = 200, occurredAt = at(3)))
+
+        service.repairAndRecalculateAll()
+        assertEquals(5_000L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+        assertEquals(5_000L, db.accountDao().findById(cardId)!!.currentBalanceMinorUnits)
+
+        // Only movements entered AFTER the upgrade move the newly shared balance.
+        db.transactionDao().insert(txn(cardId, debit = 100, occurredAt = at(4)))
+        service.recalculateAccounts(setOf(cardId))
+        assertEquals(4_900L, db.accountDao().findById(bankId)!!.currentBalanceMinorUnits)
+        assertEquals(4_900L, db.accountDao().findById(cardId)!!.currentBalanceMinorUnits)
     }
 }

@@ -45,6 +45,10 @@ interface AccountDao {
     @Query("SELECT * FROM accounts WHERE id IN (:ids)")
     suspend fun findByIds(ids: Set<Long>): List<AccountEntity>
 
+    /** Linked sub-accounts (currently debit cards) that spend from [parentId]'s balance. */
+    @Query("SELECT * FROM accounts WHERE parentAccountId = :parentId")
+    suspend fun findByParentAccountId(parentId: Long): List<AccountEntity>
+
     @Query("SELECT * FROM accounts WHERE accountType = :type ORDER BY nickname")
     fun observeByType(type: AccountType): Flow<List<AccountEntity>>
 

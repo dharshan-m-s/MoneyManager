@@ -23,6 +23,7 @@ internal fun MoneyManagerDatabase.billRecurrenceService(): BillRecurrenceService
 
 internal fun MoneyManagerDatabase.creditCardBillingService(): CreditCardBillingService =
     CreditCardBillingService(
+        this,
         accountDao(),
         billDao(),
         statementService(),

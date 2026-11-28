@@ -89,6 +89,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.documentfile.provider.DocumentFile
+import com.moneymanager.app.AccountingRepairPrefs
 import com.moneymanager.app.BuildConfig
 import com.moneymanager.app.MainActivity
 import com.moneymanager.app.data.repository.BackupManager
@@ -607,6 +608,9 @@ fun SettingsScreen(
                                     pendingRestoreUri = null
                                 }
                                 .onSuccess { result ->
+                                    // A backup can contain pre-fix balances. Force MainActivity's
+                                    // one-time accounting repair to run against the restored DB.
+                                    AccountingRepairPrefs.requireRepairOnNextLaunch(context)
                                     message(
                                         "Restored ${result.accountCount} accounts and " +
                                             "${result.transactionCount} transactions - restarting…"

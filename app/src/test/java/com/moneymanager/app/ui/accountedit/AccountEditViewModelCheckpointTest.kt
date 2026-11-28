@@ -218,6 +218,52 @@ class AccountEditViewModelCheckpointTest {
     }
 
     @Test
+    fun linkedDebitCardBalanceEditUpdatesTheParentBankCheckpoint() = runBlocking {
+        val bankId = db.accountDao().insert(
+            AccountEntity(
+                sourceAccountId = "bank-${System.nanoTime()}",
+                institutionName = "Test Bank",
+                nickname = "Test Bank",
+                accountType = AccountType.BANK,
+                businessPersonal = BusinessPersonal.PERSONAL,
+                openingBalanceMinorUnits = 0,
+                currentBalanceMinorUnits = 1_000L,
+                createdAtEpochMillis = 0,
+                updatedAtEpochMillis = 0
+            )
+        )
+        val cardId = db.accountDao().insert(
+            AccountEntity(
+                sourceAccountId = "card-${System.nanoTime()}",
+                institutionName = "Test Bank",
+                nickname = "Test Debit Card",
+                accountType = AccountType.DEBIT_CARD,
+                businessPersonal = BusinessPersonal.PERSONAL,
+                openingBalanceMinorUnits = 0,
+                currentBalanceMinorUnits = 1_000L,
+                parentAccountId = bankId,
+                createdAtEpochMillis = 0,
+                updatedAtEpochMillis = 0
+            )
+        )
+        service.recalculateAccounts(setOf(bankId, cardId))
+
+        viewModel.load(cardId)
+        pumpUntil("card form loaded") { viewModel.state.value.accountId == cardId }
+        viewModel.manualBalanceEnabled(true)
+        viewModel.currentBalance("6000")
+        viewModel.save()
+        pumpUntil("card save completes") { viewModel.state.value.saved }
+
+        val bank = db.accountDao().findById(bankId)!!
+        val card = db.accountDao().findById(cardId)!!
+        assertEquals(600_000L, bank.manualBalanceOverrideMinorUnits)
+        assertEquals(600_000L, bank.currentBalanceMinorUnits)
+        assertEquals(bank.currentBalanceMinorUnits, card.currentBalanceMinorUnits)
+        assertNull(card.manualBalanceOverrideMinorUnits)
+    }
+
+    @Test
     fun turningManualModeOffReturnsToEngineDerivedBalance() = runBlocking {
         val accountId = insertCheckpointedBankAccount()
 

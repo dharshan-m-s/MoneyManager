@@ -162,9 +162,14 @@ interface TransactionDao {
     // therefore excluded. These queries back the dashboard, budget, and Spend Areas screens so
     // every view of "spent" reconciles.
     private companion object {
+        // A linked debit card is a spending view of its parent bank. Its rows count under the
+        // parent (once) so a card purchase is not missing from spend/income; a child whose
+        // parent is hidden/deleted stays out.
         const val INCLUDED_ACCOUNT =
             "a.active = 1 AND a.deleted = 0 AND a.hide = 0 AND a.hideAccountTxns = 0 " +
-                "AND a.parentAccountId IS NULL"
+                "AND (a.parentAccountId IS NULL OR EXISTS " +
+                "(SELECT 1 FROM accounts p WHERE p.id = a.parentAccountId AND p.active = 1 " +
+                "AND p.deleted = 0 AND p.hide = 0 AND p.hideAccountTxns = 0))"
     }
 
     @Query(

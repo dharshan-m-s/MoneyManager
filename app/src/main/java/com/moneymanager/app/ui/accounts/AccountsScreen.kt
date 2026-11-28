@@ -112,7 +112,8 @@ fun AccountsScreen(
     // statistics and child accounts (their money is represented by the parent). Inactive
     // accounts are outside the statistics by definition, so their view sums them directly.
     val total = if (inactiveView) {
-        inactiveAccounts.sumOf { account ->
+        // Linked children mirror the parent's balance; counting both would double the money.
+        inactiveAccounts.filter { it.parentAccountId == null }.sumOf { account ->
             if (account.accountType == AccountType.CREDIT_CARD) {
                 account.outstandingMinorUnits ?: 0L
             } else {
